@@ -2,7 +2,7 @@
 
 > Stitching Excel, Access, and WhatsApp into one correlated view for small businesses.
 
-**Built for Kiroween 2026 Hackathon** | Category: Frankenstein | Solo Project
+**Built for Kiroween 2026 Hackathon** | Category: Frankenstein | Solo Project | Phase P0 Complete ✅
 
 ---
 
@@ -22,48 +22,78 @@ Small businesses don't run on APIs. They run on **Excel spreadsheets**, **Access
 
 ## 🚀 Quick Start
 
+### Prerequisites
+- Node.js 18+
+- Python 3.11+
+- Redis (or Docker)
+- Doppler CLI (optional, for secrets management)
+
+### Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/lefredoo/ChimeraFlow.git
 cd ChimeraFlow
 
-# Frontend (Next.js)
+# Copy environment template
+cp .env.example .env
+# Edit .env with your values
+
+# Install backend dependencies
+cd backend
+pip install -r requirements.txt
+cd ..
+
+# Install frontend dependencies
 cd frontend
 npm install
-cp .env.example .env.local
-# Edit .env.local with your configuration
-npm run dev  # http://localhost:3000
+cd ..
 
-# Backend (FastAPI)
-cd ../backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your configuration
-uvicorn main:app --reload  # http://localhost:8000
+# Generate synthetic data
+python scripts/generate_whatsapp.py
+# Excel generation requires: pip install pandas openpyxl
+python scripts/generate_excel.py
+```
+
+### Run (Development)
+
+**Option 1: Docker Compose** (Recommended)
+```bash
+docker-compose up -d
+# Frontend: http://localhost:3000 (run separately with npm run dev)
+# Backend: http://localhost:8000
+# API Docs: http://localhost:8000/docs
+```
+
+**Option 2: Manual**
+```bash
+# Terminal 1: Backend
+cd backend
+python main.py  # or: uvicorn main:app --reload
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+
+# Terminal 3: Redis (if not using Docker)
+redis-server
 ```
 
 **Important:** All data in this demo is **100% synthetic**. No real phone numbers, no real messages.
 
 ---
 
-## 📋 Project Overview
+## 📋 Project Status
 
-**Status:** Active development (Hackathon: Oct 30 - Dec 4, 2026)
+**Phase P0 - Foundations: ✅ COMPLETE**
+- Hello-world end-to-end (frontend ↔ backend)
+- Docker Compose setup
+- 3 Kiro specs (connectors, rule-engine, ui)
+- 2 Steering files (connectors, security)
+- Synthetic data generators
+- Doppler integration
 
-**Technologies:**
-- **Frontend:** Next.js 15+, TypeScript, Tailwind CSS v4, Context API
-- **Backend:** FastAPI (Python 3.11+), SQLAlchemy, Redis
-- **AI/NLP:** LiteLLM (budget-capped), linguistic normalization
-- **Data Sources:** Excel (.xlsx), Access (.mdb), WhatsApp (.txt), Mobile Money (.csv)
-- **Deployment:** Vercel (frontend) + VPS Hetzner (backend via Dokploy/Traefik)
-- **Kiro:** IDE, CLI, Crew, MCP servers, Property-Based Testing
-
-**Bonus Prizes:**
-- Best Startup Project (LinguaSolution LLC)
-- Blog Post Bonus
-- Social Blitz Prize
+**Next: Phase P1 - Connecteurs** (20h, Nov 15-19)
 
 ---
 
@@ -71,38 +101,45 @@ uvicorn main:app --reload  # http://localhost:8000
 
 ```
 .
-├── frontend/               # Next.js application
-│   ├── app/               # App Router pages
-│   ├── components/        # React components
-│   └── lib/               # Utilities, API client
 ├── backend/               # FastAPI application
-│   ├── api/               # API routes
-│   ├── models/            # SQLAlchemy models
-│   ├── services/          # Business logic
-│   ├── mcp_servers/       # 4 MCP connectors
-│   └── tests/             # Property-based tests
-├── data/                  # Synthetic data files (read-only in prod)
-│   ├── STOCK.mdb
-│   ├── tarifs.xlsx
-│   ├── chat_export.txt
-│   └── momo_transactions.csv
-├── docs/                  # Project documentation
-│   ├── decisions/         # Decision log and technical debt
-│   ├── specs/            # Kiro specs (connectors, rule-engine, ui, api)
-│   ├── design/           # Design documents and mockups
-│   ├── architecture/     # Architecture diagrams
-│   └── reference/        # Reference materials
-├── .kiro/                # Kiro configuration
-│   ├── specs/            # connectors, rule-engine, ui, api specs
-│   ├── agents/           # Kiro Crew agents (chimera-builder, test-warden, rule-smith)
-│   ├── hooks/            # parser-test, spec-update, rule-validate
-│   ├── steering/         # Development guidelines
-│   └── settings/         # mcp.json
-├── AGENTS.md             # AI agent development guidelines
-├── CLAUDE.md             # Claude-specific instructions
-├── DESIGN.md             # Design system documentation
-├── README.md             # This file
-└── Roadmap.md            # Detailed roadmap and timeline
+│   ├── main.py           # API entry point
+│   ├── config.py         # Configuration (Doppler integration)
+│   ├── spike_access.py   # .mdb reading test
+│   ├── requirements.txt  # Python dependencies
+│   └── tests/            # Test suite
+├── frontend/             # Next.js application
+│   ├── app/              # App Router pages
+│   │   ├── page.tsx      # Homepage (glassmorphism design)
+│   │   ├── layout.tsx    # Root layout
+│   │   └── globals.css   # Design system (IBM Plex, Professional Blue)
+│   ├── package.json      # Dependencies
+│   └── tsconfig.json     # TypeScript config
+├── data/                 # Synthetic data files (read-only in prod)
+│   ├── STOCK_ZOBO.mdb    # (to be generated)
+│   ├── tarifs_fournisseurs.xlsx  # (generated by script)
+│   └── commandes_clients.txt     # ✓ Generated
+├── scripts/              # Data generation scripts
+│   ├── generate_excel.py
+│   └── generate_whatsapp.py
+├── docs/                 # Project documentation
+│   ├── decisions/        # Decision log and technical debt
+│   ├── specs/            # Kiro specs
+│   ├── deployment/       # P0-setup.md
+│   └── ...
+├── .kiro/               # Kiro configuration
+│   ├── specs/           # connectors, rule-engine, ui specs
+│   ├── steering/        # connectors, security guidelines
+│   ├── hooks/           # (P1)
+│   ├── agents/          # (P3)
+│   └── settings/        # (P1)
+├── docker-compose.yml   # API + Redis services
+├── doppler.yaml         # Doppler project config
+├── .env.example         # Environment template (single file)
+├── AGENTS.md            # AI agent development guidelines
+├── DESIGN.md            # Design system documentation
+├── CLAUDE.md            # Claude-specific instructions
+├── README.md            # This file
+└── Roadmap.md           # Detailed roadmap and timeline (84h)
 ```
 
 ---
@@ -139,62 +176,11 @@ Using Hypothesis to guarantee:
 
 ## 🎨 Design System
 
-**Style:** Modern with glassmorphism
-**Palette:** Professional Blue (`#2563eb` primary)
+**Style:** Modern with glassmorphism  
+**Palette:** Professional Blue (`#2563eb` primary)  
 **Typography:** IBM Plex Sans (UI), IBM Plex Serif (display), IBM Plex Mono (code)
 
 See [DESIGN.md](./DESIGN.md) for complete design system documentation.
-
----
-
-## 🛠️ Development
-
-### Prerequisites
-
-- Node.js 18+ (frontend)
-- Python 3.11+ (backend)
-- Redis (rate limiting)
-- Docker (optional, for local deployment)
-
-### Environment Variables
-
-See `.env.example` files in `frontend/` and `backend/` directories.
-
-**Key variables:**
-- `LITELLM_API_KEY` — LiteLLM virtual key
-- `LITELLM_BUDGET_USD` — Budget cap (default: 5.0 ≈ 3,300 FCFA)
-- `REDIS_URL` — Redis connection for rate limiting
-- `CORS_ORIGINS` — Allowed origins (comma-separated)
-- `DATA_DIR` — Path to synthetic data files
-
-### Available Scripts
-
-**Frontend:**
-```bash
-npm run dev       # Development server
-npm run build     # Production build
-npm run lint      # ESLint
-npm test          # Tests
-```
-
-**Backend:**
-```bash
-uvicorn main:app --reload  # Development server
-pytest                     # Run tests (including PBT)
-pytest --hypothesis-profile dev  # Quick PBT (fewer iterations)
-```
-
----
-
-## 📚 Documentation
-
-- **[AGENTS.md](./AGENTS.md)** — Development guidelines for AI agents
-- **[DESIGN.md](./DESIGN.md)** — Design system and UI/UX standards
-- **[Roadmap.md](./Roadmap.md)** — Detailed roadmap and timeline (84h over 21 days)
-- **[docs/](./docs/)** — Detailed documentation
-  - [decisions/DECISIONS_LOG.md](./docs/decisions/DECISIONS_LOG.md) — Architectural decisions
-  - [decisions/TECH_DEBT.md](./docs/decisions/TECH_DEBT.md) — Technical debt tracking
-  - [specs/](./docs/specs/) — Kiro specs (connectors, rule-engine, ui, api)
 
 ---
 
@@ -202,27 +188,36 @@ pytest --hypothesis-profile dev  # Quick PBT (fewer iterations)
 
 ChimeraFlow extensively uses Kiro throughout development:
 
-1. **Specs** — 4 distinct specs (connectors, rule-engine, ui, api) drive structured implementation
-2. **Kiro Crew** — 3 custom agents:
+1. **Specs** — 3 distinct specs (connectors, rule-engine, ui) drive structured implementation
+2. **Kiro Crew** — 3 custom agents (planned P3):
    - `chimera-builder` — Generates new data connectors
    - `test-warden` — Writes property-based tests
    - `rule-smith` — Assists with rule DSL design
-3. **Hooks** — Automated workflows:
-   - On parser save: run contract tests + PBT
-   - On spec modification: reminder to update tasks
-   - On rule creation: validate schema
-4. **MCP Servers** — 4 connectors registered in `.kiro/settings/mcp.json`
-5. **Property-Based Testing** — 6 core properties verified with Hypothesis
+3. **Hooks** — Automated workflows (P1)
+4. **MCP Servers** — 4 connectors (P1)
+5. **Property-Based Testing** — 6 core properties verified with Hypothesis (P2)
 
 See write-up in submission for detailed analysis of Kiro's impact.
 
 ---
 
+## 📚 Documentation
+
+- **[AGENTS.md](./AGENTS.md)** — Development guidelines for AI agents (22 sections)
+- **[DESIGN.md](./DESIGN.md)** — Design system and UI/UX standards
+- **[Roadmap.md](./Roadmap.md)** — Detailed roadmap and timeline (P0-P5, 84h over 21 days)
+- **[docs/](./docs/)** — Detailed documentation
+  - [decisions/DECISIONS_LOG.md](./docs/decisions/DECISIONS_LOG.md) — Architectural decisions
+  - [decisions/TECH_DEBT.md](./docs/decisions/TECH_DEBT.md) — Technical debt tracking
+  - [deployment/P0-setup.md](./docs/deployment/P0-setup.md) — Setup and verification guide
+
+---
+
 ## 🎬 Demo
 
-**Video:** [YouTube Link] (< 3 minutes)
+**Video:** [YouTube Link] (< 3 minutes) — Coming in P5
 
-**Live App:** [https://chimeraflow.vercel.app](https://chimeraflow.vercel.app) (available until Jan 29, 2027)
+**Live App:** [https://chimeraflow.vercel.app](https://chimeraflow.vercel.app) — Coming after P0
 
 **Demo Scenario:**
 1. View ZOBO Hardware Store's three data sources (Access, Excel, WhatsApp)
@@ -262,9 +257,9 @@ Copyright (c) 2026 LinguaSolution LLC
 
 ## 📞 Contact
 
-**Founder:** Fredy Zobo
-**Organization:** LinguaSolution LLC
-**GitHub:** [@lefredoo](https://github.com/lefredoo)
+**Founder:** Fredy Zobo  
+**Organization:** LinguaSolution LLC  
+**GitHub:** [@lefredoo](https://github.com/lefredoo)  
 **Hackathon:** Kiroween 2026
 
 ---
