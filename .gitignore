@@ -171,3 +171,14 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local databases
+*.db
+
+# Test environment (now set in backend/tests/conftest.py)
+backend/.env.test
