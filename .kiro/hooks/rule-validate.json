@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Validate Rule Schema",
+      "trigger": "PostFileSave",
+      "description": "When a rule JSON file is created or modified, validate its schema",
+      "matcher": "rules[/\\\\].*\\\\.json$",
+      "action": {
+        "type": "agent",
+        "prompt": "A rule JSON file was saved. Validate it conforms to the Rule JSON Schema defined in AGENTS.md §20 (trigger, joins, window_seconds, emit with allowed operators: eq, ne, lt, lte, gt, gte, contains, in)."
+      }
+    }
+  ]
+}
