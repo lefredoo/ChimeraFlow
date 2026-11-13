@@ -51,8 +51,9 @@ LOG_LEVEL = optional_env("BACKEND_LOG_LEVEL") or "INFO"
 # CORS
 CORS_ORIGINS = optional_env("CORS_ORIGINS") or "http://localhost:3000"
 
-# Redis (required for rate limiting)
-REDIS_URL = require_env("REDIS_URL", "Redis connection for rate limiting and cache")
+# Redis (required for rate limiting, optional in test environment)
+# In test environment, features that depend on Redis will be disabled
+REDIS_URL = optional_env("REDIS_URL") if NODE_ENV == "test" else require_env("REDIS_URL", "Redis connection for rate limiting and cache")
 
 # Data Directory
 DATA_DIR = optional_env("DATA_DIR") or "./data"
