@@ -14,6 +14,9 @@ from config import (
     CORS_ORIGINS,
 )
 
+# Import routers
+from api.sources import router as sources_router
+
 # Configure logging
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -37,6 +40,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(sources_router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -56,23 +62,14 @@ async def health_check():
     }
 
 
-@app.get("/api/v1/sources")
-async def list_sources():
-    """List available data sources"""
-    # TODO: Implement actual source detection in P1
-    return {
-        "sources": [],
-        "message": "Connectors will be implemented in P1"
-    }
-
-
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {
         "message": "ChimeraFlow API",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "sources": "/api/v1/sources"
     }
 
 
