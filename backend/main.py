@@ -4,12 +4,19 @@ Main application entry point
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
 import logging
+
+# Import configuration
+from config import (
+    NODE_ENV,
+    PORT,
+    LOG_LEVEL,
+    CORS_ORIGINS,
+)
 
 # Configure logging
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
+    level=LOG_LEVEL,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
@@ -21,7 +28,7 @@ app = FastAPI(
 )
 
 # CORS configuration
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+cors_origins = CORS_ORIGINS.split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -31,13 +38,21 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information"""
+    logger.info(f"ChimeraFlow API starting in {NODE_ENV} mode")
+    logger.info(f"CORS origins: {cors_origins}")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
         "status": "ok",
         "service": "chimeraflow-api",
-        "version": "0.1.0"
+        "version": "0.1.0",
+        "environment": NODE_ENV
     }
 
 
@@ -63,5 +78,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
