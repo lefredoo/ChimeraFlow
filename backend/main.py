@@ -2,6 +2,9 @@
 ChimeraFlow API - FastAPI Backend
 Main application entry point
 """
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -16,22 +19,48 @@ from config import (
 
 # Import routers
 from api.sources import router as sources_router
+from api.rules import router as rules_router
+from api.correlations import router as correlations_router
 
-# Configure logging
+# Import database initialization
+from models.base import SessionLocal, init_db
+from models.seed import seed_predefined_rules
+
+# Configure logging (root level untouched when LOG_LEVEL is not set)
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+# CORS configuration (whitelist, entries trimmed, empty entries dropped)
+cors_origins = [origin.strip() for origin in CORS_ORIGINS.split(",") if origin.strip()]
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Initialize the database and seed predefined rules. Startup fails if either fails."""
+    logger.info(f"ChimeraFlow API starting in {NODE_ENV} mode")
+    logger.info(f"CORS origins: {cors_origins}")
+
+    try:
+        init_db()
+        with SessionLocal() as db:
+            seed_predefined_rules(db)
+    except Exception:
+        logger.exception("Database initialization failed")
+        raise
+    logger.info("Database initialized successfully")
+    yield
+
+
 app = FastAPI(
     title="ChimeraFlow API",
     description="Correlation engine for Excel, Access, and WhatsApp data sources",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
-# CORS configuration
-cors_origins = CORS_ORIGINS.split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -42,13 +71,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(sources_router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Log startup information"""
-    logger.info(f"ChimeraFlow API starting in {NODE_ENV} mode")
-    logger.info(f"CORS origins: {cors_origins}")
+app.include_router(rules_router)
+app.include_router(correlations_router)
 
 
 @app.get("/health")
@@ -69,10 +93,17 @@ async def root():
         "message": "ChimeraFlow API",
         "docs": "/docs",
         "health": "/health",
-        "sources": "/api/v1/sources"
+        "endpoints": {
+            "sources": "/api/v1/sources",
+            "rules": "/api/v1/rules",
+            "correlations": "/api/v1/correlations"
+        }
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+
+    # Let uvicorn use its own default port when BACKEND_PORT is not set
+    uvicorn_options = {} if PORT is None else {"port": PORT}
+    uvicorn.run(app, host="0.0.0.0", **uvicorn_options)
