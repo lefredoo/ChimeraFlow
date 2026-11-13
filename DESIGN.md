@@ -7,39 +7,86 @@
 
 ## 1. Philosophy and Visual Identity
 
-**ChimeraFlow is [define your product positioning - e.g., "a modern, professional tool"].**
-- **[Define visual style - e.g., Minimalist, Bold, Playful]**
-- **Micro-interactions**: Interface must feel responsive. Clicks react visually and provide feedback.
-- **Depth & Hierarchy**: Clear visual hierarchy using size, weight, and spacing.
+**ChimeraFlow is a modern business intelligence tool that brings order to chaos.**
+
+Built for the reality of small businesses: where Excel spreadsheets, Access databases, and WhatsApp groups contain critical business data that needs to work together.
+
+- **Glassmorphism**: Translucent panels with backdrop blur create depth and modernity
+- **Professional but approachable**: Not enterprise-stiff, not startup-playful — practical and trustworthy
+- **Micro-interactions**: Interface must feel responsive. Clicks react visually and provide feedback
+- **Depth & Hierarchy**: Clear visual hierarchy using size, weight, and spacing
+- **Data-centric**: Information is the hero, UI supports without overwhelming
 
 ---
 
 ## 2. Color Palette (CSS Variables)
 
+**Professional Blue** — Trustworthy, clean, business-focused.
+
 The application **never** uses static Tailwind color classes (`bg-blue-500`, `text-gray-900`) for structural elements. Everything uses tokens in `global.css`.
 
 ### Foundations (Light/Dark Theme)
 - `--bg`: Global background
-- `--bg-elevated`: Cards and panels background
+  - Light: `#f8f9fa` (cool white)
+  - Dark: `#0f1419` (deep navy)
+- `--bg-elevated`: Cards and panels background (with glassmorphism)
+  - Light: `rgba(255, 255, 255, 0.7)` + `backdrop-blur(12px)`
+  - Dark: `rgba(17, 24, 39, 0.7)` + `backdrop-blur(12px)`
 - `--bg-subtle`: Secondary background
+  - Light: `#e9ecef`
+  - Dark: `#1a202c`
 - `--surface`: Interactive elements (inputs, controls)
+  - Light: `#ffffff`
+  - Dark: `#2d3748`
 
-### Brand Colors (Accents)
-- `--primary`: Main action color, primary buttons, links
-- `--secondary`: Secondary actions
-- `--accent`: Highlights, special features
-- `--success`: Success states, positive feedback
-- `--warning`: Warning states
-- `--error`: Error states, destructive actions
-- `--text-primary`, `--text-secondary`, `--text-muted`: Text hierarchy
+### Brand Colors (Professional Blue)
+- `--primary`: `#2563eb` (blue-600) — Main action color, primary buttons, links
+- `--primary-hover`: `#1d4ed8` (blue-700)
+- `--secondary`: `#64748b` (slate-500) — Secondary actions
+- `--accent`: `#0ea5e9` (sky-500) — Highlights, correlations
+- `--success`: `#10b981` (emerald-500) — Success states, healthy sources
+- `--warning`: `#f59e0b` (amber-500) — Warning states, low stock
+- `--error`: `#ef4444` (red-500) — Error states, failed connections
+- `--info`: `#3b82f6` (blue-500) — Informational messages
+
+### Text Hierarchy
+- `--text-primary`: `#111827` (light) / `#f9fafb` (dark)
+- `--text-secondary`: `#6b7280` (light) / `#9ca3af` (dark)
+- `--text-muted`: `#9ca3af` (light) / `#6b7280` (dark)
+
+### Glassmorphism Effects
+```css
+.glass-panel {
+  background: var(--bg-elevated);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}
+```
 
 ---
 
 ## 3. Typography
 
-1. **[Primary Font]**: Main interface font for UI, paragraphs, and body text. (Maximum readability)
-2. **[Display Font]** (`.font-display`): Heading font. Used for large titles (H1, H2) and hero sections.
-3. **[Mono Font]** (`.font-mono`): Monospace font. Used for code, counters, statistics, and key numbers.
+**Classic Professional** — IBM Plex family for technical credibility and excellent readability.
+
+1. **IBM Plex Sans** (`.font-sans`): Main interface font for UI, paragraphs, and body text. Clean, professional, highly readable.
+2. **IBM Plex Serif** (`.font-display`): Heading font. Used for large titles (H1, H2) and important callouts. Adds authority and distinction.
+3. **IBM Plex Mono** (`.font-mono`): Monospace font. Used for JSON rules, data values, counters, statistics, and technical content.
+
+### Import (in global.css or layout)
+```css
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&display=swap');
+```
+
+### CSS Variables
+```css
+:root {
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-display: 'IBM Plex Serif', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+}
+```
 
 ### Type Scale
 - `text-xs`: 12px
