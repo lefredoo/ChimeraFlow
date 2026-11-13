@@ -2,7 +2,7 @@
 
 > Stitching Excel, Access, and WhatsApp into one correlated view for small businesses.
 
-**Built for Kiroween 2026 Hackathon** | Category: Frankenstein | Solo Project | Phase P0 Complete ✅
+**Built for Kiroween 2026 Hackathon** | Category: Frankenstein | Solo Project | P1 done, P2 in progress
 
 ---
 
@@ -35,9 +35,9 @@ Small businesses don't run on APIs. They run on **Excel spreadsheets**, **Access
 git clone https://github.com/lefredoo/ChimeraFlow.git
 cd ChimeraFlow
 
-# Copy environment template
-cp .env.example .env
-# Edit .env with your values
+# Set the backend environment variables (there is no .env.example).
+# Required: DATABASE_URL, REDIS_URL, CORS_ORIGINS, DATA_DIR
+# See backend/README.md, "Configure environment"
 
 # Install backend dependencies
 cd backend
@@ -93,7 +93,8 @@ redis-server
 - Synthetic data generators
 - Doppler integration
 
-**Next: Phase P1 - Connecteurs** (20h, Nov 15-19)
+**Phase P1 - Connecteurs:** implemented (4 connectors, contract and property tests).
+**Phase P2 - Moteur de règles:** in progress (interpreter, normalizer, rules and correlations API). Rate limiting and NL→rule conversion are pending, see `docs/decisions/TECH_DEBT.md`.
 
 ---
 
@@ -134,7 +135,6 @@ redis-server
 │   └── settings/        # (P1)
 ├── docker-compose.yml   # API + Redis services
 ├── doppler.yaml         # Doppler project config
-├── .env.example         # Environment template (single file)
 ├── AGENTS.md            # AI agent development guidelines
 ├── DESIGN.md            # Design system documentation
 ├── CLAUDE.md            # Claude-specific instructions

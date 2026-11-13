@@ -18,6 +18,26 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-13] P2 review pass 2: seeded predefined rules, matching on numbers, idempotent executions
+
+**Context**: The second review found foreign keys pointing to rules that exist only in code, duplicate correlations on each execution, and fuzzy matching that links "ciment 50 kg" to "ciment 40 kg".
+**Decision**: Predefined rules are upserted into `rules` at startup (status kept on restart); 3 of them (`r_payment_received`, `r_price_comparison`, `r_stock_replenish`) are seeded inactive and never executed, pending the user's decision on the DSL. The time window stays symmetric. Rows with invalid values are still skipped and counted. Matching requires the same numeric tokens on both sides before the fuzzy ratio, and "2.5" or "1/2" stay one token. Each execution replaces the rule's previous correlations.
+**Alternatives rejected**: Dropping the foreign keys (loses referential integrity). Extending the DSL now (scope). Forward-only window (prices predate messages). Defaulting invalid values (invents data). Higher fuzzy threshold alone (still links 100mm and 10mm).
+**Consequences**: Reversible: activating the 3 rules is a status change. Foreign keys are enforced on SQLite too, tests behave like PostgreSQL. Partial names ("tuyau PVC" vs "Tuyau PVC 32mm") no longer match. See TECH_DEBT.md.
+**AGENTS.md rule concerned**: §4 (fix problems in the same cycle), §14 (decision log)
+
+---
+
+## [2026-11-13] P2 code review: configuration, data contract and matching fixes
+
+**Context**: An audit of the uncommitted P2 code found config fallbacks, rule fields that did not match connector payloads, a non-idempotent normalizer, and an import of a module that does not exist.
+**Decision**: `DATABASE_URL`, `CORS_ORIGINS`, `DATA_DIR` are required (no SQLite or default fallback). Connector payloads keep the source column names (`Produit`, `Prix_Unitaire`, `qty_stock`, ...). One `normalize_text()` in `engine/normalizer.py`, whitespace collapsed last, letters split from digits. Record timestamps come from source dates. The rule time window is symmetric (before and after the trigger). Rows with invalid values are skipped and counted, never defaulted. Each rule runs in its own savepoint.
+**Alternatives rejected**: Keeping the SQLite fallback (hides a missing variable, AGENTS.md §7). Renaming rule fields to the old payload keys (breaks the link between a rule and the file the user sees). Forward-only window (prices and stock predate the WhatsApp message, so nothing matched).
+**Consequences**: Environment variables must be set before startup (tests set them in `tests/conftest.py`, `backend/.env.test` removed). Remaining limits are in TECH_DEBT.md (Access on Windows, partial product names, predefined rules 2 and 5, foreign keys, rate limiting, NL→rule).
+**AGENTS.md rule concerned**: §7 (no configuration fallbacks), §13 (no bare `except`), §4 (fix problems in the same cycle)
+
+---
+
 ## [2026-11-13] P1 Connecteurs Implementation Complete (95%)
 
 **Context**: Implementation of Phase 1 (Connecteurs) per Roadmap.md, including all 4 MCP connectors, unified record schema, tests, and Kiro hooks.

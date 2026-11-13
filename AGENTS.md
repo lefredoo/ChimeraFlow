@@ -294,7 +294,7 @@ The agent fixes debt it identifies during the session (see critical rule §4). R
 - SQLAlchemy ORM
 - Redis for rate limiting and caching
 - LiteLLM for NL→Rule conversion (budget capped)
-- 4 MCP servers in one container (Excel, Access, WhatsApp, Mobile Money)
+- 4 MCP servers in one container (Excel, Access, WhatsApp, Mobile Money) (target architecture; not yet in docker-compose.yml)
 
 **Data Sources:**
 - Excel (.xlsx) - Supplier price lists
@@ -395,16 +395,16 @@ Rules are JSON, never executed code:
 - `connectors-spec.md` — MCP server contracts
 - `rule-engine-spec.md` — Rule DSL and interpreter
 - `ui-spec.md` — Dashboard and components
-- `api-spec.md` — FastAPI endpoints
+- `api-spec.md` (planned) — FastAPI endpoints
 
-**Kiro Crew Agents (`.kiro/agents/`):**
+**Kiro Crew Agents (`.kiro/agents/`):** — planned for P3, not yet created
 - `chimera-builder` — Generates new connectors
 - `test-warden` — Writes property-based tests
 - `rule-smith` — Assists with rule DSL design
 
 **Hooks (`.kiro/hooks/`):**
 - `parser-test.json` — On parser save: run contract tests + PBT
-- `spec-update.json` — On spec modification: reminder to update tasks.md
+- `spec-update-reminder.json` — On spec modification: reminder to update tasks.md
 - `rule-validate.json` — On rule creation: validate schema
 
 **Property-Based Testing (Hypothesis):**
@@ -415,7 +415,7 @@ Rules are JSON, never executed code:
 - P5: Window monotonicity (wider window ⊇ narrower window)
 - P6: No fabrication (all emitted values exist in sources)
 
-**MCP Servers (`.kiro/settings/mcp.json`):**
+**MCP Servers (`.kiro/settings/mcp.json`):** — planned, file not yet created
 - Excel connector
 - Access connector
 - WhatsApp connector

@@ -7,9 +7,16 @@ Test suite for MCP connectors and rule engine.
 ```
 tests/
 ├── __init__.py
-├── test_connectors.py      # Contract tests (R1-R4)
-├── test_properties.py      # Property-Based Tests (P1-P6)
-└── test_health.py          # API health check tests
+├── conftest.py                 # Test environment variables, Hypothesis profiles, api_client fixture
+├── factories.py                # In-memory unified records (WhatsApp, Access, Excel)
+├── test_api_correlations.py    # Seeding, execution, foreign keys, idempotence, cascade
+├── test_connectors.py          # Contract tests (R1-R4)
+├── test_connector_payloads.py  # Source field names, product entities, parse errors
+├── test_properties.py          # Property-Based Tests (P1-P6)
+├── test_normalizer.py          # Normalization variants + idempotence (P2)
+├── test_interpreter.py         # Rule execution, provenance, where conditions
+├── test_schemas.py             # Rule schema validation
+└── test_health.py              # API health check tests
 ```
 
 ## Installation
@@ -51,7 +58,7 @@ python -m pytest tests/test_properties.py::TestNormalizationProperties::test_nor
 ### With coverage
 
 ```bash
-python -m pytest tests/ --cov=mcp_servers --cov-report=html
+python -m pytest tests/ --cov=mcp_servers --cov=engine --cov-report=html
 ```
 
 ## Test Categories
@@ -65,7 +72,9 @@ Validates compliance with `connectors-spec.md`:
 - **R3**: Health checks are cached for 30 seconds
 - **R4**: Parse errors are counted, not crashed
 
-### Property-Based Tests (`test_properties.py`)
+The Access contract test is skipped when `mdb-export` (mdbtools) is not installed.
+
+### Property-Based Tests (`test_properties.py`, `test_normalizer.py`)
 
 Uses Hypothesis to validate properties from `Roadmap.md §7`:
 
@@ -75,6 +84,17 @@ Uses Hypothesis to validate properties from `Roadmap.md §7`:
 - **P4** Determinism: same inputs → same outputs
 - **P6** No fabrication: no invented field values
 
+### Engine and Schema Tests
+
+- `test_interpreter.py`: runs `r_low_stock` on in-memory records (provenance, threshold, time window, incompatible types, best-match choice among duplicates, template rendering without brace expansion)
+- `test_normalizer.py`: also checks that different numbers never match (`50 kg` vs `40 kg`) and that decimals and fractions stay one token
+- `test_api_correlations.py`: uses the `api_client` fixture (fresh in-memory database, application lifespan, predefined rules seeded) with the file connectors replaced by in-memory records. Foreign keys are enforced on SQLite, so these tests fail the way PostgreSQL would
+
+- `test_schemas.py`: rejects empty joins, Excel joins without `sheet`, Access joins without `table`, unknown operators
+- `test_connector_payloads.py`: payload keeps the source column names, MoMo emits a `product` entity, invalid rows are skipped and counted
+
+Test names follow "should [result] when [condition]" for new tests.
+
 ## Configuration
 
 Test configuration in `pytest.ini`:
@@ -83,54 +103,54 @@ Test configuration in `pytest.ini`:
 [pytest]
 testpaths = tests
 asyncio_mode = auto
-
-[hypothesis:dev]
-max_examples = 100
-deadline = None
+addopts = --hypothesis-profile=dev
 ```
+
+Hypothesis profiles are registered in `tests/conftest.py`:
+
+| Profile | `max_examples` | `deadline` |
+|---------|----------------|------------|
+| `dev` (default) | 100 | none |
+| `ci` | 500 | 5000 ms |
 
 For CI/CD:
 
-```ini
-[hypothesis:ci]
-max_examples = 500
-deadline = 5000
+```bash
+python -m pytest tests/ --hypothesis-profile=ci
 ```
 
 ## Test Data
 
 Tests use synthetic data from `data/` directory:
 
-- `data/commandes_clients.txt` — WhatsApp export (50 messages)
+- `data/commandes_clients.txt` — WhatsApp export
 - `data/momo_transactions.csv` — Mobile Money CSV (50 transactions)
-- `data/tarifs_fournisseurs.xlsx` — Excel price list (to be generated)
-- `data/STOCK_ZOBO.mdb` — Access database (to be generated)
+- `data/tarifs_fournisseurs.xlsx` — Excel price list
+- `data/STOCK_ZOBO.mdb` — Access database (reading it requires mdbtools)
 
-Generate missing files:
+Regenerate missing files:
 
 ```bash
 # From project root
 python scripts/generate_excel.py
 python scripts/generate_momo.py
+cscript //Nologo scripts/generate_access_windows.vbs  # Windows with Access only
 ```
+
+The VBS script must stay ASCII-only (cscript reads it as ANSI): accented letters
+are written as `\xHH` and decoded with `ChrW`.
 
 ## Environment
 
-Tests run in test environment with optional Redis:
+`tests/conftest.py` sets these variables before the application is imported,
+so no `.env` file is needed:
 
-```bash
-export BACKEND_NODE_ENV=test
-python -m pytest tests/
-```
-
-Or use `.env.test` file:
-
-```bash
-# backend/.env.test
-BACKEND_NODE_ENV=test
-REDIS_URL=redis://localhost:6379/0  # optional
-DATA_DIR=../data
-```
+| Variable | Test value |
+|----------|------------|
+| `BACKEND_NODE_ENV` | `test` (Redis not required) |
+| `DATA_DIR` | `<repo>/data` |
+| `DATABASE_URL` | `sqlite://` (in-memory) |
+| `CORS_ORIGINS` | `http://localhost:3000` |
 
 ## Kiro Hook Integration
 
@@ -151,15 +171,10 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-### `ValueError: Required environment variable 'REDIS_URL' is not set`
+### `ValueError: Required environment variable '...' is not set`
 
-Set test environment:
-
-```bash
-export BACKEND_NODE_ENV=test
-```
-
-Or add to `.env.test`.
+You are importing the application outside pytest. Export the variables listed in
+`backend/README.md` (Setup, step 2) or run the tests through `python -m pytest`.
 
 ### Test data files not found
 

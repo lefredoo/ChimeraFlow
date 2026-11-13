@@ -23,7 +23,7 @@ Built for the reality of small businesses: where Excel spreadsheets, Access data
 
 **Professional Blue** — Trustworthy, clean, business-focused.
 
-The application **never** uses static Tailwind color classes (`bg-blue-500`, `text-gray-900`) for structural elements. Everything uses tokens in `global.css`.
+The application must not use static Tailwind color classes (`bg-blue-500`, `text-gray-900`) for structural elements (current frontend/app/page.tsx still does; tracked in TECH_DEBT.md). Everything uses tokens in `frontend/app/globals.css`.
 
 ### Foundations (Light/Dark Theme)
 - `--bg`: Global background

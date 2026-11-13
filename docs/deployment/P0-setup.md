@@ -68,10 +68,11 @@ python scripts/generate_excel.py
 python scripts/generate_whatsapp.py
 ```
 
+Créer un unique fichier `.env` à la racine (en production : seulement `DOPPLER_TOKEN`, le reste dans Doppler).
+
 ### Run Backend
 ```bash
 cd backend
-cp .env.example .env
 # Edit .env with your values
 uvicorn main:app --reload
 # API: http://localhost:8000
@@ -81,7 +82,6 @@ uvicorn main:app --reload
 ### Run Frontend
 ```bash
 cd frontend
-cp .env.example .env.local
 # Edit .env.local (NEXT_PUBLIC_API_URL)
 npm run dev
 # App: http://localhost:3000
@@ -103,7 +103,7 @@ docker-compose down
 
 ## Spike Access - Critical Test
 
-**Status:** Ready to execute (requires mdbtools or access_parser)
+**Status:** Ready to execute (requires mdbtools)
 
 ```bash
 cd backend
@@ -135,7 +135,7 @@ python spike_access.py
 ## Exit Criteria - P0
 
 ✓ **Hello-world bout en bout en prod**: Frontend connects to backend  
-✓ **Spike Access**: Script ready, waiting for .mdb file  
+✓ **Spike Access**: Script ready, waiting for data/STOCK_ZOBO.mdb généré par scripts/generate_access_windows.vbs  
 ✓ **3 Specs approuvées**: connectors, rule-engine, ui
 
 ---

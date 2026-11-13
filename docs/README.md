@@ -11,11 +11,15 @@ Architectural decisions and technical debt tracking.
 
 - **[DECISIONS_LOG.md](./decisions/DECISIONS_LOG.md)** — Chronological log of all architectural and technical decisions
 - **[TECH_DEBT.md](./decisions/TECH_DEBT.md)** — Identified technical debt
+- **[P2_ACTION_PLAN.md](./decisions/P2_ACTION_PLAN.md)** — Plan for closing P1 and starting P2
+- **[p2-decisions-qcm.html](./decisions/p2-decisions-qcm.html)** — P2 decisions questionnaire (open in a browser)
+- `*-qcm.html` — Interactive decision questionnaires (open in a browser)
+- **[build-log.md](./build-log.md)** — Daily build journal
 
 ### [specs/](./specs/)
 Technical specifications and feature documentation.
 
-_Empty for now — will contain detailed feature specifications._
+Kiro specs live in `../.kiro/specs/`.
 
 ### [design/](./design/)
 Design documents, mockups, and visual assets.

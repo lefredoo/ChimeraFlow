@@ -49,3 +49,11 @@ Minimum 5 templates:
 - Anomaly detection
 
 ## Implementation (P2)
+
+Status of the requirements above (details in `backend/README.md`):
+
+- **R1 DSL**: implemented (`backend/schemas/rule.py`). Joins also take `sheet` (Excel) and `table` (Access).
+- **R2 NL→JSON**: not implemented (LiteLLM and budget cap pending, see TECH_DEBT.md).
+- **R3 Interpreter**: implemented (`backend/engine/interpreter.py`). The time window is symmetric around the trigger. With several candidates the best score wins, then the record at or before the trigger, then the closest in time. Entities match only when they contain the same numbers.
+- **R4 Rate limiting**: not implemented.
+- **R5 Predefined rules**: 5 rules seeded into the `rules` table at startup. `r_low_stock` and `r_high_value_order` are active. `r_payment_received`, `r_price_comparison` and `r_stock_replenish` are inactive until the DSL can express what they promise.

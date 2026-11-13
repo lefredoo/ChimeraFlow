@@ -59,4 +59,34 @@ Format: [Date] Decision | Discovery | Observation
 
 ---
 
+## 2026-11-13 — P2 in progress: rule engine review
+
+**Implemented:** rule schema (Pydantic), interpreter with provenance, 5 predefined rules, `/rules` and `/correlations` API, SQLAlchemy models.
+
+**Discovery (audit of the first P2 draft):**
+- Rules referenced `Produit` / `Prix_Unitaire` but connectors emitted `product` / `price`: nothing could correlate. Payloads now keep the source column names.
+- The "4 ways to write ciment 50 kg" scenario only worked once letters and digits were split (`Ciment50kg` → `ciment 50 kg`) and whitespace was collapsed last (idempotence).
+- A forward-only time window dropped every price list row, because prices predate the WhatsApp message. The window is now symmetric.
+- Hypothesis found a real case in a test: some capital letters (U+2110) have no lowercase mapping, so the "is lowercase" check became "lowercasing changes nothing".
+
+**Observation:** On Windows the Access source cannot be read (no mdbtools), so `r_low_stock` cannot be demonstrated there. See TECH_DEBT.md.
+
+**Tests:** 49 passed, 1 skipped (Access contract test without mdbtools).
+
+---
+
+## 2026-11-13 — P2 review pass 2
+
+**Fixed:**
+- Join choice: the interpreter took the first in-window record. It now picks the best score, then the latest record at or before the trigger.
+- Matching: "ciment 50 kg" and "ciment 40 kg" scored 0.92. Numbers must now be equal on both sides, and "2.5" or "1/2" no longer collapse into "25" or "12".
+- Foreign keys: predefined rules were never rows of `rules`, so PostgreSQL would reject their correlations. They are now seeded at startup, and SQLite enforces foreign keys in tests.
+- Duplicates: each execution replaces the rule's previous correlations.
+- `data/STOCK_ZOBO.mdb`: cscript read the VBS as ANSI and stored "CÃ¢ble". The script is ASCII-only now, the database was regenerated and the accents read back correctly through DAO.
+- 3 predefined rules contradicted their description, so they are seeded inactive (see TECH_DEBT.md).
+
+**Tests:** 93 passed, 1 skipped (default and `ci` Hypothesis profiles). `pyflakes` is clean.
+
+---
+
 _Continue logging daily progress here._
