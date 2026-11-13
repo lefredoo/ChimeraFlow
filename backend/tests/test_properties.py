@@ -3,7 +3,7 @@ Property-Based Testing with Hypothesis
 Tests properties P1-P6 from Roadmap.md §7
 """
 import pytest
-from hypothesis import given, strategies as st, settings, assume
+from hypothesis import given, strategies as st, settings
 from pathlib import Path
 import sys
 
@@ -50,11 +50,10 @@ class TestNormalizationProperties:
         connector = DummyConnector("dummy")
         normalized = connector.normalize_text(text)
         
-        # Only check alphabetic characters (numbers/symbols don't have case)
-        alpha_chars = [c for c in normalized if c.isalpha()]
-        if alpha_chars:
-            assert normalized.islower() or not any(c.isalpha() for c in normalized), \
-                f"Normalized text not lowercase: '{text}' -> '{normalized}'"
+        # Some letters (e.g. U+2110) are uppercase but have no lowercase
+        # mapping, so check that lowercasing the result changes nothing
+        assert normalized == normalized.lower(), \
+            f"Normalized text not lowercase: '{text}' -> '{normalized}'"
     
     def test_normalization_specific_cases(self):
         """Test specific normalization cases from demo scenario"""
@@ -77,13 +76,7 @@ class TestNormalizationProperties:
         
         normalized = [connector.normalize_text(v) for v in variations]
         
-        # All variations should normalize to similar forms
-        # (may differ slightly due to punctuation, but product name should match)
-        print(f"\nNormalization results:")
-        for orig, norm in zip(variations, normalized):
-            print(f"  '{orig}' -> '{norm}'")
-        
-        # At minimum, "ciment" and "50kg" should appear in all
+        # All variations must keep the product name and quantity
         for norm in normalized:
             assert "ciment" in norm, f"Expected 'ciment' in '{norm}'"
             assert "50" in norm, f"Expected '50' in '{norm}'"

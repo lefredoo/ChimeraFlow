@@ -1,7 +1,6 @@
 """
 Test suite for health check endpoint
 """
-import pytest
 from fastapi.testclient import TestClient
 from main import app
 

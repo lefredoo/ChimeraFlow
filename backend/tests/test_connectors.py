@@ -3,13 +3,14 @@ Contract tests for all MCP connectors
 Validates compliance with connectors-spec.md (R1)
 """
 import pytest
+import shutil
 from pathlib import Path
 import sys
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mcp_servers.base import BaseConnector, UnifiedRecord
+from mcp_servers.base import UnifiedRecord
 from mcp_servers.excel_connector import ExcelConnector
 from mcp_servers.access_connector import AccessConnector
 from mcp_servers.whatsapp_connector import WhatsAppConnector
@@ -71,6 +72,7 @@ class TestConnectorContract:
                 assert "entities" in record.to_dict()
                 assert "payload" in record.to_dict()
     
+    @pytest.mark.skipif(shutil.which("mdb-export") is None, reason="mdbtools (mdb-export) is not installed")
     @pytest.mark.asyncio
     async def test_access_connector_contract(self, access_path):
         """Access connector implements required methods"""
@@ -178,8 +180,7 @@ class TestErrorHandling:
         
         # Parse errors should be tracked
         assert hasattr(connector, 'parse_errors')
-        # Some parse errors expected in synthetic data
-        assert connector.parse_errors >= 0
+        assert len(records) > 0
 
 
 class TestLimitEnforcement:

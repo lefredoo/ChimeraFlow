@@ -7,18 +7,17 @@ from typing import Optional
 
 
 def require_env(name: str, description: str) -> str:
-    """
-    Require an environment variable. Fails fast if missing.
-    
+    """Require an environment variable. Fails fast if missing.
+
     Args:
-        name: Variable name
-        description: Human-readable description of what this variable is for
-        
+        name: Variable name.
+        description: Human-readable description of what this variable is for.
+
     Returns:
-        Variable value
-        
+        Variable value.
+
     Raises:
-        ValueError: If variable is not set
+        ValueError: If variable is not set.
     """
     value = os.getenv(name)
     if value is None:
@@ -31,43 +30,82 @@ def require_env(name: str, description: str) -> str:
 
 
 def optional_env(name: str) -> Optional[str]:
-    """
-    Get optional environment variable.
-    
+    """Get an optional environment variable.
+
     Args:
-        name: Variable name
-        
+        name: Variable name.
+
     Returns:
-        Variable value or None if not set
+        Variable value or None if not set.
     """
     return os.getenv(name)
 
 
-# Backend Configuration
-NODE_ENV = optional_env("BACKEND_NODE_ENV") or "development"
-PORT = int(optional_env("BACKEND_PORT") or "8000")
-LOG_LEVEL = optional_env("BACKEND_LOG_LEVEL") or "INFO"
+def _optional_int(name: str) -> Optional[int]:
+    """Parse an optional integer environment variable.
 
-# CORS
-CORS_ORIGINS = optional_env("CORS_ORIGINS") or "http://localhost:3000"
+    Args:
+        name: Variable name.
+
+    Returns:
+        Parsed integer, or None if the variable is not set.
+
+    Raises:
+        ValueError: If the variable is set but is not an integer.
+    """
+    value = optional_env(name)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"Environment variable '{name}' must be an integer, got '{value}'") from exc
+
+
+def _optional_float(name: str) -> Optional[float]:
+    """Parse an optional float environment variable.
+
+    Args:
+        name: Variable name.
+
+    Returns:
+        Parsed float, or None if the variable is not set.
+
+    Raises:
+        ValueError: If the variable is set but is not a number.
+    """
+    value = optional_env(name)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"Environment variable '{name}' must be a number, got '{value}'") from exc
+
+
+# Backend Configuration (None when unset: callers branch on None)
+NODE_ENV = optional_env("BACKEND_NODE_ENV")
+PORT = _optional_int("BACKEND_PORT")
+LOG_LEVEL = optional_env("BACKEND_LOG_LEVEL")
+
+# CORS (comma-separated list of allowed origins)
+CORS_ORIGINS = require_env("CORS_ORIGINS", "Comma-separated list of allowed CORS origins")
 
 # Redis (required for rate limiting, optional in test environment)
-# In test environment, features that depend on Redis will be disabled
-REDIS_URL = optional_env("REDIS_URL") if NODE_ENV == "test" else require_env("REDIS_URL", "Redis connection for rate limiting and cache")
+# In test environment, features that depend on Redis are disabled
+REDIS_URL = (
+    optional_env("REDIS_URL")
+    if NODE_ENV == "test"
+    else require_env("REDIS_URL", "Redis connection for rate limiting and cache")
+)
 
-# Data Directory
-DATA_DIR = optional_env("DATA_DIR") or "./data"
+# Data Directory (read-only synthetic data files)
+DATA_DIR = require_env("DATA_DIR", "Directory containing the synthetic data source files")
 
-# Rate Limiting
-RATE_LIMIT_PER_IP = int(optional_env("RATE_LIMIT_PER_IP") or "10")
-RATE_LIMIT_WINDOW_SECONDS = int(optional_env("RATE_LIMIT_WINDOW_SECONDS") or "60")
+# Rate Limiting (None until the rate limiter is configured)
+RATE_LIMIT_PER_IP = _optional_int("RATE_LIMIT_PER_IP")
+RATE_LIMIT_WINDOW_SECONDS = _optional_int("RATE_LIMIT_WINDOW_SECONDS")
 
 # LiteLLM (optional - feature disabled if not set)
 LITELLM_API_KEY = optional_env("LITELLM_API_KEY")
-LITELLM_BUDGET_USD = float(optional_env("LITELLM_BUDGET_USD") or "5.0")
-
-# MCP Servers
-MCP_EXCEL_URL = optional_env("MCP_EXCEL_URL") or "http://localhost:9001"
-MCP_ACCESS_URL = optional_env("MCP_ACCESS_URL") or "http://localhost:9002"
-MCP_WHATSAPP_URL = optional_env("MCP_WHATSAPP_URL") or "http://localhost:9003"
-MCP_MOMO_URL = optional_env("MCP_MOMO_URL") or "http://localhost:9004"
+LITELLM_BUDGET_USD = _optional_float("LITELLM_BUDGET_USD")

@@ -7,8 +7,12 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
 import logging
+import subprocess
 
 logger = logging.getLogger(__name__)
+
+# Errors a connector may raise while reading its source
+CONNECTOR_ERRORS = (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError)
 
 
 @dataclass
@@ -112,30 +116,12 @@ class BaseConnector(ABC):
     
     def normalize_text(self, text: str) -> str:
         """
-        Normalize text for entity matching
-        Strategy from connectors.md steering:
-        1. Lowercase
-        2. Remove accents
-        3. Collapse whitespace
-        4. Remove punctuation (except hyphens)
+        Normalize text for entity matching.
+
+        Delegates to the single implementation in engine.normalizer.
         """
-        import unicodedata
-        import re
-        
-        # Lowercase
-        text = text.lower()
-        
-        # Remove accents (NFD normalization)
-        text = unicodedata.normalize('NFD', text)
-        text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-        
-        # Collapse whitespace
-        text = ' '.join(text.split())
-        
-        # Remove punctuation except hyphens
-        text = re.sub(r'[^\w\s-]', '', text)
-        
-        # Final cleanup
-        text = text.strip()
-        
-        return text
+        # Imported here: engine.interpreter imports this module, so a
+        # module-level import would create a cycle.
+        from engine.normalizer import normalize_text
+
+        return normalize_text(text)

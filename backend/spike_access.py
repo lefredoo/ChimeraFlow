@@ -8,9 +8,9 @@ Test reading .mdb files with available tools:
 
 This spike proves we can read Access databases before proceeding to P1.
 """
+import importlib.util
 import subprocess
 import sys
-import os
 from pathlib import Path
 
 
@@ -42,14 +42,13 @@ def test_access_parser():
     """Test access_parser Python library"""
     print("\nTesting access_parser (Python)...")
     
-    try:
-        import access_parser
+    if importlib.util.find_spec("access_parser") is not None:
         print("✓ access_parser is available")
         return True
-    except ImportError:
-        print("✗ access_parser not installed")
-        print("  Install: pip install access-parser")
-        return False
+
+    print("✗ access_parser not installed")
+    print("  Install: pip install access-parser")
+    return False
 
 
 def read_with_mdbtools(mdb_path: Path):

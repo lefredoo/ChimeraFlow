@@ -36,6 +36,8 @@ OPERATORS = ["MTN MoMo", "Orange Money"]
 def generate_transactions(num_transactions: int = 50) -> list:
     """Generate synthetic Mobile Money transactions"""
     transactions = []
+    # Fixed seed: regenerating the CSV always yields the same data
+    random.seed(42)
     start_date = datetime(2026, 11, 1)
     
     for i in range(num_transactions):

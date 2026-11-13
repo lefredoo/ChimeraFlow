@@ -2,14 +2,18 @@
 Sources API - Expose MCP connectors via REST endpoints
 """
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Dict, Any
+from typing import Dict, Any
 from pathlib import Path
+import logging
 
 from config import DATA_DIR
+from mcp_servers.base import CONNECTOR_ERRORS
 from mcp_servers.excel_connector import ExcelConnector
 from mcp_servers.access_connector import AccessConnector
 from mcp_servers.whatsapp_connector import WhatsAppConnector
 from mcp_servers.momo_connector import MobileMoneyConnector
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/sources", tags=["sources"])
 
@@ -69,6 +73,37 @@ async def source_health(source: str):
     return health
 
 
+@router.get("/all/records")
+async def fetch_all_records(
+    limit_per_source: int = Query(default=50, ge=1, le=500, description="Max records per source")
+):
+    """
+    Fetch records from all sources
+    
+    Useful for dashboard overview
+    """
+    connectors = get_connectors()
+    all_records = []
+    errors = []
+    
+    for name, connector in connectors.items():
+        try:
+            records = await connector.fetch_records(limit=limit_per_source)
+            all_records.extend([r.to_dict() for r in records])
+        except CONNECTOR_ERRORS as e:
+            logger.error(f"Failed to fetch records from {name}: {e}")
+            errors.append({
+                "source": name,
+                "error": "Failed to fetch records from source"
+            })
+    
+    return {
+        "total_records": len(all_records),
+        "records": all_records,
+        "errors": errors if errors else None
+    }
+
+
 @router.get("/{source}/records")
 async def fetch_source_records(
     source: str,
@@ -98,35 +133,6 @@ async def fetch_source_records(
             "count": len(records),
             "records": [r.to_dict() for r in records]
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch records: {str(e)}")
-
-
-@router.get("/all/records")
-async def fetch_all_records(
-    limit_per_source: int = Query(default=50, ge=1, le=500, description="Max records per source")
-):
-    """
-    Fetch records from all sources
-    
-    Useful for dashboard overview
-    """
-    connectors = get_connectors()
-    all_records = []
-    errors = []
-    
-    for name, connector in connectors.items():
-        try:
-            records = await connector.fetch_records(limit=limit_per_source)
-            all_records.extend([r.to_dict() for r in records])
-        except Exception as e:
-            errors.append({
-                "source": name,
-                "error": str(e)
-            })
-    
-    return {
-        "total_records": len(all_records),
-        "records": all_records,
-        "errors": errors if errors else None
-    }
+    except CONNECTOR_ERRORS as e:
+        logger.error(f"Failed to fetch records from {source}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch records from source")

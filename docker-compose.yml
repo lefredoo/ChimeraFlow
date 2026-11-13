@@ -13,6 +13,7 @@ services:
       - LOG_LEVEL=INFO
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set (e.g. via Doppler)}
       - DATA_DIR=/data
     volumes:
       - ./data:/data:ro  # Read-only mount for synthetic data
