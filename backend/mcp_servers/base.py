@@ -1,0 +1,141 @@
+"""
+Base connector interface for MCP servers
+Implements contract defined in .kiro/specs/connectors-spec.md
+"""
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from dataclasses import dataclass, asdict
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Entity:
+    """Extracted entity from source data"""
+    type: str  # product, person, amount, etc.
+    raw: str   # Original text
+    norm: str  # Normalized form
+
+
+@dataclass
+class UnifiedRecord:
+    """
+    Unified record schema (AGENTS.md §19)
+    All connectors return data in this format
+    """
+    id: str
+    source: str  # excel | access | whatsapp | momo
+    source_ref: str  # File path + line/row reference
+    timestamp: str  # ISO8601
+    lang: str  # fr | en
+    entities: List[Dict[str, str]]  # List of Entity dicts
+    payload: Dict[str, Any]  # Source-specific data
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return asdict(self)
+
+
+class BaseConnector(ABC):
+    """
+    Base class for all MCP connectors
+    
+    Contract (R1 from connectors-spec.md):
+    - fetch_records(limit: int) -> List[UnifiedRecord]
+    - health_check() -> dict
+    """
+    
+    def __init__(self, source_name: str):
+        self.source_name = source_name
+        self.logger = logging.getLogger(f"connector.{source_name}")
+        self._last_health_check: Optional[Dict[str, Any]] = None
+        self._health_check_time: Optional[datetime] = None
+        
+    @abstractmethod
+    async def fetch_records(self, limit: int = 100) -> List[UnifiedRecord]:
+        """
+        Fetch records from data source
+        
+        Args:
+            limit: Maximum number of records to fetch (max 1000)
+            
+        Returns:
+            List of unified records
+            
+        Raises:
+            Should NOT raise on parse errors - log and skip bad records
+        """
+        pass
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Check connector health
+        
+        Returns:
+            {
+                "status": "ok" | "degraded" | "error",
+                "source": "source_name",
+                "message": "optional message",
+                "last_fetch": "ISO8601 timestamp or null"
+            }
+        """
+        # Cache health check for 30 seconds (R3 from connectors.md)
+        now = datetime.now()
+        if self._last_health_check and self._health_check_time:
+            age = (now - self._health_check_time).total_seconds()
+            if age < 30:
+                return self._last_health_check
+        
+        # Run actual health check
+        try:
+            health = await self._perform_health_check()
+            self._last_health_check = health
+            self._health_check_time = now
+            return health
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return {
+                "status": "error",
+                "source": self.source_name,
+                "message": str(e),
+                "last_fetch": None
+            }
+    
+    @abstractmethod
+    async def _perform_health_check(self) -> Dict[str, Any]:
+        """
+        Actual health check implementation (must be overridden)
+        """
+        pass
+    
+    def normalize_text(self, text: str) -> str:
+        """
+        Normalize text for entity matching
+        Strategy from connectors.md steering:
+        1. Lowercase
+        2. Remove accents
+        3. Collapse whitespace
+        4. Remove punctuation (except hyphens)
+        """
+        import unicodedata
+        import re
+        
+        # Lowercase
+        text = text.lower()
+        
+        # Remove accents (NFD normalization)
+        text = unicodedata.normalize('NFD', text)
+        text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+        
+        # Collapse whitespace
+        text = ' '.join(text.split())
+        
+        # Remove punctuation except hyphens
+        text = re.sub(r'[^\w\s-]', '', text)
+        
+        # Final cleanup
+        text = text.strip()
+        
+        return text
