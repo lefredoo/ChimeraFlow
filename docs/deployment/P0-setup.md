@@ -1,170 +1,179 @@
-# P0 Setup Guide
+# Guide de mise en place P0
 
-## Phase P0 - Foundations Complete
+## Phase P0 : Fondations, terminée côté dépôt
 
-**Date:** November 13-14, 2026  
-**Duration:** 8 hours  
-**Status:** ✓ Complete
+**Dates :** 13 et 14 novembre 2026
+**Durée prévue :** 8 heures
+**Statut :** ✓ terminée dans le dépôt. Les points qui ne se vérifient pas dans le dépôt (déploiement, Vercel, Dokploy) sont listés dans `.kiro/specs/tasks.md`.
 
 ---
 
-## What Was Built
+## Ce qui a été construit
 
 ### Backend (FastAPI)
-- ✓ Main API with health check and sources endpoints
-- ✓ Docker containerization (384MB mem_limit, 0.5 CPU)
-- ✓ Structured logging
-- ✓ CORS configuration
-- ✓ Test suite foundation
-- ✓ Spike Access script for .mdb reading validation
+- ✓ API principale avec contrôle de santé (`GET /health`) et routeur des sources (`/api/v1/sources`)
+- ✓ Conteneur Docker (limite mémoire 384 Mo, 0,5 CPU dans `docker-compose.yml`)
+- ✓ Journalisation standard (`logging.basicConfig`, format texte)
+- ✓ Configuration CORS (liste blanche)
+- ✓ Base de tests
+- ✓ Script de test `spike_access.py` pour la lecture des fichiers .mdb
 
 ### Frontend (Next.js)
-- ✓ Hello-world page with glassmorphism design
-- ✓ API connection test
-- ✓ IBM Plex fonts integration
-- ✓ Tailwind CSS v4 configuration
-- ✓ Responsive layout
+- ✓ Page d'accueil de test qui appelle `GET /health` de l'API
+- ✓ Polices IBM Plex chargées depuis Google Fonts (`frontend/app/globals.css`)
+- ✓ Tailwind CSS (dépendance en version 4)
+- ✓ Mise en page responsive (grille à trois colonnes à partir de la taille `md`)
 
 ### Infrastructure
-- ✓ Docker Compose (API + Redis)
-- ✓ Memory and CPU limits configured
-- ✓ Health checks for both services
-- ✓ Read-only data volume mount
+- ✓ Docker Compose : API et Redis
+- ✓ Limites mémoire et CPU par conteneur
+- ✓ Health checks de l'API et de Redis
+- ✓ Volume de données monté en lecture seule (`./data:/data:ro`)
 
-### Kiro Artifacts
-- ✓ 3 specs: connectors, rule-engine, ui
-- ✓ 2 steering files: connectors, security
-- ✓ Directory structure ready for hooks and agents
+### Artefacts Kiro
+- ✓ 3 specs : `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md`
+- ✓ 2 fichiers de steering : `connectors.md`, `security.md`
+- ✓ Hooks de test et de validation dans `.kiro/hooks/` (ajoutés en P1)
+- ✗ `.kiro/agents/` : prévu en P3, non créé
 
-### Data Generation
-- ✓ Excel generator (tarifs_fournisseurs.xlsx)
-- ✓ WhatsApp generator (commandes_clients.txt)
-- ✓ Intentional variations for testing normalization
+### Génération de données
+- ✓ Générateur Excel (`scripts/generate_excel.py` → `tarifs_fournisseurs.xlsx`)
+- ✓ Générateur WhatsApp (`scripts/generate_whatsapp.py` → `commandes_clients.txt`)
+- ✓ Générateur Mobile Money (`scripts/generate_momo.py` → `momo_transactions.csv`)
+- ✓ Variantes volontaires pour tester la normalisation
 
 ---
 
-## Local Development Setup
+## Mise en place locale
 
-### Prerequisites
-```bash
-# Backend
-Python 3.11+
-pip install -r backend/requirements.txt
+### Prérequis
+- Python 3.13 et [uv](https://docs.astral.sh/uv/)
+- Node.js 18.18 ou plus récent (Next.js 15)
+- Docker et Docker Compose (tests complets et Redis)
 
-# Frontend
-Node.js 18+
-cd frontend && npm install
+### Générer les données synthétiques
 
-# Infrastructure
-Docker & Docker Compose
-```
-
-### Generate Synthetic Data
-```bash
-# Excel price list
-python scripts/generate_excel.py
-
-# WhatsApp export
+```powershell
+python scripts/generate_excel.py          # requiert pandas et openpyxl
 python scripts/generate_whatsapp.py
+python scripts/generate_momo.py
+cscript //Nologo scripts/generate_access_windows.vbs   # Windows avec Access uniquement
 ```
 
-Créer un unique fichier `.env` à la racine (en production : seulement `DOPPLER_TOKEN`, le reste dans Doppler).
+### Installer le backend
 
-### Run Backend
-```bash
+```powershell
 cd backend
-# Edit .env with your values
-uvicorn main:app --reload
-# API: http://localhost:8000
-# Docs: http://localhost:8000/docs
+uv venv --python 3.13 .venv
+uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
 ```
 
-### Run Frontend
-```bash
+### Configurer l'environnement
+
+Il n'existe pas de `.env.example`. Le backend lit des variables d'environnement (`config.py`). La liste complète est dans `AGENTS.md` §22.
+
+En production, le seul fichier local est un `.env` à la racine qui contient `DOPPLER_TOKEN`. Toutes les autres variables viennent de Doppler.
+
+Pour un lancement local, exporter les variables requises dans le shell (PowerShell) :
+
+```powershell
+$env:DATABASE_URL = "postgresql://user:pass@host/dbname"
+$env:REDIS_URL = "redis://localhost:6379/0"
+$env:CORS_ORIGINS = "http://localhost:3000"
+$env:DATA_DIR = "../data"
+$env:ACCESS_READER = "access-parser"
+$env:RATE_LIMIT_PER_IP = "10"
+$env:RATE_LIMIT_WINDOW_SECONDS = "60"
+```
+
+### Lancer le backend
+
+```powershell
+cd backend
+.venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
+# API : http://localhost:8000
+# Documentation : http://localhost:8000/docs
+```
+
+### Lancer le frontend
+
+```powershell
 cd frontend
-# Edit .env.local (NEXT_PUBLIC_API_URL)
+npm install
 npm run dev
-# App: http://localhost:3000
+# Application : http://localhost:3000
 ```
 
-### Run with Docker Compose
-```bash
-# Start all services
-docker-compose up -d
+`NEXT_PUBLIC_API_URL` indique l'adresse de l'API. Sans cette variable, la page utilise `http://localhost:8000` codé en dur (écart à `AGENTS.md` §7, voir `TECH_DEBT.md`).
 
-# Check logs
-docker-compose logs -f
+### Lancer avec Docker Compose
 
-# Stop services
-docker-compose down
+```powershell
+docker compose up -d
+docker compose logs -f
+docker compose down
 ```
+
+`docker-compose.yml` exige `DATABASE_URL`, `REDIS_PASSWORD`, `RATE_LIMIT_PER_IP` et `RATE_LIMIT_WINDOW_SECONDS`. Redis n'expose aucun port sur l'hôte.
 
 ---
 
-## Spike Access - Critical Test
+## Test d'accès à Access (spike)
 
-**Status:** Ready to execute (requires mdbtools)
+**Statut :** réalisé. `data/STOCK_ZOBO.mdb` existe, et la table `Articles` est lue par le lecteur Python `access-parser` (`backend/tests/test_access_readers.py`).
 
-```bash
+```powershell
 cd backend
-python spike_access.py
+.venv\Scripts\python.exe spike_access.py
 ```
 
-**If spike fails:**
-1. Document in `docs/decisions/TECH_DEBT.md`
-2. Evaluate alternatives:
-   - Option A: Generate .mdb with Jackcess (Java, Windows)
-   - Option B: Use pre-generated .mdb file
-   - Option C: CSV fallback for demo
+**Choix retenu :** `access-parser` pour le développement sous Windows, `mdbtools` (CLI `mdb-export`) dans l'image Docker de production. Les deux lecteurs sont comparés quand `mdb-export` est installé (tests sautés sinon).
 
 ---
 
-## Verification Checklist
+## Points de contrôle
 
-- [ ] `docker-compose up` starts without errors
-- [ ] `curl http://localhost:8000/health` returns 200 OK
-- [ ] Frontend displays "ChimeraFlow" with API status
-- [ ] Backend logs are structured (JSON format)
-- [ ] Redis responds to `redis-cli ping`
-- [ ] Spike Access script executes (or failure documented)
-- [ ] 3 Kiro specs exist in `.kiro/specs/`
-- [ ] Synthetic data files generated in `data/`
-
----
-
-## Exit Criteria - P0
-
-✓ **Hello-world bout en bout en prod**: Frontend connects to backend  
-✓ **Spike Access**: Script ready, waiting for data/STOCK_ZOBO.mdb généré par scripts/generate_access_windows.vbs  
-✓ **3 Specs approuvées**: connectors, rule-engine, ui
+- [x] Trois specs présentes dans `.kiro/specs/`
+- [x] Fichiers de données synthétiques présents dans `data/`
+- [x] Script de test Access présent (`backend/spike_access.py`)
+- [ ] `docker compose up -d` démarre sans erreur (non vérifié dans ce document)
+- [ ] `curl http://localhost:8000/health` renvoie 200 (non vérifié dans ce document)
+- [ ] La page d'accueil affiche l'état de l'API (non vérifié dans ce document)
+- [ ] `redis-cli ping` répond `PONG` (non vérifié dans ce document)
 
 ---
 
-## Next Phase - P1
+## Critères de sortie P0
 
-**P1 Connecteurs** (20h, Nov 15-19)
-- Implement 4 MCP servers (Excel, Access, WhatsApp, Mobile Money)
-- Unified record schema
-- Contract tests + Property-based tests
-- Hooks for parser validation
+- ✓ **Bout en bout** : la page d'accueil interroge `GET /health` de l'API. Déploiement en production : non vérifié dans le dépôt.
+- ✓ **Spike Access** : `STOCK_ZOBO.mdb` présent, lecture validée par tests.
+- ✓ **3 specs** présentes : connectors, rule-engine, ui. Leur approbation n'est pas tracée dans le dépôt.
 
 ---
 
-## Deployment Notes
+## Phase suivante
 
-### Vercel (Frontend)
-- Build command: `cd frontend && npm run build`
-- Output directory: `frontend/.next`
-- Environment: `NEXT_PUBLIC_API_URL`
-
-### VPS Hetzner (Backend via Dokploy)
-- Dockerfile: `backend/Dockerfile`
-- Port: 8000
-- Redis: Managed service or separate container
-- Volume: `/data` read-only
-
-**Manual deployment steps will be documented in P4.**
+**P1 Connecteurs** : terminée côté code (4 connecteurs, enregistrement unifié, tests de contrat). Les serveurs MCP restent à faire.
+**P2 Moteur de règles** : en cours. Voir `.kiro/specs/tasks.md`.
 
 ---
 
-Built for Kiroween 2026 | ZOBO Hardware Store Demo
+## Notes de déploiement
+
+### Vercel (frontend)
+- Commande de build : `cd frontend && npm run build`
+- Dossier de sortie : `frontend/.next`
+- Variable : `NEXT_PUBLIC_API_URL`
+
+### VPS Hetzner (backend via Dokploy)
+- Dockerfile : `backend/Dockerfile` (cible `runtime`, par défaut)
+- Port : 8000
+- Redis : service géré ou conteneur séparé
+- Volume : `/data` en lecture seule
+
+**Les étapes de déploiement manuel seront documentées en P4.**
+
+---
+
+Construit pour le Kiroween 2026 | Démonstration ZOBO Hardware Store

@@ -1,118 +1,121 @@
-# ChimeraFlow Backend
+# Backend ChimeraFlow
 
-FastAPI backend for the correlation engine.
+API FastAPI du moteur de corrélation.
 
 ## Architecture
 
 ```
 backend/
-├── api/                    # REST API endpoints
-│   ├── sources.py          # GET /sources (P1)
+├── api/                    # endpoints REST
+│   ├── sources.py          # GET /api/v1/sources (P1)
 │   ├── rules.py            # POST /rules, POST /rules/from-text, GET /rules
 │   ├── correlations.py     # POST /correlations/execute, GET /correlations
-│   ├── errors.py           # Codes d'erreur stables + corps d'erreur
-│   ├── rate_limit.py       # Limitation par IP (slowapi + Redis), IP client / proxys de confiance
-│   └── nl_dependencies.py  # Dépendances FastAPI de la conversion NL→règle
-├── engine/                 # Rule engine (P2)
-│   ├── interpreter.py      # Rule interpreter (trigger, joins, where, emit)
-│   ├── normalizer.py       # Normalization (single implementation) + fuzzy match + synonyms
-│   ├── rule_files.py       # Lecture et validation de data/rules/*.json (module pur)
-│   ├── predefined_rules.py # Charge les règles prédéfinies au démarrage (échec immédiat si invalide)
+│   ├── errors.py           # codes d'erreur stables et corps d'erreur
+│   ├── rate_limit.py       # limitation par IP (slowapi + Redis), IP client et proxys de confiance
+│   └── nl_dependencies.py  # dépendances FastAPI de la conversion NL→règle
+├── engine/                 # moteur de règles (P2)
+│   ├── interpreter.py      # interpréteur (déclencheur, joins, where, emit)
+│   ├── normalizer.py       # normalisation (implémentation unique), similarité floue, synonymes
+│   ├── rule_files.py       # lecture et validation de data/rules/*.json (module pur)
+│   ├── predefined_rules.py # charge les règles prédéfinies au démarrage (échec immédiat si invalide)
 │   ├── validate_rules.py   # CLI : python -m engine.validate_rules [dossier]
-│   ├── nl_to_rule.py       # Conversion NL→règle (prompt structuré, retries, budget)
-│   ├── nl_budget.py        # Compteur de dépense LLM (Redis)
-│   └── llm_client.py       # Frontière LiteLLM (import à la demande)
-├── mcp_servers/            # Data source connectors (P1)
-│   ├── base.py             # BaseConnector + UnifiedRecord schema
-│   ├── excel_connector.py  # Excel reader (pandas + openpyxl)
-│   ├── access_connector.py # Access reader (mdbtools CLI or access-parser, ACCESS_READER)
-│   ├── whatsapp_connector.py # WhatsApp parser (regex)
-│   └── momo_connector.py   # Mobile Money CSV reader
-├── migrations/             # Alembic migrations (env.py reads DATABASE_URL)
-├── models/                 # SQLAlchemy models (P2)
-│   ├── base.py             # Database configuration (SQLite foreign keys enabled)
+│   ├── nl_to_rule.py       # conversion NL→règle (prompt structuré, relances, budget)
+│   ├── nl_budget.py        # compteur de dépense LLM (Redis)
+│   └── llm_client.py       # frontière LiteLLM (import à la demande)
+├── mcp_servers/            # connecteurs de sources (P1)
+│   ├── base.py             # BaseConnector et schéma UnifiedRecord
+│   ├── excel_connector.py  # lecture Excel (pandas + openpyxl)
+│   ├── access_connector.py # lecture Access (CLI mdbtools ou access-parser, selon ACCESS_READER)
+│   ├── whatsapp_connector.py # parseur WhatsApp (expression régulière, format Android)
+│   └── momo_connector.py   # lecture du CSV Mobile Money
+├── migrations/             # migrations Alembic (env.py lit DATABASE_URL)
+├── models/                 # modèles SQLAlchemy (P2)
+│   ├── base.py             # configuration de la base (clés étrangères activées sur SQLite)
 │   ├── rule.py             # Rule, RuleExecution, Correlation
-│   └── seed.py             # Idempotent seeding of predefined rules at startup
-├── schemas/                # Pydantic validation (P2)
+│   └── seed.py             # seed idempotent des règles prédéfinies au démarrage
+├── schemas/                # validation Pydantic (P2)
 │   └── rule.py             # RuleCreate, RuleResponse, etc.
-├── tests/                  # Tests
-│   ├── conftest.py         # Test environment variables, Hypothesis profiles, api_client fixture
-│   ├── factories.py        # In-memory unified records for engine and API tests
-│   ├── test_api_correlations.py # Seeding, execution, foreign keys, idempotence
-│   ├── test_connectors.py  # Contract tests (R1-R4)
-│   ├── test_connector_payloads.py # Source field names, entities, parse errors
-│   ├── test_properties.py  # Property-based tests (Hypothesis)
-│   ├── test_normalizer.py  # Normalization variants, idempotence, numeric tokens
-│   ├── test_interpreter.py # Rule execution, provenance, best-match choice, template rendering
-│   ├── test_schemas.py     # Rule schema validation
-│   ├── test_rule_files.py  # Chargement de data/rules/*.json, CLI de validation
+├── tests/                  # tests (voir tests/README.md)
+│   ├── conftest.py         # variables d'environnement de test, profils Hypothesis, fixture api_client
+│   ├── factories.py        # records unifiés en mémoire pour les tests du moteur et de l'API
+│   ├── test_api_correlations.py # seed, exécution, clés étrangères, idempotence
+│   ├── test_connectors.py  # tests de contrat (R1 à R4)
+│   ├── test_connector_payloads.py # noms de champs, entités, erreurs de parsing
+│   ├── test_access_readers.py # mdbtools et access-parser produisent les mêmes records
+│   ├── test_migrations.py  # alembic upgrade head / downgrade base, pas de dérive avec les modèles
+│   ├── test_properties.py  # tests basés sur les propriétés (Hypothesis)
+│   ├── test_normalizer.py  # variantes de normalisation, idempotence, nombres
+│   ├── test_interpreter.py # exécution des règles, provenance, choix du meilleur candidat, rendu des templates
+│   ├── test_schemas.py     # validation du schéma de règle
+│   ├── test_rule_files.py  # chargement de data/rules/*.json, CLI de validation
 │   ├── test_rate_limit.py  # 429, Retry-After, IP client, variables requises
-│   ├── test_nl_to_rule.py  # Conversion NL→règle (LiteLLM mocké) : retries, budget, désactivation, injection
-│   ├── test_api_errors.py  # Codes d'erreur stables
-│   └── test_health.py      # API smoke tests
-│   ├── test_access_readers.py # mdbtools and access-parser produce identical records
-│   ├── test_migrations.py  # alembic upgrade head / downgrade base, drift with the models
-├── config.py               # Environment configuration
-├── main.py                 # FastAPI application
-├── alembic.ini             # Alembic configuration
-├── requirements.txt        # Runtime dependencies (Python 3.13)
-└── requirements-dev.txt    # Test and lint tools
+│   ├── test_nl_to_rule.py  # conversion NL→règle (LiteLLM simulé) : relances, budget, désactivation, injection
+│   ├── test_api_errors.py  # codes d'erreur stables
+│   └── test_health.py      # tests de fumée de l'API
+├── config.py               # configuration par variables d'environnement
+├── main.py                 # application FastAPI
+├── alembic.ini             # configuration Alembic
+├── Dockerfile              # cibles base, test et runtime
+├── spike_access.py         # script de test de lecture d'un .mdb
+├── requirements.txt        # dépendances d'exécution (Python 3.13)
+└── requirements-dev.txt    # outils de test et de lint
 ```
 
-## Setup
+## Installation
 
-### 1. Install dependencies
+### 1. Installer les dépendances
 
-Python 3.13 virtual environment with [uv](https://docs.astral.sh/uv/) (git-ignored .venv):
+Environnement virtuel Python 3.13 avec [uv](https://docs.astral.sh/uv/) (`.venv` ignoré par Git) :
 
-```bash
+```powershell
 uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python -r requirements-dev.txt   # Windows: .venv\Scripts\python.exe
+uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
 ```
 
-### 2. Configure environment
+Sous Linux ou macOS : `.venv/bin/python` à la place de `.venv\Scripts\python.exe`.
 
-The backend reads environment variables only (no `.env` loader). In production
-they come from Doppler. For local development, export them in your shell.
-Missing required variables stop the application at startup, by design
-(AGENTS.md §7).
+### 2. Configurer l'environnement
 
-**Required**
+Le backend lit uniquement des variables d'environnement, sans chargeur de `.env`. En production,
+elles viennent de Doppler. En local, les exporter dans le shell. Une variable requise absente
+arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | SQLAlchemy connection string (PostgreSQL on Neon in production) |
-| `CORS_ORIGINS` | Comma-separated list of allowed origins |
-| `DATA_DIR` | Directory containing the synthetic data files |
-| `REDIS_URL` | Redis connection: compteurs de limitation et dépense LLM (not required when `BACKEND_NODE_ENV=test`) |
-| `ACCESS_READER` | `mdbtools` (Docker, production) or `access-parser` (pure Python, local Windows). Any other value stops the startup |
-| `RATE_LIMIT_PER_IP` | Requêtes de mutation autorisées par IP et par fenêtre (entier ≥ 1) |
-| `RATE_LIMIT_WINDOW_SECONDS` | Durée de la fenêtre de limitation, en secondes (entier ≥ 1) |
+**Requises**
 
-**Optional** (the related behavior is disabled or left to the library default when unset)
+| Variable | Rôle |
+|----------|------|
+| `DATABASE_URL` | chaîne de connexion SQLAlchemy (PostgreSQL sur Neon en production) |
+| `CORS_ORIGINS` | liste d'origines autorisées, séparées par des virgules |
+| `DATA_DIR` | dossier des fichiers de données synthétiques |
+| `REDIS_URL` | connexion Redis : compteurs de limitation et de dépense LLM (non requise quand `BACKEND_NODE_ENV=test`) |
+| `ACCESS_READER` | `mdbtools` (Docker, production) ou `access-parser` (Python pur, Windows local). Toute autre valeur arrête le démarrage |
+| `RATE_LIMIT_PER_IP` | requêtes de mutation autorisées par IP et par fenêtre (entier ≥ 1) |
+| `RATE_LIMIT_WINDOW_SECONDS` | durée de la fenêtre de limitation, en secondes (entier ≥ 1) |
 
-| Variable | Purpose |
-|----------|---------|
-| `BACKEND_NODE_ENV` | `development`, `production` or `test` |
-| `BACKEND_PORT` | Port used by `python main.py` (uvicorn default when unset) |
-| `BACKEND_LOG_LEVEL` | Logging level |
-| `RATE_LIMIT_NL_PER_IP` | Limite de `POST /rules/from-text` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 5` (au moins 1) |
-| `TRUSTED_PROXIES` | Adresses IP ou réseaux CIDR (séparés par des virgules) des proxys dont l'en-tête `X-Forwarded-For` est cru (Traefik). Non définie : l'IP du pair TCP sert de clé |
-| `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | Conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
+**Facultatives** (le comportement associé est désactivé, ou laissé au défaut de la bibliothèque, quand elles ne sont pas définies)
+
+| Variable | Rôle |
+|----------|------|
+| `BACKEND_NODE_ENV` | `development`, `production` ou `test` |
+| `BACKEND_PORT` | port utilisé par `python main.py` (défaut d'uvicorn si absent) |
+| `BACKEND_LOG_LEVEL` | niveau de journalisation |
+| `RATE_LIMIT_NL_PER_IP` | limite de `POST /rules/from-text` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 5` (au moins 1) |
+| `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
+| `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
 
 `LITELLM_MODEL` est une chaîne de modèle LiteLLM. Pour un proxy LiteLLM, utiliser
-`openai/<alias du modèle sur le proxy>` et `LITELLM_BASE_URL` = URL du proxy.
-`LITELLM_BUDGET_USD` est le plafond **global** de dépense (USD), suivi dans Redis. Il doit être un nombre
-fini strictement positif (`nan`, `inf`, `0` et les valeurs négatives arrêtent le démarrage).
+`openai/<alias du modèle sur le proxy>` avec `LITELLM_BASE_URL` = URL du proxy.
+`LITELLM_BUDGET_USD` est le plafond **global** de dépense (en USD), suivi dans Redis. Il doit être un
+nombre fini strictement positif : `nan`, `inf`, `0` et les valeurs négatives arrêtent le démarrage.
 
-`docker-compose.yml` exige en plus `REDIS_PASSWORD` (mot de passe de Redis, sans défaut). Il doit pouvoir
-figurer dans une URL, par exemple `openssl rand -hex 24` ; le compose le reprend dans `REDIS_URL`
-(`redis://:<mot de passe>@redis:6379/0`).
+`docker-compose.yml` exige en plus `REDIS_PASSWORD` (mot de passe de Redis, sans valeur par défaut). Il doit
+pouvoir figurer dans une URL, par exemple généré avec `openssl rand -hex 24`. Le compose le reprend dans
+`REDIS_URL` (`redis://:<mot de passe>@redis:6379/0`).
 
 ### Redis en production
 
-Redis porte le budget LLM (clé `chimeraflow:nl:spent_microusd`, **sans expiration**) et les compteurs du
-limiteur. Pour le Redis déjà exploité sur le VPS, vérifier :
+Redis porte le budget LLM (clé `chimeraflow:nl:spent_microusd`, **sans expiration**) et les compteurs
+du limiteur. Pour un Redis déjà exploité sur le VPS, vérifier :
 
 | Réglage | Valeur | Raison |
 |---------|--------|--------|
@@ -124,10 +127,10 @@ limiteur. Pour le Redis déjà exploité sur le VPS, vérifier :
 Contrôle : `redis-cli CONFIG GET maxmemory-policy`, `CONFIG GET appendonly`, `CONFIG GET requirepass`.
 Le `docker-compose.yml` du dépôt applique ces réglages (volume `redis-data`, aucun port publié).
 
-`alembic` charge `config.py` : les variables requises (dont `RATE_LIMIT_*`)
-doivent aussi être définies pour les migrations.
+`alembic` charge `config.py` : les variables requises (dont `RATE_LIMIT_*`) doivent aussi être
+définies pour les migrations.
 
-Example (PowerShell):
+Exemple (PowerShell) :
 
 ```powershell
 $env:DATABASE_URL = "postgresql://user:pass@host/dbname"
@@ -139,54 +142,58 @@ $env:RATE_LIMIT_PER_IP = "10"
 $env:RATE_LIMIT_WINDOW_SECONDS = "60"
 ```
 
-### 3. Generate synthetic data
+### 3. Générer les données synthétiques
 
-```bash
-# From project root
+```powershell
+# Depuis la racine du projet
 python scripts/generate_excel.py
-python scripts/generate_momo.py              # seeded: same output on every run
-cscript scripts/generate_access_windows.vbs  # Windows only
+python scripts/generate_momo.py              # avec une graine fixe : même sortie à chaque exécution
+python scripts/generate_whatsapp.py
+cscript //Nologo scripts/generate_access_windows.vbs   # Windows uniquement
 ```
 
-### 4. Create the schema and run the server
+### 4. Créer le schéma et lancer le serveur
 
-The schema is managed by Alembic. The container entrypoint runs the migration;\nlocally, run it once (and after each new revision) before starting the server:
+Le schéma est géré par Alembic. Le point d'entrée du conteneur exécute la migration. En local, la lancer
+une fois (et après chaque nouvelle révision) avant de démarrer le serveur :
 
-```bash
-python -m alembic upgrade head
-python -m uvicorn main:app --reload --port 8000
+```powershell
+.venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 ```
 
-API docs: http://localhost:8000/docs
+Documentation de l'API : http://localhost:8000/docs
 
-## API Endpoints
+## Endpoints
 
-### Sources (P1)
-
-```
-GET  /api/v1/sources              # List all sources
-GET  /api/v1/sources/{source}/health  # Health check
-GET  /api/v1/sources/all/records      # Fetch from all sources
-GET  /api/v1/sources/{source}/records # Fetch records (limit param)
-```
-
-### Rules (P2)
+### Sources (`/api/v1/sources`)
 
 ```
-GET  /api/v1/rules/predefined    # List the 5 predefined rules (stored status)
-POST /api/v1/rules/from-text      # Conversion NL→règle : renvoie un brouillon, ne stocke rien (limité par IP, plus strict)
-POST /api/v1/rules                # Create new rule (validated; 409 if the id exists or is predefined) (limité par IP)
-GET  /api/v1/rules                # List all rules (filter by status)
-GET  /api/v1/rules/{id}           # Get specific rule
-DELETE /api/v1/rules/{id}         # Delete rule and its correlations (limité par IP)
+GET  /api/v1/sources                   # liste des sources et de leur état
+GET  /api/v1/sources/{source}/health   # contrôle de santé d'une source
+GET  /api/v1/sources/all/records       # records de toutes les sources (limit_per_source)
+GET  /api/v1/sources/{source}/records  # records d'une source (limit)
 ```
 
-### Correlations (P2)
+### Règles (`/api/v1/rules`)
 
 ```
-POST /api/v1/correlations/execute # Execute active rules (query: rule_ids, max 20) (limité par IP)
-GET  /api/v1/correlations         # List correlations (filter by rule_id, severity; limit 1 to 1000)
+GET    /api/v1/rules/predefined     # les 5 règles prédéfinies (statut stocké)
+POST   /api/v1/rules/from-text      # conversion NL→règle : renvoie un brouillon, ne stocke rien (limite par IP, plus stricte)
+POST   /api/v1/rules                # création d'une règle (validée ; 409 si l'id existe ou est prédéfini) (limité par IP)
+GET    /api/v1/rules                # liste (filtre status)
+GET    /api/v1/rules/{id}           # une règle
+DELETE /api/v1/rules/{id}           # suppression de la règle et de ses corrélations (limité par IP)
 ```
+
+### Corrélations (`/api/v1/correlations`)
+
+```
+POST /api/v1/correlations/execute   # exécute les règles actives (paramètre rule_ids, 20 au maximum) (limité par IP)
+GET  /api/v1/correlations           # liste (filtres rule_id, severity ; limit de 1 à 1000)
+```
+
+La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/api-spec.md`.
 
 ### Conversion NL→règle (`POST /api/v1/rules/from-text`)
 
@@ -218,9 +225,12 @@ Fonctionnement :
   Réinitialiser le budget : supprimer la clé Redis. Si Redis ne répond pas, le budget ne peut pas être vérifié
   et la requête est refusée.
   Un appel en échec (délai, erreur du fournisseur, quelle qu'en soit la classe) peut avoir été facturé :
-  un coût d'entrée pessimiste (caractères / 4, au même prix) est enregistré.
+  un coût d'entrée pessimiste (caractères ÷ 4, au même prix) est enregistré.
 - Délai : 20 s par appel au fournisseur.
 - Les journaux ne contiennent ni le texte, ni la réponse du modèle, ni la clé d'API.
+
+**État réel :** le pipeline est testé avec LiteLLM simulé. Aucun appel à un vrai proxy n'a encore été fait
+(voir `docs/decisions/TECH_DEBT.md`).
 
 ### Format des erreurs
 
@@ -230,17 +240,17 @@ de validation de requête (`422` de FastAPI) gardent le format liste de FastAPI.
 
 | Code | HTTP | Cas |
 |------|------|-----|
-| `rule_not_found`, `source_not_found` | 404 | Ressource inconnue |
-| `rule_already_exists` | 409 | Identifiant déjà pris ou réservé (règle prédéfinie) |
-| `invalid_status`, `invalid_severity` | 400 | Filtre invalide |
-| `source_fetch_failed` | 500 | Lecture de la source impossible |
-| `rate_limit_exceeded` | 429 | Limite par IP dépassée (en-tête `Retry-After` en secondes) |
+| `rule_not_found`, `source_not_found` | 404 | ressource inconnue |
+| `rule_already_exists` | 409 | identifiant déjà pris ou réservé (règle prédéfinie) |
+| `invalid_status`, `invalid_severity` | 400 | filtre invalide |
+| `source_fetch_failed` | 500 | lecture de la source impossible |
+| `rate_limit_exceeded` | 429 | limite par IP dépassée (en-tête `Retry-After` en secondes) |
 | `rate_limit_unavailable` | 503 | Redis du limiteur injoignable : la mutation est refusée |
-| `nl_feature_disabled` | 503 | Variables `LITELLM_*` incomplètes |
-| `nl_budget_exceeded` | 503 | Budget LLM épuisé |
-| `nl_budget_unavailable` | 503 | Compteur de dépense illisible |
-| `nl_provider_error` | 502 | Le fournisseur LLM a échoué (réseau, délai, HTTP) |
-| `nl_conversion_failed` | 422 | Aucune règle valide après 2 retries |
+| `nl_feature_disabled` | 503 | variables `LITELLM_*` incomplètes |
+| `nl_budget_exceeded` | 503 | budget LLM épuisé |
+| `nl_budget_unavailable` | 503 | compteur de dépense illisible |
+| `nl_provider_error` | 502 | le fournisseur LLM a échoué (réseau, délai, HTTP) |
+| `nl_conversion_failed` | 422 | aucune règle valide après 2 relances |
 
 Les erreurs `nl_*` ajoutent `fallback_rules` à `detail` : les règles prédéfinies (même format que
 `GET /rules/predefined`), à proposer à la place de la conversion.
@@ -257,37 +267,38 @@ IP du client : l'adresse du pair TCP. Derrière Traefik, définir `TRUSTED_PROXI
 que si le pair en fait partie, de droite à gauche, jusqu'à la première adresse qui n'est pas un proxy de
 confiance (plusieurs lignes d'en-tête sont lues comme une seule liste). Une adresse IPv4 mappée en IPv6
 (`::ffff:a.b.c.d`) compte comme l'IPv4, et un client IPv6 est compté par préfixe `/64`. L'adresse n'est
-jamais stockée en base. Une valeur écrite par le client à gauche de l'adresse ajoutée par le proxy est ignorée. Le stockage
-en mémoire n'est utilisé que si `BACKEND_NODE_ENV=test`.
+jamais stockée en base. Une valeur écrite par le client à gauche de l'adresse ajoutée par le proxy est ignorée.
+Le stockage en mémoire n'est utilisé que si `BACKEND_NODE_ENV=test`.
 
-`execute` runs active rules only (inactive and draft rules are skipped) and
-**replaces** the previous correlations of each rule it runs, so executing twice
-gives the same list. The response reports `rules_executed`, `rules_failed`,
-`correlations_found`, `records_scanned` and `duration_ms`. A failing rule keeps
-its previous correlations; `rule_executions.error` holds a generic message and
-the details go to the logs. `detected_at` is set by the API, not by the engine.
+`execute` lance uniquement les règles actives (les règles inactives et brouillons sont ignorées) et
+**remplace** les corrélations précédentes de chaque règle exécutée : deux exécutions successives donnent la même
+liste. La réponse indique `rules_executed`, `rules_failed`, `correlations_found`, `records_scanned` et
+`duration_ms`. Une règle en échec garde ses corrélations précédentes ; `rule_executions.error` contient un message
+générique et les détails vont dans les journaux. `detected_at` est fixé par l'API, pas par le moteur.
 
-## Source Records
+## Records source
 
-Every connector returns `UnifiedRecord` objects (AGENTS.md §19). The payload
-keeps the **original column names of the source**, so a rule's `field` and
-`{source.field}` template placeholders refer to what the user sees in the
-source file.
+Chaque connecteur renvoie des objets `UnifiedRecord` (AGENTS.md §19). Le payload garde les **noms de colonnes
+d'origine de la source**, pour que le champ `field` d'une règle et les placeholders `{source.champ}` renvoient à ce
+que l'utilisateur voit dans son fichier.
 
-| Source | Payload fields | Record timestamp | Entities |
-|--------|----------------|------------------|----------|
+| Source | Champs du payload | Horodatage du record | Entités |
+|--------|-------------------|----------------------|---------|
 | `excel` | `Produit`, `Prix_Unitaire`, `Fournisseur`, `Date_MAJ` | `Date_MAJ` | `product` |
 | `access` | `id`, `designation`, `unite`, `qty_stock`, `prix_achat`, `date_modif` | `date_modif` | `product` |
-| `whatsapp` | `author`, `text` | message date | `product` (keyword + quantity, e.g. `ciment 50kg`) |
-| `momo` | `transaction_id`, `timestamp`, `phone`, `customer_name`, `operator`, `amount`, `currency`, `status`, `reference`, `quantity` | `timestamp` | `payment`, `product` (from `reference`) |
+| `whatsapp` | `author`, `text` | date du message | `product` (mot-clé + quantité, par exemple `ciment 50kg`) |
+| `momo` | `transaction_id`, `timestamp`, `phone`, `customer_name`, `operator`, `amount`, `currency`, `status`, `reference`, `quantity` | `timestamp` | `payment`, `product` (tiré de `reference`) |
 
-Rows that cannot be parsed (missing product, invalid date, invalid quantity or
-amount) are skipped, logged and counted in the connector's `parse_errors`.
-Values are never invented, so the same files always give the same records (P4).
+Les lignes qui ne peuvent pas être lues (produit absent, date invalide, quantité ou montant invalide) sont
+sautées, journalisées et comptées dans `parse_errors` du connecteur. Aucune valeur n'est inventée : les mêmes
+fichiers donnent toujours les mêmes records (P4).
 
-## Rule Schema
+Le parseur WhatsApp ne lit que le format Android `[JJ/MM/AAAA, HH:MM:SS] Auteur: Message`. Le format iOS et
+les messages sur plusieurs lignes sont comptés comme erreurs (voir `TECH_DEBT.md`).
 
-Rules follow AGENTS.md §20 format:
+## Schéma de règle
+
+Les règles suivent le format de AGENTS.md §20 :
 
 ```json
 {
@@ -313,51 +324,50 @@ Rules follow AGENTS.md §20 format:
 }
 ```
 
-Validation rules: 1 to 10 joins; an `access` join needs `table`; an `excel`
-join needs `sheet`.
+Règles de validation : de 1 à 10 joins ; un join `access` exige `table` ; un join `excel` exige `sheet`.
 
-**Allowed operators** (security whitelist):
-- `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `contains`, `in`
+**Opérateurs autorisés** (liste blanche de sécurité) :
+`eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `contains`, `in`
 
-## Rule Engine
+## Moteur de règles
 
-### Interpreter (`engine/interpreter.py`)
+### Interpréteur (`engine/interpreter.py`)
 
-- Executes rules against unified records
-- Time window: a joined record must be within `window_seconds` **before or after**
-  the trigger record (reference data such as prices usually predates the message)
-- Tracks provenance (P1 property): every correlation lists the trigger record and each joined record
-- Only allows whitelisted operators (R5)
-- A `where` comparison between incompatible types (e.g. text vs number) is a non-match, not an error
-- Deterministic (P4 property): the output depends on the inputs only (no detection time)
-- When several records of a joined source match, the best one is chosen: highest
-  similarity score, then a record at or before the trigger, then the closest in time
-  (the latest price wins among duplicates), then source order
-- Templates are rendered in one pass: source text that looks like `{momo.phone}` is not
-  expanded, and a placeholder without a value renders as an empty string
-- Source timestamps without offset are interpreted as UTC
+- Exécute les règles sur des records unifiés.
+- Fenêtre temporelle : un record joint doit se situer à `window_seconds` **avant ou après** le record déclencheur
+  (les données de référence, comme les prix, sont souvent antérieures au message).
+- Suit la provenance (propriété P1) : chaque corrélation liste le record déclencheur et chaque record joint.
+- N'accepte que les opérateurs de la liste blanche (R5).
+- Une comparaison `where` entre types incompatibles (par exemple texte et nombre) est un non-match, pas une erreur.
+- Déterministe (propriété P4) : la sortie ne dépend que des entrées (pas d'heure de détection).
+- Quand plusieurs records d'une source jointe correspondent, le meilleur est choisi : score de similarité le plus
+  élevé, puis record situé avant ou à l'instant du déclencheur, puis le plus proche dans le temps (le dernier prix
+  l'emporte parmi les doublons), puis ordre de la source.
+- Les templates sont rendus en une seule passe : un texte de source qui ressemble à `{momo.phone}` n'est pas
+  développé, et un placeholder sans valeur devient une chaîne vide.
+- Un horodatage source sans fuseau horaire est interprété en UTC.
 
-### Normalizer (`engine/normalizer.py`)
+### Normaliseur (`engine/normalizer.py`)
 
-`normalize_text()` is the single normalization implementation; connectors call
-it through `BaseConnector.normalize_text()`. Steps, in order:
+`normalize_text()` est l'implémentation unique ; les connecteurs l'appellent par
+`BaseConnector.normalize_text()`. Étapes, dans l'ordre :
 
-1. Lowercase
-2. Remove accents
-3. Keep decimals and fractions as one token (`2.5` becomes `2-5`, `1/2` becomes `1-2`)
-4. Remove punctuation (hyphens kept)
-5. Split letters from digits (`50kg` becomes `50 kg`)
-6. Collapse whitespace (last, so that the result is idempotent: P2)
+1. minuscules
+2. suppression des accents
+3. décimales et fractions gardées en un seul jeton (`2.5` devient `2-5`, `1/2` devient `1-2`)
+4. suppression de la ponctuation (tirets conservés)
+5. séparation des lettres et des chiffres (`50kg` devient `50 kg`)
+6. réduction des espaces, en dernier, pour que le résultat soit idempotent (P2)
 
-Matching adds FR/EN synonyms and fuzzy similarity (`difflib.SequenceMatcher`,
-threshold 0.85). Two entities only match when they contain the same numbers:
-`ciment 50 kg` never matches `ciment 40 kg`, even though their similarity is 0.92.
+La mise en correspondance ajoute les synonymes FR/EN et une similarité floue : distance de Levenshtein
+normalisée (`rapidfuzz`), seuil **0.85**. Deux entités ne correspondent que si elles contiennent les mêmes
+nombres : `ciment 50 kg` ne correspond jamais à `ciment 40 kg`, même si leur similarité vaut 0.92.
 
-Example:
+Exemple :
 ```python
 from engine.normalizer import normalize_text
 
-# The demo scenario: one product written four ways
+# Le scénario de démonstration : un produit écrit de quatre façons
 normalize_text("ciment 50 kg")   # "ciment 50 kg"
 normalize_text("Ciment50kg")     # "ciment 50 kg"
 normalize_text("cimént 50kg")    # "ciment 50 kg"
@@ -373,91 +383,92 @@ arrêtent l'application. L'ordre est celui des noms de fichier. Les textes `natu
 `emit.template` sont des données métier (sans émoji : la sévérité est un champ). Vérifier les fichiers
 sans lancer l'application :
 
-```bash
-python -m engine.validate_rules            # <DATA_DIR>/rules
-python -m engine.validate_rules ../data/rules
+```powershell
+.venv\Scripts\python.exe -m engine.validate_rules            # <DATA_DIR>/rules
+.venv\Scripts\python.exe -m engine.validate_rules ..\data\rules
 ```
 
 Le hook `.kiro/hooks/rule-validate.json` se déclenche à l'enregistrement d'un fichier de `data/rules/`.
 
-5 rules as per Roadmap:
+Cinq règles prédéfinies :
 
-1. **r_low_stock**: Low stock alert (demo rule), active
-2. **r_payment_received**: Payment confirmation, **inactive**
-3. **r_price_comparison**: Price discrepancy detection, **inactive**
-4. **r_high_value_order**: High-value order tracking, active
-5. **r_stock_replenish**: Replenishment recommendation, **inactive**
+1. **r_low_stock** : alerte de stock faible (démonstration), active
+2. **r_payment_received** : confirmation de paiement, **inactive**
+3. **r_price_comparison** : détection d'écart de prix, **inactive**
+4. **r_high_value_order** : suivi des commandes à forte valeur, active
+5. **r_stock_replenish** : recommandation de réapprovisionnement, **inactive**
 
-Rules 2, 3 and 5 are seeded inactive because the DSL cannot express what their
-description promises (status filter, > 10% gap, stock threshold on the trigger
-record). Activating one is a status change in the `rules` table; the seeding
-keeps that choice on restart. See `docs/decisions/TECH_DEBT.md`.
+Les règles 2, 3 et 5 sont seedées inactives : le DSL ne sait pas exprimer ce que leur description promet (filtre
+de statut, écart supérieur à 10 %, seuil de stock sur le record déclencheur). Activer une règle est un changement
+de statut dans la table `rules` ; le seed garde ce choix au redémarrage. Voir `docs/decisions/TECH_DEBT.md`.
 
-## Database
+## Base de données
 
-SQLAlchemy models:
+Modèles SQLAlchemy :
 
-- **Rule**: Correlation rule definition
-- **RuleExecution**: Execution history (duration, records scanned)
-- **Correlation**: Emitted correlation with provenance
+- **Rule** : définition d'une règle de corrélation
+- **RuleExecution** : historique des exécutions (durée, records lus)
+- **Correlation** : corrélation émise, avec sa provenance
 
-`DATABASE_URL` is required (no SQLite fallback). PostgreSQL (Neon) in
-production. Tables are created and the predefined rules are upserted into
-`rules` at startup; startup fails if either is not possible. Correlations and
-executions reference `rules.id` with `ON DELETE CASCADE`, so deleting a rule
-deletes its results. Foreign keys are also enforced on SQLite (tests behave like
-PostgreSQL). Each rule runs inside its own savepoint, so a failing rule leaves
-no partial correlations. Timestamps are stored as timezone-aware UTC.
+`DATABASE_URL` est requise (pas de repli vers SQLite). PostgreSQL (Neon) en production. Les tables sont créées
+et les règles prédéfinies sont insérées ou mises à jour dans `rules` au démarrage ; le démarrage échoue si l'un
+des deux est impossible. Les corrélations et exécutions référencent `rules.id` avec `ON DELETE CASCADE` : supprimer
+une règle supprime ses résultats. Les clés étrangères sont aussi appliquées sur SQLite (les tests se comportent
+comme PostgreSQL). Chaque règle s'exécute dans son propre savepoint : une règle en échec ne laisse aucune
+corrélation partielle. Les horodatages sont stockés en UTC avec fuseau.
 
-## Testing
+## Tests
 
-Run from `backend/`. `tests/conftest.py` sets the test environment variables
-(`BACKEND_NODE_ENV=test`, `DATA_DIR`, in-memory SQLite `DATABASE_URL`,
-`CORS_ORIGINS`, `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS`), so no `.env` file is needed.
-`BACKEND_NODE_ENV=test` est aussi ce qui sélectionne le stockage mémoire du limiteur (choix explicite, pas un repli).
+Lancer depuis `backend/`. `tests/conftest.py` définit les variables d'environnement de test
+(`BACKEND_NODE_ENV=test`, `DATA_DIR`, `DATABASE_URL` SQLite en mémoire, `CORS_ORIGINS`, `RATE_LIMIT_PER_IP`,
+`RATE_LIMIT_WINDOW_SECONDS`) : aucun fichier `.env` n'est nécessaire. `BACKEND_NODE_ENV=test` sélectionne aussi
+le stockage mémoire du limiteur (choix explicite, pas un repli).
 
-```bash
-# All tests
-python -m pytest tests/ -v
+```powershell
+# Tous les tests
+.venv\Scripts\python.exe -m pytest tests -v
 
-# Contract tests (R1-R4)
-python -m pytest tests/test_connectors.py -v
+# Tests de contrat (R1 à R4)
+.venv\Scripts\python.exe -m pytest tests\test_connectors.py -v
 
-# Property-based tests (Hypothesis)
-python -m pytest tests/test_properties.py tests/test_normalizer.py -v
+# Tests basés sur les propriétés (Hypothesis)
+.venv\Scripts\python.exe -m pytest tests\test_properties.py tests\test_normalizer.py -v
 ```
 
-The Access contract test is skipped when `mdb-export` (mdbtools) is not installed.
+Le test de contrat Access est sauté quand `mdb-export` (mdbtools) n'est pas installé.
 
-## Security
+## Sécurité
 
-Per AGENTS.md §1 (security guidelines):
+Selon AGENTS.md §1 (règles de sécurité) :
 
-- Implemented: **no code execution** (rules are JSON, interpreted with whitelisted operators)
-- Implemented: **input validation** with strict Pydantic schemas
-- Implemented: source error details are logged, not returned in HTTP responses
-- Implemented: **rate limiting** per IP on every mutation endpoint (slowapi + Redis), 429 with `Retry-After`
-- Implemented: **LLM budget cap** (`LITELLM_BUDGET_USD`, spend counter in Redis, refusal once exceeded)
-- Implemented: user text separated from instructions in the LLM prompt, model answer validated with `RuleCreate`
-- Implemented: no IP address, user text or API key in the logs of the new code (slowapi's own warning, which names the IP, is silenced)
-- Not implemented yet: **sanitization** of source text before display (frontend work)
+- Implémenté : **aucune exécution de code** (les règles sont du JSON, interprété avec des opérateurs en liste blanche)
+- Implémenté : **validation des entrées** avec des schémas Pydantic stricts
+- Implémenté : les détails d'erreur des sources sont journalisés, jamais renvoyés dans les réponses HTTP
+- Implémenté : **limitation par IP** sur chaque endpoint de mutation (slowapi + Redis), 429 avec `Retry-After`
+- Implémenté : **plafond de budget LLM** (`LITELLM_BUDGET_USD`, compteur de dépense dans Redis, refus une fois dépassé)
+- Implémenté : texte utilisateur séparé des instructions dans le prompt LLM, réponse du modèle validée par `RuleCreate`
+- Implémenté : aucune adresse IP, aucun texte utilisateur et aucune clé API dans les journaux du nouveau code
+  (l'avertissement de slowapi, qui contient l'IP, est désactivé)
+- **Non implémenté** : assainissement des textes de source avant affichage (travail frontend)
+- **Non implémenté** : authentification des endpoints (voir `.kiro/specs/api-spec.md` §6)
 
-## Development
+## Développement
 
-### Adding a new connector
+### Ajouter un connecteur
 
-1. Create `backend/mcp_servers/my_connector.py`
-2. Extend `BaseConnector`
-3. Implement `fetch_records()` and `_perform_health_check()`
-4. Return `UnifiedRecord` objects with the source's original column names in the payload
-5. Add tests in `tests/test_connectors.py`
+1. Créer `backend/mcp_servers/mon_connecteur.py`
+2. Hériter de `BaseConnector`
+3. Implémenter `fetch_records()` et `_perform_health_check()`
+4. Renvoyer des `UnifiedRecord` avec les noms de colonnes d'origine dans le payload
+5. Ajouter les tests dans `tests/test_connectors.py`
 
-### Adding a new rule
+### Ajouter une règle
 
-Via l'API (`POST /api/v1/rules`, éventuellement à partir d'un brouillon de `POST /api/v1/rules/from-text`), ou
-pour une règle prédéfinie, en ajoutant `data/rules/r_my_rule.json` (voir le format ci-dessus) puis
+Via l'API (`POST /api/v1/rules`, éventuellement à partir d'un brouillon de `POST /api/v1/rules/from-text`), ou,
+pour une règle prédéfinie, en ajoutant `data/rules/r_ma_regle.json` (format ci-dessus) puis en lançant
 `python -m engine.validate_rules`. Le seed l'insère au prochain démarrage.
 
 ---
 
-**Phase**: P2 (Moteur de règles) — in progress (interpreter, normalizer, rules and correlations API, rate limiting and NL→rule done; DSL extensions pending)
+**Phase** : P2 (moteur de règles), en cours. Faits : interpréteur, normaliseur, API règles et corrélations,
+limitation par IP et conversion NL→règle implémentés. Extensions du DSL en attente.

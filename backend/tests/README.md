@@ -1,129 +1,123 @@
-# ChimeraFlow Backend Tests
+# Tests du backend ChimeraFlow
 
-Test suite for MCP connectors and rule engine.
+Suite de tests des connecteurs MCP, du moteur de règles, de l'API et de la conversion NL→règle.
 
 ## Structure
 
 ```
 tests/
 ├── __init__.py
-├── conftest.py                 # Test environment variables, Hypothesis profiles, api_client fixture
-├── factories.py                # In-memory unified records (WhatsApp, Access, Excel)
-├── test_api_correlations.py    # Seeding, execution, foreign keys, idempotence, cascade
-├── test_connectors.py          # Contract tests (R1-R4)
-├── test_access_readers.py      # ACCESS_READER selection, mdbtools vs access-parser equivalence
-├── test_migrations.py          # alembic upgrade head / downgrade base, no drift with the models
-├── test_connector_payloads.py  # Source field names, product entities, parse errors
-├── test_properties.py          # Property-Based Tests (P1-P6)
-├── test_normalizer.py          # Normalization variants + idempotence (P2)
-├── test_interpreter.py         # Rule execution, provenance, where conditions
-├── test_schemas.py             # Rule schema validation
-├── test_rule_files.py          # data/rules/*.json loader (fail fast), validation CLI
-├── test_rate_limit.py          # 429 + Retry-After, client IP / trusted proxies, required rate limit variables
-├── test_nl_to_rule.py          # NL->rule: retries, budget, feature disabled, prompt injection (LiteLLM mocked)
-├── test_api_errors.py          # Stable error codes of the API
-└── test_health.py              # API health check tests
+├── conftest.py                 # variables d'environnement de test, profils Hypothesis, fixture api_client
+├── factories.py                # records unifiés en mémoire (WhatsApp, Access, Excel)
+├── test_api_correlations.py    # seed, exécution, clés étrangères, idempotence, cascade
+├── test_connectors.py          # tests de contrat (R1 à R4)
+├── test_access_readers.py      # choix de ACCESS_READER, équivalence mdbtools et access-parser
+├── test_migrations.py          # alembic upgrade head / downgrade base, pas de dérive avec les modèles
+├── test_connector_payloads.py  # noms de champs d'origine, entités produit, erreurs de parsing
+├── test_properties.py          # tests basés sur les propriétés (Hypothesis), P1 à P6
+├── test_normalizer.py          # variantes de normalisation, idempotence (P2), nombres
+├── test_interpreter.py         # exécution des règles, provenance, conditions where
+├── test_schemas.py             # validation du schéma de règle
+├── test_rule_files.py          # chargement de data/rules/*.json (échec immédiat), CLI de validation
+├── test_rate_limit.py          # 429 + Retry-After, IP client / proxys de confiance, variables requises
+├── test_nl_to_rule.py          # NL→règle : relances, budget, désactivation, injection (LiteLLM simulé)
+├── test_api_errors.py          # codes d'erreur stables de l'API
+└── test_health.py              # contrôle de santé et endpoints de base
 ```
 
 ## Installation
 
-Install test dependencies in the Python 3.13 virtual environment (`backend/.venv`):
+Dans l'environnement virtuel Python 3.13 (`backend/.venv`), depuis `backend/` :
 
-```bash
+```powershell
 uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python -r requirements-dev.txt   # Windows: .venv\Scripts\python.exe
+uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
 ```
 
-This includes:
-- `pytest` — Test runner
-- `pytest-asyncio` — Async test support
-- `hypothesis` — Property-based testing framework
+Sous Linux ou macOS, remplacer `.venv\Scripts\python.exe` par `.venv/bin/python`.
 
-## Running Tests
+Ce fichier installe :
+- `pytest` : lanceur de tests
+- `pytest-asyncio` : tests asynchrones
+- `hypothesis` : tests basés sur les propriétés
+- `ruff` et `pyflakes` : lint
 
-### All tests
+## Lancer les tests
 
-```bash
-# From backend/ directory (Windows: .venv\Scripts\python.exe)
-.venv/bin/python -m pytest tests/ -v
-.venv/bin/python -m ruff check .     # lint (pyflakes rules)
+### Tous les tests
+
+```powershell
+# Depuis backend/
+.venv\Scripts\python.exe -m pytest tests -v
+.venv\Scripts\python.exe -m ruff check .
 ```
 
-Locally on Windows there is no mdbtools: the mdbtools tests are skipped
-(3 skipped). Run the full suite in Docker to execute them.
+Sous Windows, il n'y a pas de mdbtools : les tests qui exigent `mdb-export` sont sautés (3 sautés). Pour les exécuter, lancer la suite dans Docker.
 
-### All tests in Docker (with mdbtools, nothing skipped)
+### Tous les tests dans Docker (avec mdbtools, rien n'est sauté)
 
-From the repository root (one line, PowerShell):
+Depuis la racine du dépôt, en PowerShell (une seule ligne) :
 
 ```powershell
 docker build --target test -t chimeraflow-backend-test backend; docker run --rm -v "${PWD}/data:/data:ro" chimeraflow-backend-test
 ```
 
-Bash: replace `;` with `&&` and `${PWD}` with `$PWD`. Add
-`python -m pytest tests -q --hypothesis-profile=ci` after the image name to run
-the CI profile. The `test` stage of `backend/Dockerfile` installs
-`requirements-dev.txt` on top of the runtime image, which provides `mdb-export`.
+En bash, remplacer `;` par `&&` et `${PWD}` par `$PWD`. Pour lancer le profil de CI, ajouter `python -m pytest tests -q --hypothesis-profile=ci` après le nom de l'image. L'étape `test` de `backend/Dockerfile` installe `requirements-dev.txt` par-dessus l'image d'exécution, qui fournit `mdb-export`.
 
-### Specific test file
+### Un fichier, une classe ou une fonction
 
-```bash
-python -m pytest tests/test_connectors.py -v
-python -m pytest tests/test_properties.py -v
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_connectors.py -v
+.venv\Scripts\python.exe -m pytest tests\test_properties.py -v
+.venv\Scripts\python.exe -m pytest tests\test_connectors.py::TestConnectorContract -v
+.venv\Scripts\python.exe -m pytest tests\test_properties.py::TestNormalizationProperties::test_normalization_idempotent -v
 ```
 
-### Specific test class or function
+### Avec couverture
 
-```bash
-python -m pytest tests/test_connectors.py::TestConnectorContract -v
-python -m pytest tests/test_properties.py::TestNormalizationProperties::test_normalization_idempotent -v
+```powershell
+.venv\Scripts\python.exe -m pytest tests --cov=mcp_servers --cov=engine --cov-report=html
 ```
 
-### With coverage
+(Requiert `pytest-cov`, qui n'est pas dans `requirements-dev.txt`.)
 
-```bash
-python -m pytest tests/ --cov=mcp_servers --cov=engine --cov-report=html
-```
+## Catégories de tests
 
-## Test Categories
+### Tests de contrat (`test_connectors.py`)
 
-### Contract Tests (`test_connectors.py`)
+Vérifient la conformité à `.kiro/specs/connectors-spec.md` :
 
-Validates compliance with `connectors-spec.md`:
+- **R1** : tous les connecteurs implémentent `fetch_records()` et `health_check()`
+- **R2** : les records respectent le schéma unifié
+- **R3** : le contrôle de santé est mis en cache 30 secondes
+- **R4** : les erreurs de parsing sont comptées, sans plantage
 
-- **R1**: All connectors implement `fetch_records()` and `health_check()`
-- **R2**: Records conform to unified schema
-- **R3**: Health checks are cached for 30 seconds
-- **R4**: Parse errors are counted, not crashed
+Le test de contrat Access tourne avec les deux lecteurs (`access-parser`, `mdbtools`). Le cas `mdbtools` et les tests d'équivalence des lecteurs (`test_access_readers.py`) sont sautés quand `mdb-export` n'est pas installé.
 
-The Access contract test runs with both readers (`access-parser`, `mdbtools`); the
-`mdbtools` case and the reader-equivalence tests (`test_access_readers.py`) are
-skipped when `mdb-export` is not installed.
+### Tests basés sur les propriétés (`test_properties.py`, `test_normalizer.py`)
 
-### Property-Based Tests (`test_properties.py`, `test_normalizer.py`)
+Utilisent Hypothesis. Statut de chaque propriété de `Roadmap.md` §7 (détail dans `.kiro/specs/design.md` §12) :
 
-Uses Hypothesis to validate properties from `Roadmap.md §7`:
+- **P1** provenance : partielle
+- **P2** idempotence de la normalisation : couverte (Hypothesis)
+- **P3** aller-retour du parseur : non couverte (le test `TestRoundTrip` ne vérifie que des champs non vides)
+- **P4** déterminisme : partielle (exemples fixes)
+- **P5** monotonie de la fenêtre : non couverte
+- **P6** absence de fabrication : partielle
 
-- **P1** Provenance conservation: all emitted data comes from source records
-- **P2** Normalization idempotence: `norm(norm(x)) == norm(x)`
-- **P3** Parser round-trip: parsing preserves message content
-- **P4** Determinism: same inputs → same outputs
-- **P6** No fabrication: no invented field values
+### Tests du moteur et du schéma
 
-### Engine and Schema Tests
+- `test_interpreter.py` : exécute `r_low_stock` sur des records en mémoire (provenance, seuil, fenêtre temporelle, types incompatibles, choix du meilleur candidat parmi les doublons, rendu des templates sans expansion d'accolades)
+- `test_normalizer.py` : vérifie aussi que des nombres différents ne correspondent jamais (`50 kg` contre `40 kg`) et que décimales et fractions restent un seul jeton
+- `test_api_correlations.py` : utilise la fixture `api_client` (base SQLite en mémoire, lifespan de l'application, règles prédéfinies seedées) avec les connecteurs de fichiers remplacés par des records en mémoire. Les clés étrangères sont appliquées sur SQLite : ces tests échouent comme le ferait PostgreSQL.
+- `test_schemas.py` : refuse les joins vides, les joins Excel sans `sheet`, les joins Access sans `table`, les opérateurs inconnus
+- `test_connector_payloads.py` : le payload garde les noms de colonnes d'origine, MoMo émet une entité `product`, les lignes invalides sont sautées et comptées
 
-- `test_interpreter.py`: runs `r_low_stock` on in-memory records (provenance, threshold, time window, incompatible types, best-match choice among duplicates, template rendering without brace expansion)
-- `test_normalizer.py`: also checks that different numbers never match (`50 kg` vs `40 kg`) and that decimals and fractions stay one token
-- `test_api_correlations.py`: uses the `api_client` fixture (fresh in-memory database, application lifespan, predefined rules seeded) with the file connectors replaced by in-memory records. Foreign keys are enforced on SQLite, so these tests fail the way PostgreSQL would
-
-- `test_schemas.py`: rejects empty joins, Excel joins without `sheet`, Access joins without `table`, unknown operators
-- `test_connector_payloads.py`: payload keeps the source column names, MoMo emits a `product` entity, invalid rows are skipped and counted
-
-Test names follow "should [result] when [condition]" for new tests.
+Les nouveaux tests suivent le format « should [résultat] when [condition] ».
 
 ## Configuration
 
-Test configuration in `pytest.ini`:
+Configuration des tests dans `pytest.ini` :
 
 ```ini
 [pytest]
@@ -132,88 +126,81 @@ asyncio_mode = auto
 addopts = --hypothesis-profile=dev
 ```
 
-Hypothesis profiles are registered in `tests/conftest.py`:
+Profils Hypothesis enregistrés dans `tests/conftest.py` :
 
-| Profile | `max_examples` | `deadline` |
-|---------|----------------|------------|
-| `dev` (default) | 100 | none |
+| Profil | `max_examples` | `deadline` |
+|--------|----------------|------------|
+| `dev` (défaut) | 100 | aucune |
 | `ci` | 500 | 5000 ms |
 
-For CI/CD:
+Pour la CI :
 
 ```bash
 python -m pytest tests/ --hypothesis-profile=ci
 ```
 
-## Test Data
+## Données de test
 
-Tests use synthetic data from `data/` directory:
+Les tests lisent les données synthétiques de `data/` :
 
-- `data/commandes_clients.txt` — WhatsApp export
-- `data/momo_transactions.csv` — Mobile Money CSV (50 transactions)
-- `data/tarifs_fournisseurs.xlsx` — Excel price list
-- `data/STOCK_ZOBO.mdb` — Access database (24 articles)
+- `data/commandes_clients.txt` : export WhatsApp
+- `data/momo_transactions.csv` : CSV Mobile Money
+- `data/tarifs_fournisseurs.xlsx` : tarifs Excel
+- `data/STOCK_ZOBO.mdb` : base Access
 
-Regenerate missing files:
+Régénérer les fichiers manquants :
 
-```bash
-# From project root
+```powershell
+# Depuis la racine du projet
 python scripts/generate_excel.py
 python scripts/generate_momo.py
-cscript //Nologo scripts/generate_access_windows.vbs  # Windows with Access only
+cscript //Nologo scripts/generate_access_windows.vbs   # Windows avec Access uniquement
 ```
 
-The VBS script must stay ASCII-only (cscript reads it as ANSI): accented letters
-are written as `\xHH` and decoded with `ChrW`.
+Le script VBS doit rester en ASCII seul (cscript le lit en ANSI) : les lettres accentuées sont écrites `\xHH` et décodées avec `ChrW`.
 
-## Environment
+## Environnement
 
-`tests/conftest.py` sets these variables before the application is imported,
-so no `.env` file is needed:
+`tests/conftest.py` définit ces variables avant l'import de l'application. Aucun fichier `.env` n'est nécessaire.
 
-| Variable | Test value |
-|----------|------------|
-| `BACKEND_NODE_ENV` | `test` (Redis not required) |
+| Variable | Valeur en test |
+|----------|----------------|
+| `BACKEND_NODE_ENV` | `test` (Redis non requis) |
 | `DATA_DIR` | `<repo>/data` |
-| `DATABASE_URL` | `sqlite://` (in-memory) |
+| `DATABASE_URL` | `sqlite://` (en mémoire) |
 | `CORS_ORIGINS` | `http://localhost:3000` |
-| `ACCESS_READER` | `access-parser` (the mdbtools reader is built explicitly in tests) |
-| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS` | `1000`, `60` (the 429 tests lower the limit; the limiter uses memory storage because `BACKEND_NODE_ENV=test`) |
-| `LITELLM_*`, `TRUSTED_PROXIES` | removed from the environment (the NL->rule feature is configured per test; only `litellm.acompletion` is mocked) |
+| `ACCESS_READER` | `access-parser` (le lecteur mdbtools est construit explicitement dans les tests) |
+| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS` | `1000`, `60` (les tests de 429 abaissent la limite ; le limiteur utilise le stockage mémoire car `BACKEND_NODE_ENV=test`) |
+| `LITELLM_*`, `TRUSTED_PROXIES`, `RATE_LIMIT_NL_PER_IP` | retirés de l'environnement (la conversion NL→règle se configure par test ; seul `litellm.acompletion` est simulé) |
 
-## Kiro Hook Integration
+## Intégration avec les hooks Kiro
 
-When a connector file is saved, the `parser-test` hook automatically runs:
+Quand un fichier de connecteur est sauvegardé, le hook `parser-test` lance :
 
 ```bash
-# Triggered by .kiro/hooks/parser-test.json
 python -m pytest tests/test_connectors.py tests/test_properties.py -v --tb=short
 ```
 
-## Troubleshooting
+Défini dans `.kiro/hooks/parser-test.json`.
+
+## Dépannage
 
 ### `ModuleNotFoundError: No module named 'hypothesis'`
 
-Install dependencies:
+Installer les dépendances de test dans l'environnement virtuel :
 
-```bash
-pip install -r requirements.txt
+```powershell
+uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
 ```
 
 ### `ValueError: Required environment variable '...' is not set`
 
-You are importing the application outside pytest. Export the variables listed in
-`backend/README.md` (Setup, step 2) or run the tests through `python -m pytest`.
+L'application est importée hors de pytest. Exporter les variables de `backend/README.md` (section Configuration) ou lancer les tests avec `python -m pytest`.
 
-### Test data files not found
+### Fichiers de données introuvables
 
-Generate synthetic data:
-
-```bash
-python scripts/generate_momo.py
-python scripts/generate_excel.py  # requires openpyxl
-```
+Régénérer les données synthétiques (voir la section Données de test).
 
 ---
 
-_Last updated: 2026-11-13_
+_Dernière mise à jour : 2026-11-14_

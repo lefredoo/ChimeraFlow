@@ -89,4 +89,14 @@ Format: [Date] Decision | Discovery | Observation
 
 ---
 
+## 2026-11-14 — Vagues 1 et 2 : documentation alignée sur le code
+
+- Vagues 1 et 2 terminées. Contrôles : local 240 réussis, 3 sautés (Windows, sans mdbtools) ; Docker 243 réussis, 0 sauté (avec mdbtools).
+- README, `docs/` et `backend/README.md` traduits en français et corrigés sur le code. Créés : `.kiro/specs/design.md` (propriétés P1 à P6 avec statut), `tasks.md` et `api-spec.md`.
+- Décisions : documentation utilisateur en français ; `AGENTS.md` et `CLAUDE.md` restent en anglais ; licence MIT, LinguaSolution LLC.
+- Blocage : la CI GitHub Actions ne démarre pas (facturation du compte, run 43569157569). Voir `TECH_DEBT.md`.
+- Propriétés : P2 couverte ; P1, P4 et P6 partielles ; P3 et P5 non couvertes.
+
+---
+
 _Continue logging daily progress here._

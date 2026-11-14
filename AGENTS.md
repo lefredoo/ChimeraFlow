@@ -395,7 +395,9 @@ Rules are JSON, never executed code:
 - `connectors-spec.md` — MCP server contracts
 - `rule-engine-spec.md` — Rule DSL and interpreter
 - `ui-spec.md` — Dashboard and components
-- `api-spec.md` (planned) — FastAPI endpoints
+- `api-spec.md` — FastAPI endpoints (method, path, body, response, error codes)
+- `design.md` — architecture as implemented and correctness properties P1–P6 with test status
+- `tasks.md` — checklist by phase (P0–P5), ticked only when verified in the repo
 
 **Kiro Crew Agents (`.kiro/agents/`):** — planned for P3, not yet created
 - `chimera-builder` — Generates new connectors
@@ -425,21 +427,28 @@ Rules are JSON, never executed code:
 
 ## 22. Environment Variables
 
+Read by `backend/config.py` (`docker-compose.yml` passes them to the containers; production values come from Doppler).
+A missing required variable stops the process at startup. There is no `.env.example`.
+
+**Production: the only variable kept locally is `DOPPLER_TOKEN` (read by the Doppler CLI, not by the backend).**
+
 **Required:**
-- `BACKEND_NODE_ENV` — development | production | test
-- `DATABASE_URL` — PostgreSQL connection string (if using SQL)
-- `REDIS_URL` — Redis connection (rate limiting, cache)
-- `LITELLM_API_KEY` — LiteLLM virtual key
-- `LITELLM_BUDGET_USD` — Budget cap (default: 5.0)
-- `CORS_ORIGINS` — Allowed origins (comma-separated)
-- `DATA_DIR` — Path to synthetic data files
-- `ACCESS_READER` — `mdbtools` (Docker/production) | `access-parser` (local Windows), no fallback
+- `CORS_ORIGINS` — Comma-separated allowed origins (whitelist)
+- `DATA_DIR` — Directory of the synthetic data files (`/data` in Docker)
+- `DATABASE_URL` — SQLAlchemy URL, required at import. `postgresql://` is rewritten to psycopg 3 (Neon in production)
+- `REDIS_URL` — Redis for rate limiting and the LLM spend counter. Not required when `BACKEND_NODE_ENV=test`
+- `ACCESS_READER` — `mdbtools` (Docker/production) | `access-parser` (local Windows). Any other value stops startup, no fallback
+- `RATE_LIMIT_PER_IP` — Mutation requests allowed per client IP per window (integer ≥ 1)
+- `RATE_LIMIT_WINDOW_SECONDS` — Length of the rate limit window in seconds (integer ≥ 1)
+- `REDIS_PASSWORD` — Required by `docker-compose.yml` only: Redis `requirepass`, embedded in `REDIS_URL` by compose. Must be URL-safe (e.g. `openssl rand -hex 24`)
 
 **Optional:**
-- `BACKEND_PORT` — Backend port (default: 8000)
-- `VERCEL_URL` — Frontend URL (auto-provided by Vercel)
-- `SENTRY_DSN` — Error tracking (if using Sentry)
-- `BACKEND_LOG_LEVEL` — Logging level (default: INFO)
+- `BACKEND_NODE_ENV` — `development` | `production` | `test` (`test` uses in-memory limiter storage and makes `REDIS_URL` optional)
+- `BACKEND_PORT` — Port used by `python main.py` (uvicorn default when unset; compose sets 8000)
+- `BACKEND_LOG_LEVEL` — Logging level (root logger untouched when unset)
+- `RATE_LIMIT_NL_PER_IP` — Limit of `POST /api/v1/rules/from-text` per IP per window. When unset: `RATE_LIMIT_PER_IP // 5`, at least 1
+- `TRUSTED_PROXIES` — Comma-separated IPs or CIDR networks of trusted reverse proxies (Traefik). `X-Forwarded-For` is read only from them. When unset, the TCP peer is the client
+- `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` — NL→rule conversion. Enabled only when all four are set (otherwise `503 nl_feature_disabled`). `LITELLM_BUDGET_USD` is the global cap in USD, must be a finite number greater than 0; `LITELLM_MODEL` is `openai/<alias>` when `LITELLM_BASE_URL` points to a LiteLLM proxy
 
 ---
 

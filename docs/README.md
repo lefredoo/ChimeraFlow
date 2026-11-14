@@ -1,62 +1,62 @@
-# ChimeraFlow Documentation
+# Documentation ChimeraFlow
 
-Welcome to the ChimeraFlow documentation hub.
+Bienvenue dans le centre de documentation de ChimeraFlow.
 
 ---
 
-## 📚 Documentation Structure
+## 📚 Structure
 
 ### [decisions/](./decisions/)
-Architectural decisions and technical debt tracking.
+Décisions d'architecture et dette technique.
 
-- **[DECISIONS_LOG.md](./decisions/DECISIONS_LOG.md)** — Chronological log of all architectural and technical decisions
-- **[TECH_DEBT.md](./decisions/TECH_DEBT.md)** — Identified technical debt
-- **[P2_ACTION_PLAN.md](./decisions/P2_ACTION_PLAN.md)** — Plan for closing P1 and starting P2
-- **[p2-decisions-qcm.html](./decisions/p2-decisions-qcm.html)** — P2 decisions questionnaire (open in a browser)
-- `*-qcm.html` — Interactive decision questionnaires (open in a browser)
-- **[build-log.md](./build-log.md)** — Daily build journal
+- **[DECISIONS_LOG.md](./decisions/DECISIONS_LOG.md)** : journal chronologique des décisions techniques et d'architecture (les plus récentes en haut)
+- **[TECH_DEBT.md](./decisions/TECH_DEBT.md)** : dette technique identifiée, avec impact et fichiers concernés
+- **[P2_ACTION_PLAN.md](./decisions/P2_ACTION_PLAN.md)** : plan pour clore la P1 et démarrer la P2
+- **[p1-completion-qcm.html](./decisions/p1-completion-qcm.html)** : questionnaire interactif de clôture de la P1
+- **[p2-decisions-qcm.html](./decisions/p2-decisions-qcm.html)** : questionnaire de décisions P2
+- **[chimeraflow-decisions-qcm.html](./decisions/chimeraflow-decisions-qcm.html)** : questionnaire de décisions du projet
+- **[build-log.md](./build-log.md)** : journal de bord quotidien
+
+### [deployment/](./deployment/)
+- **[P0-setup.md](./deployment/P0-setup.md)** : installation locale, Docker Compose et vérifications de la phase P0
 
 ### [specs/](./specs/)
-Technical specifications and feature documentation.
-
-Kiro specs live in `../.kiro/specs/`.
+Vide pour l'instant (`.gitkeep`). Les spécifications Kiro sont dans **[`../.kiro/specs/`](../.kiro/specs/)** :
+- `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md` : specs des phases P0 et P1
+- `api-spec.md` : endpoints de l'API FastAPI
+- `design.md` : architecture implémentée et propriétés de correction P1 à P6
+- `tasks.md` : avancement par phase
 
 ### [design/](./design/)
-Design documents, mockups, and visual assets.
-
-_Empty for now — will contain design system artifacts, mockups, and brand guidelines._
+Documents de design, maquettes et éléments visuels. Vide pour l'instant (`.gitkeep`) : le système de design est dans [`../DESIGN.md`](../DESIGN.md).
 
 ### [architecture/](./architecture/)
-Architecture diagrams and system design documents.
-
-_Empty for now — will contain architecture decision records, system diagrams, and infrastructure documentation._
+Diagrammes et documents d'architecture système. Vide pour l'instant (`.gitkeep`). L'architecture implémentée est décrite dans [`../.kiro/specs/design.md`](../.kiro/specs/design.md).
 
 ### [reference/](./reference/)
-Reference materials and technical patterns.
-
-_Empty for now — will contain code patterns, best practices, and technical references._
+Références techniques et bonnes pratiques. Vide pour l'instant (`.gitkeep`).
 
 ---
 
-## 🚀 Quick Links
+## 🚀 Liens rapides
 
-- **[Main README](../README.md)** — Project overview and quick start
-- **[AGENTS.md](../AGENTS.md)** — Development guidelines for AI agents
-- **[DESIGN.md](../DESIGN.md)** — Design system documentation
-- **[Roadmap.md](../Roadmap.md)** — Product roadmap
-
----
-
-## 📝 Contributing to Documentation
-
-When adding new documentation:
-
-1. Place files in the appropriate directory
-2. Update this README with a link
-3. Use clear, concise language
-4. Include examples where relevant
-5. Keep formatting consistent (Markdown)
+- **[README principal](../README.md)** : présentation et démarrage rapide
+- **[AGENTS.md](../AGENTS.md)** : règles de développement pour les agents IA
+- **[DESIGN.md](../DESIGN.md)** : système de design
+- **[Roadmap.md](../Roadmap.md)** : plan produit
 
 ---
 
-_Last updated: 2026-11-13_
+## 📝 Contribuer à la documentation
+
+Pour ajouter un document :
+
+1. Le ranger dans le dossier qui correspond à son sujet
+2. Ajouter un lien dans ce fichier
+3. Écrire en français clair et concis (la documentation utilisateur est en français, AGENTS.md §6)
+4. Inclure des exemples quand ils aident
+5. Garder un Markdown cohérent
+
+---
+
+_Dernière mise à jour : 2026-11-14_
