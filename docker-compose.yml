@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build:
@@ -14,14 +12,25 @@ services:
       - BACKEND_LOG_LEVEL=INFO
       - ACCESS_READER=mdbtools
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
-      - REDIS_URL=redis://redis:6379/0
+      # The password must be URL-safe (e.g. `openssl rand -hex 24`): it is embedded in the URL
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set (e.g. via Doppler)}@redis:6379/0
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set (e.g. via Doppler)}
       - DATA_DIR=/data
+      - RATE_LIMIT_PER_IP=${RATE_LIMIT_PER_IP:?RATE_LIMIT_PER_IP must be set (e.g. via Doppler)}
+      - RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS:?RATE_LIMIT_WINDOW_SECONDS must be set (e.g. via Doppler)}
+      # Optional: trusted proxies (Traefik) and NL->rule conversion; unset variables stay unset
+      - TRUSTED_PROXIES
+      - RATE_LIMIT_NL_PER_IP
+      - LITELLM_API_KEY
+      - LITELLM_BASE_URL
+      - LITELLM_MODEL
+      - LITELLM_BUDGET_USD
     volumes:
       - ./data:/data:ro  # Read-only mount for synthetic data
       - ./backend:/app
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     mem_limit: 384m
     cpus: 0.5
@@ -35,17 +44,33 @@ services:
   redis:
     image: redis:7-alpine
     container_name: chimeraflow-redis
-    ports:
-      - "6379:6379"
+    user: redis
+    # No published port: only containers of this network reach Redis.
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set (e.g. via Doppler)}
+      # Read by redis-cli (healthcheck) so the password is not on its command line
+      - REDISCLI_AUTH=${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
     restart: unless-stopped
     mem_limit: 128m
     cpus: 0.25
-    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+    # noeviction: the LLM budget counter (chimeraflow:nl:spent_microusd) has no TTL and an
+    # eviction would reset the budget. At the memory limit writes fail, which the API
+    # turns into a refusal (503), never into an unlimited budget.
+    # appendonly: counters survive a restart (volume redis-data).
+    command:
+      - sh
+      - -c
+      - exec redis-server --maxmemory 100mb --maxmemory-policy noeviction --appendonly yes --requirepass "$$REDIS_PASSWORD"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 30s
       timeout: 3s
       retries: 3
+
+volumes:
+  redis-data:
 
 networks:
   default:

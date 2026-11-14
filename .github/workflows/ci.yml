@@ -17,6 +17,7 @@ jobs:
   backend-lint-test:
     name: Backend lint and tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +44,7 @@ jobs:
   backend-docker-test:
     name: Backend Docker test stage
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +57,7 @@ jobs:
   migrations-postgres:
     name: Alembic migrations on PostgreSQL
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:17-alpine
@@ -76,6 +79,8 @@ jobs:
       DATA_DIR: ../data
       REDIS_URL: redis://localhost:6379/0
       ACCESS_READER: access-parser
+      RATE_LIMIT_PER_IP: "10"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
     steps:
       - uses: actions/checkout@v4
 
