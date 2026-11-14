@@ -1,0 +1,23 @@
+{
+  "meta.title": "ChimeraFlow - Moteur de corrélation de données",
+  "meta.description": "Excel, Access et WhatsApp réunis dans une seule vue corrélée pour les petites entreprises",
+  "home.title": "ChimeraFlow",
+  "home.tagline": "Excel, Access et WhatsApp réunis dans une seule vue corrélée",
+  "home.event": "Kiroween 2026 | Catégorie : Frankenstein",
+  "status.heading": "État de l'API",
+  "status.backend": "API backend",
+  "status.version": "Version",
+  "status.checking": "Vérification en cours…",
+  "status.connected": "✓ Connectée",
+  "status.error": "✗ Erreur",
+  "status.unreachable": "✗ Injoignable",
+  "sources.excel.title": "Excel",
+  "sources.excel.description": "Tarifs fournisseurs au format imparfait",
+  "sources.access.title": "Access",
+  "sources.access.description": "Anciennes bases de stock (.mdb)",
+  "sources.whatsapp.title": "WhatsApp",
+  "sources.whatsapp.description": "Commandes et messages des clients",
+  "phase.title": "Phase P0 - Fondations",
+  "phase.summary": "Hello-world de bout en bout | Spike Access | 3 spécifications",
+  "phase.badge": "En cours"
+}
