@@ -9,8 +9,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PORT=8000
-      - LOG_LEVEL=INFO
+      - BACKEND_NODE_ENV=production
+      - BACKEND_PORT=8000
+      - BACKEND_LOG_LEVEL=INFO
+      - ACCESS_READER=mdbtools
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set (e.g. via Doppler)}
@@ -24,7 +26,7 @@ services:
     mem_limit: 384m
     cpus: 0.5
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
       interval: 30s
       timeout: 3s
       retries: 3

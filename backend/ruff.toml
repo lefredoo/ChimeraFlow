@@ -1,0 +1,5 @@
+# Same checks as pyflakes (unused imports/variables, undefined names)
+extend-exclude = [".venv"]
+
+[lint]
+select = ["F"]
