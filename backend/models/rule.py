@@ -63,7 +63,6 @@ class Rule(Base):
     # Metadata
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
-    created_by = Column(String(100), nullable=True)  # IP or user ID
     
     # Relationships
     executions = relationship("RuleExecution", back_populates="rule", cascade="all, delete-orphan")

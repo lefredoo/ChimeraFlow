@@ -146,15 +146,16 @@ class NaturalLanguageToRuleRequest(BaseModel):
     """
     Request to convert natural language to rule JSON
     """
+    model_config = {"str_strip_whitespace": True}
+
     text: str = Field(..., min_length=20, max_length=1000)
     language: Literal["fr", "en"] = "fr"
 
 
 class NaturalLanguageToRuleResponse(BaseModel):
     """
-    Response from NL→JSON conversion
+    Response from NL→JSON conversion: a draft rule, not stored.
+    Failures are returned as errors (see api/errors.py), never in this body.
     """
-    success: bool
-    rule: Optional[RuleCreate] = None
-    error: Optional[str] = None
-    retries: int = 0
+    rule: RuleCreate
+    retries: int = Field(default=0, ge=0)
