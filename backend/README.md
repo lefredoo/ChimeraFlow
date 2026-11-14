@@ -17,9 +17,10 @@ backend/
 ├── mcp_servers/            # Data source connectors (P1)
 │   ├── base.py             # BaseConnector + UnifiedRecord schema
 │   ├── excel_connector.py  # Excel reader (pandas + openpyxl)
-│   ├── access_connector.py # Access reader (mdbtools CLI)
+│   ├── access_connector.py # Access reader (mdbtools CLI or access-parser, ACCESS_READER)
 │   ├── whatsapp_connector.py # WhatsApp parser (regex)
 │   └── momo_connector.py   # Mobile Money CSV reader
+├── migrations/             # Alembic migrations (env.py reads DATABASE_URL)
 ├── models/                 # SQLAlchemy models (P2)
 │   ├── base.py             # Database configuration (SQLite foreign keys enabled)
 │   ├── rule.py             # Rule, RuleExecution, Correlation
@@ -37,17 +38,24 @@ backend/
 │   ├── test_interpreter.py # Rule execution, provenance, best-match choice, template rendering
 │   ├── test_schemas.py     # Rule schema validation
 │   └── test_health.py      # API smoke tests
+│   ├── test_access_readers.py # mdbtools and access-parser produce identical records
+│   ├── test_migrations.py  # alembic upgrade head / downgrade base, drift with the models
 ├── config.py               # Environment configuration
 ├── main.py                 # FastAPI application
-└── requirements.txt        # Python dependencies
+├── alembic.ini             # Alembic configuration
+├── requirements.txt        # Runtime dependencies (Python 3.13)
+└── requirements-dev.txt    # Test and lint tools
 ```
 
 ## Setup
 
 ### 1. Install dependencies
 
+Python 3.13 virtual environment with [uv](https://docs.astral.sh/uv/) (git-ignored .venv):
+
 ```bash
-pip install -r requirements.txt
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt   # Windows: .venv\Scripts\python.exe
 ```
 
 ### 2. Configure environment
@@ -65,6 +73,7 @@ Missing required variables stop the application at startup, by design
 | `CORS_ORIGINS` | Comma-separated list of allowed origins |
 | `DATA_DIR` | Directory containing the synthetic data files |
 | `REDIS_URL` | Redis connection (not required when `BACKEND_NODE_ENV=test`) |
+| `ACCESS_READER` | `mdbtools` (Docker, production) or `access-parser` (pure Python, local Windows). Any other value stops the startup |
 
 **Optional** (the related behavior is disabled or left to the library default when unset)
 
@@ -83,6 +92,7 @@ $env:DATABASE_URL = "postgresql://user:pass@host/dbname"
 $env:REDIS_URL = "redis://localhost:6379/0"
 $env:CORS_ORIGINS = "http://localhost:3000"
 $env:DATA_DIR = "../data"
+$env:ACCESS_READER = "access-parser"
 ```
 
 ### 3. Generate synthetic data
@@ -94,9 +104,12 @@ python scripts/generate_momo.py              # seeded: same output on every run
 cscript scripts/generate_access_windows.vbs  # Windows only
 ```
 
-### 4. Run server
+### 4. Create the schema and run the server
+
+The schema is managed by Alembic. The container entrypoint runs the migration;\nlocally, run it once (and after each new revision) before starting the server:
 
 ```bash
+python -m alembic upgrade head
 python -m uvicorn main:app --reload --port 8000
 ```
 

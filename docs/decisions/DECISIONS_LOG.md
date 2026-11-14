@@ -18,6 +18,16 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-14] Lecteur Access explicite, Alembic au démarrage du conteneur, dépendances scindées
+
+**Context**: Python 3.13, nouvelles dépendances approuvées (P2 Q2, Q4, Q6, Q8) : lecture Access sous Windows, schéma géré à la main (`create_all`), pins `requirements.txt` périmés.
+**Decision**: `ACCESS_READER` (`mdbtools` | `access-parser`) est obligatoire et validé au démarrage, sans repli de l'un sur l'autre ; les deux lecteurs alimentent le même code de parsing (mêmes enregistrements, test d'équivalence sur `STOCK_ZOBO.mdb`). `alembic upgrade head` s'exécute dans le CMD du conteneur avant uvicorn, plus dans le lifespan (qui ne fait que le seed). `requirements.txt` (runtime) et `requirements-dev.txt` (tests, lint) sont séparés ; l'image a une cible `test` avec mdbtools. Lint : `ruff check` (règles F, équivalent pyflakes) car pyflakes ne sait pas exclure `.venv`.
+**Alternatives rejected**: Repli automatique mdbtools → access-parser (masque une mauvaise configuration, §7). Migration dans le lifespan (course entre workers/réplicas, impossible avec SQLite en mémoire des tests, le serveur démarrerait malgré un échec). Fichier de dépendances unique (les outils de test alourdissent l'image de production).
+**Consequences**: Lancer `alembic upgrade head` à la main en local avant uvicorn ; `alembic` charge `config.py`, donc toutes les variables requises doivent être définies (Doppler les fournit). Les tests créent les tables avec `create_all`, un test vérifie l'absence de dérive avec la migration. `DATABASE_URL` `postgresql://` est converti en `postgresql+psycopg://` dans `config.normalize_database_url` (seul endroit).
+**AGENTS.md rule concerned**: §7 (pas de repli de configuration), §16 (nouvelles dépendances approuvées par le product owner)
+
+---
+
 ## [2026-11-13] P2 review pass 2: seeded predefined rules, matching on numbers, idempotent executions
 
 **Context**: The second review found foreign keys pointing to rules that exist only in code, duplicate correlations on each execution, and fuzzy matching that links "ciment 50 kg" to "ciment 40 kg".

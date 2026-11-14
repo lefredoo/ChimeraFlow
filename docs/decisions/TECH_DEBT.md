@@ -13,6 +13,12 @@ Required by AGENTS.md §15.
 
 ## Current Debt
 
+- [2026-11-14] Image runtime contient tests/ et requirements-dev.txt (COPY . .) | Low | backend/Dockerfile, backend/.dockerignore
+- [2026-11-14] Migrations jamais testées sur PostgreSQL ni en mode offline (--sql) | Med | backend/tests/test_migrations.py
+- [2026-11-14] access-parser : une colonne Currency avec propriété Format renvoie une chaîne formatée, prix_achat devient None | Low | backend/mcp_servers/access_connector.py
+- [2026-11-14] Équivalence des lecteurs Access vérifiée seulement là où mdbtools est installé (Docker) : à exécuter en CI | Med | backend/tests/test_access_readers.py
+- [2026-11-14] Boucle for/if dans un test (règle « pas de logique dans les tests ») | Low | backend/tests/test_access_readers.py
+- [2026-11-14] `access-parser` reader has no 5 s timeout reader has no 5 s timeout (in-process, unlike `mdb-export`) and `mem_limit: 384m` in docker-compose.yml may be too low once `litellm` is imported | Low | backend/mcp_servers/access_connector.py, docker-compose.yml
 - [2026-11-13] Savepoint partial-rollback path untested: test_should_keep_previous_correlations_when_a_rule_fails raises before any DML | Low | backend/tests/test_api_correlations.py
 - [2026-11-13] Seeding idempotence test counts rows but doesn't assert version == 1 after re-seed | Low | backend/tests/test_api_correlations.py
 - [2026-11-13] models/seed.py change detection relies on JSON round-trip equality; a future Enum field would bump version on every restart | Low | backend/models/seed.py
@@ -62,53 +68,13 @@ Required by AGENTS.md §15.
 
 ---
 
-### [2026-11-13] Access source unreadable on Windows | Medium | backend/mcp_servers/access_connector.py
+### [2026-11-14] Entity matching is whole-string, so partial product names do not match | Medium | backend/engine/interpreter.py, backend/engine/normalizer.py
 
-**Problem**: `AccessConnector` calls `mdb-export` (mdbtools), which is not available on Windows. On the dev machine `GET /api/v1/sources/access/records` fails and `r_low_stock` (the only active rule that joins `access`) emits nothing. The Access contract test is skipped without mdbtools.
-
-**Impact**: Medium - the demo rule cannot be checked end to end on Windows. Works in the Docker image (installs mdbtools).
-
-**Solution**: Run the demo through Docker, or switch to a pure Python reader (`access-parser`, dependency pending approval).
-
----
-
-### [2026-11-13] Entity matching is whole-string, so partial product names do not match | Medium | backend/engine/interpreter.py, backend/engine/normalizer.py
-
-**Problem**: `EntityNormalizer.match` compares the full normalized strings with `difflib` (threshold 0.85), after requiring the same numbers on both sides ("ciment 50 kg" never matches "ciment 40 kg"). "perceuse 500W" vs "Perceuse électrique 500W" scores 0.72 and "tuyau PVC" vs "Tuyau PVC Ø 32mm (barre 6m)" scores 0.50, so only products written in full (the "ciment 50 kg" scenario) correlate. On the real data files, `r_high_value_order` finds nothing.
+**Problem**: `EntityNormalizer.match` compares the full normalized strings with a Levenshtein similarity (`rapidfuzz`, threshold 0.85), after requiring the same numbers on both sides ("ciment 50 kg" never matches "ciment 40 kg"). "perceuse 500W" vs "Perceuse électrique 500W" scores 0.56 (0.72 with the former `difflib` ratio) and "tuyau PVC" vs "Tuyau PVC Ø 32mm (barre 6m)" is rejected by the numeric guard, so only products written in full (the "ciment 50 kg" scenario) correlate. On the real data files, `r_high_value_order` finds nothing.
 
 **Impact**: Medium - the 4-variants demo works, other products do not.
 
-**Solution**: Decide the matching strategy (token containment, `rapidfuzz` token-set ratio, or richer WhatsApp extraction). `rapidfuzz` needs product owner approval.
-
----
-
-### [2026-11-13] Environment variable names differ between code and deployment files | Medium | backend/config.py, docker-compose.yml, AGENTS.md §22
-
-**Problem**: `config.py` reads `BACKEND_PORT`, `BACKEND_LOG_LEVEL`, `BACKEND_NODE_ENV`. `docker-compose.yml` sets `PORT` and `LOG_LEVEL`, and AGENTS.md §22 lists `NODE_ENV`, `PORT`, `LOG_LEVEL`. In Docker the two settings are silently ignored.
-
-**Impact**: Medium - misleading configuration. Renaming is pending a decision, so the names were left unchanged.
-
-**Solution**: Choose one naming scheme and align `config.py`, `docker-compose.yml`, Doppler and AGENTS.md.
-
----
-
-### [2026-11-13] requirements.txt pins differ from the versions used by the tests | Medium | backend/requirements.txt
-
-**Problem**: Tests run on pydantic 2.13, pandas 3.0, pytest 9 while `requirements.txt` pins pydantic 2.5.0, pandas 2.1.3, pytest 7.4.3. `psycopg` (PostgreSQL driver for Neon) is not listed. The Docker image installs the pinned versions.
-
-**Impact**: Medium - behavior validated locally may differ in the image.
-
-**Solution**: Decide the pins (re-pin to tested versions or test on the pinned ones) and add the PostgreSQL driver.
-
----
-
-### [2026-11-13] Dockerfile healthcheck depends on a package that is not installed | Low | backend/Dockerfile
-
-**Problem**: The `HEALTHCHECK` runs `import requests`, and `requests` is not in `requirements.txt`. `docker-compose.yml` overrides it with `curl`, which `python:3.11-slim` does not include.
-
-**Impact**: Low - containers can report unhealthy while the API runs.
-
-**Solution**: Use `python -c "import urllib.request; ..."` in both places.
+**Solution**: Decide the matching strategy: token containment, `rapidfuzz` token-set ratio (the library is now installed), or richer WhatsApp extraction.
 
 ---
 
@@ -139,16 +105,6 @@ Required by AGENTS.md §15.
 **Impact**: Low - sufficient for the demo data, does not generalize.
 
 **Solution**: Handle continuation lines and the iOS format; LLM-assisted extraction once LiteLLM is available.
-
----
-
-### [2026-11-13] No Alembic migrations | Low | backend/models/base.py
-
-**Problem**: Tables are created with `Base.metadata.create_all` at startup. Alembic is in `requirements.txt` but not configured.
-
-**Impact**: Low - fine for the demo, schema changes need manual work on an existing database.
-
-**Solution**: Initialize Alembic before the first production schema change.
 
 ---
 

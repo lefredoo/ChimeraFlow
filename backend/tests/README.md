@@ -11,6 +11,8 @@ tests/
 ├── factories.py                # In-memory unified records (WhatsApp, Access, Excel)
 ├── test_api_correlations.py    # Seeding, execution, foreign keys, idempotence, cascade
 ├── test_connectors.py          # Contract tests (R1-R4)
+├── test_access_readers.py      # ACCESS_READER selection, mdbtools vs access-parser equivalence
+├── test_migrations.py          # alembic upgrade head / downgrade base, no drift with the models
 ├── test_connector_payloads.py  # Source field names, product entities, parse errors
 ├── test_properties.py          # Property-Based Tests (P1-P6)
 ├── test_normalizer.py          # Normalization variants + idempotence (P2)
@@ -21,10 +23,11 @@ tests/
 
 ## Installation
 
-Install test dependencies:
+Install test dependencies in the Python 3.13 virtual environment (`backend/.venv`):
 
 ```bash
-pip install -r requirements.txt
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt   # Windows: .venv\Scripts\python.exe
 ```
 
 This includes:
@@ -37,9 +40,26 @@ This includes:
 ### All tests
 
 ```bash
-# From backend/ directory
-python -m pytest tests/ -v
+# From backend/ directory (Windows: .venv\Scripts\python.exe)
+.venv/bin/python -m pytest tests/ -v
+.venv/bin/python -m ruff check .     # lint (pyflakes rules)
 ```
+
+Locally on Windows there is no mdbtools: the mdbtools tests are skipped
+(3 skipped). Run the full suite in Docker to execute them.
+
+### All tests in Docker (with mdbtools, nothing skipped)
+
+From the repository root (one line, PowerShell):
+
+```powershell
+docker build --target test -t chimeraflow-backend-test backend; docker run --rm -v "${PWD}/data:/data:ro" chimeraflow-backend-test
+```
+
+Bash: replace `;` with `&&` and `${PWD}` with `$PWD`. Add
+`python -m pytest tests -q --hypothesis-profile=ci` after the image name to run
+the CI profile. The `test` stage of `backend/Dockerfile` installs
+`requirements-dev.txt` on top of the runtime image, which provides `mdb-export`.
 
 ### Specific test file
 
@@ -72,7 +92,9 @@ Validates compliance with `connectors-spec.md`:
 - **R3**: Health checks are cached for 30 seconds
 - **R4**: Parse errors are counted, not crashed
 
-The Access contract test is skipped when `mdb-export` (mdbtools) is not installed.
+The Access contract test runs with both readers (`access-parser`, `mdbtools`); the
+`mdbtools` case and the reader-equivalence tests (`test_access_readers.py`) are
+skipped when `mdb-export` is not installed.
 
 ### Property-Based Tests (`test_properties.py`, `test_normalizer.py`)
 
@@ -126,7 +148,7 @@ Tests use synthetic data from `data/` directory:
 - `data/commandes_clients.txt` — WhatsApp export
 - `data/momo_transactions.csv` — Mobile Money CSV (50 transactions)
 - `data/tarifs_fournisseurs.xlsx` — Excel price list
-- `data/STOCK_ZOBO.mdb` — Access database (reading it requires mdbtools)
+- `data/STOCK_ZOBO.mdb` — Access database (24 articles)
 
 Regenerate missing files:
 
@@ -151,6 +173,7 @@ so no `.env` file is needed:
 | `DATA_DIR` | `<repo>/data` |
 | `DATABASE_URL` | `sqlite://` (in-memory) |
 | `CORS_ORIGINS` | `http://localhost:3000` |
+| `ACCESS_READER` | `access-parser` (the mdbtools reader is built explicitly in tests) |
 
 ## Kiro Hook Integration
 

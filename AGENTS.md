@@ -426,19 +426,20 @@ Rules are JSON, never executed code:
 ## 22. Environment Variables
 
 **Required:**
-- `NODE_ENV` — development | production | test
+- `BACKEND_NODE_ENV` — development | production | test
 - `DATABASE_URL` — PostgreSQL connection string (if using SQL)
 - `REDIS_URL` — Redis connection (rate limiting, cache)
 - `LITELLM_API_KEY` — LiteLLM virtual key
 - `LITELLM_BUDGET_USD` — Budget cap (default: 5.0)
 - `CORS_ORIGINS` — Allowed origins (comma-separated)
 - `DATA_DIR` — Path to synthetic data files
+- `ACCESS_READER` — `mdbtools` (Docker/production) | `access-parser` (local Windows), no fallback
 
 **Optional:**
-- `PORT` — Backend port (default: 8000)
+- `BACKEND_PORT` — Backend port (default: 8000)
 - `VERCEL_URL` — Frontend URL (auto-provided by Vercel)
 - `SENTRY_DSN` — Error tracking (if using Sentry)
-- `LOG_LEVEL` — Logging level (default: INFO)
+- `BACKEND_LOG_LEVEL` — Logging level (default: INFO)
 
 ---
 
