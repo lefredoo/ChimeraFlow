@@ -1,0 +1,127 @@
+# Production stack for Dokploy (VPS Hetzner): API + Redis.
+#
+# The only variable passed to the containers is DOPPLER_TOKEN (a Doppler service
+# token for project `chimeraflow`, config `prd`). Both containers fetch every other
+# variable from Doppler at start (`doppler run`): DATABASE_URL, CORS_ORIGINS,
+# REDIS_PASSWORD, REDIS_URL, ACCESS_READER, LITELLM_*, ... The list is in the
+# DECISIONS_LOG entry of this layout.
+#
+# Dokploy: Compose type "Docker Compose", compose path ./docker-compose.prod.yml,
+# environment tab: DOPPLER_TOKEN=<service token>. Domains are managed by Dokploy
+# (no router label here, no published port): add the domain on service `api`,
+# container port 8000. The only label, traefik.docker.network, pins the network Traefik
+# uses since the API is attached to two.
+#
+# Local equivalent of the production start (needs a reachable Doppler):
+#   DOPPLER_TOKEN=dp.st.... docker compose -f docker-compose.prod.yml up --build
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+      # Synthetic data baked in the image: no host path needed on the VPS
+      additional_contexts:
+        data: ./data
+    environment:
+      DOPPLER_TOKEN: ${DOPPLER_TOKEN:?DOPPLER_TOKEN must be set (Doppler service token, project chimeraflow, config prd)}
+    # Both networks are attached: tell Traefik which one to use to reach the API
+    labels:
+      - traefik.docker.network=dokploy-network
+    networks:
+      # Traefik reaches the API on dokploy-network; Redis only through `internal`
+      - dokploy-network
+      - internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # 512m: measured ~105 MiB at idle and ~275 MiB peak once the first NL->rule call has
+    # imported litellm (app + litellm in one process)
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      # Port 8000 is fixed here: BACKEND_PORT must be unset or 8000 in Doppler
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: redis
+    user: redis
+    environment:
+      DOPPLER_TOKEN: ${DOPPLER_TOKEN:?DOPPLER_TOKEN must be set (Doppler service token, project chimeraflow, config prd)}
+      # The Doppler CLI keeps its (empty) config directory under HOME
+      HOME: /tmp
+    networks:
+      internal:
+        # Unique name on the shared host: REDIS_URL in Doppler points to chimeraflow-redis
+        aliases:
+          - chimeraflow-redis
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    # noeviction: the LLM budget counter (chimeraflow:nl:spent_microusd) has no TTL and an
+    # eviction would reset the budget. At the memory limit writes fail, which the API
+    # turns into a refusal (503), never into an unlimited budget.
+    # appendonly: counters survive a restart (volume redis-data).
+    # REDIS_PASSWORD comes from Doppler (only that secret is injected: --only-secrets).
+    # The guard stops the container when it is missing or empty: without it Redis would
+    # start unauthenticated and the healthcheck below would still pass. The config is
+    # given on stdin (`redis-server -`) so the password never appears in the process
+    # arguments; exec keeps redis-server as the process that receives SIGTERM.
+    # $$ keeps the shell variables out of compose interpolation.
+    command:
+      - doppler
+      - run
+      - --no-check-version
+      - --no-fallback
+      - --only-secrets
+      - REDIS_PASSWORD
+      - --
+      - sh
+      - -c
+      - |
+        : "$${REDIS_PASSWORD:?REDIS_PASSWORD missing in Doppler}"
+        exec redis-server - <<EOF
+        maxmemory 100mb
+        maxmemory-policy noeviction
+        appendonly yes
+        requirepass "$$REDIS_PASSWORD"
+        EOF
+    healthcheck:
+      # The container has no password in its own environment (Doppler injects it into
+      # redis-server only): an unauthenticated PING answers NOAUTH when the server is up.
+      test: ["CMD-SHELL", "redis-cli ping | grep -Eq 'PONG|NOAUTH'"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
+
+networks:
+  dokploy-network:
+    external: true
+  # Private bridge shared by api and redis only. Not `internal: true`: the Redis
+  # container needs outbound access to reach Doppler at start.
+  internal:

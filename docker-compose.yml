@@ -3,6 +3,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      # Synthetic data baked in the image (the runtime stage reads this named context)
+      additional_contexts:
+        data: ./data
     container_name: chimeraflow-api
     ports:
       - "8000:8000"
@@ -26,13 +29,15 @@ services:
       - LITELLM_MODEL
       - LITELLM_BUDGET_USD
     volumes:
-      - ./data:/data:ro  # Read-only mount for synthetic data
-      - ./backend:/app
+      # Read-only mount of the synthetic data: edits show up without a rebuild. It
+      # shadows the copy baked in the image (the code in /app comes from the image).
+      - ./data:/data:ro
     depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    mem_limit: 384m
+    # ~105 MiB at idle, ~275 MiB once litellm is imported (first NL->rule call)
+    mem_limit: 512m
     cpus: 0.5
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
