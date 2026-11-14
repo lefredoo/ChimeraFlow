@@ -8,10 +8,10 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from config import require_env
+from config import get_database_url
 
 # Database URL from environment (fails fast if missing, AGENTS.md §7)
-DATABASE_URL = require_env("DATABASE_URL", "SQLAlchemy database connection string")
+DATABASE_URL = get_database_url()
 
 
 def _build_engine(url: str) -> Engine:
@@ -61,8 +61,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-def init_db() -> None:
-    """Create all tables (call at startup)."""
-    Base.metadata.create_all(bind=engine)

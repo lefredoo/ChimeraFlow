@@ -72,16 +72,25 @@ class TestConnectorContract:
                 assert "entities" in record.to_dict()
                 assert "payload" in record.to_dict()
     
-    @pytest.mark.skipif(shutil.which("mdb-export") is None, reason="mdbtools (mdb-export) is not installed")
+    @pytest.mark.parametrize("reader", [
+        "access-parser",
+        pytest.param(
+            "mdbtools",
+            marks=pytest.mark.skipif(
+                shutil.which("mdb-export") is None, reason="mdbtools (mdb-export) is not installed"
+            ),
+        ),
+    ])
     @pytest.mark.asyncio
-    async def test_access_connector_contract(self, access_path):
+    async def test_access_connector_contract(self, access_path, reader):
         """Access connector implements required methods"""
-        connector = AccessConnector(str(access_path))
+        connector = AccessConnector(str(access_path), reader=reader)
         
         health = await connector.health_check()
         assert "status" in health
         assert "source" in health
         assert health["source"] == "access"
+        assert health["status"] == "ok"
         
         if access_path.exists():
             records = await connector.fetch_records(limit=10)

@@ -22,8 +22,8 @@ from api.sources import router as sources_router
 from api.rules import router as rules_router
 from api.correlations import router as correlations_router
 
-# Import database initialization
-from models.base import SessionLocal, init_db
+# Import database session
+from models.base import SessionLocal
 from models.seed import seed_predefined_rules
 
 # Configure logging (root level untouched when LOG_LEVEL is not set)
@@ -39,12 +39,15 @@ cors_origins = [origin.strip() for origin in CORS_ORIGINS.split(",") if origin.s
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Initialize the database and seed predefined rules. Startup fails if either fails."""
+    """Seed predefined rules. Startup fails if seeding fails.
+
+    The schema is not created here: `alembic upgrade head` runs before the
+    server starts (container entrypoint).
+    """
     logger.info(f"ChimeraFlow API starting in {NODE_ENV} mode")
     logger.info(f"CORS origins: {cors_origins}")
 
     try:
-        init_db()
         with SessionLocal() as db:
             seed_predefined_rules(db)
     except Exception:

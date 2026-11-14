@@ -5,7 +5,7 @@ Follows Roadmap §2 and P2 decision: rules + fuzzy + synonyms
 import unicodedata
 import re
 from typing import Dict, List, Optional, Tuple
-from difflib import SequenceMatcher
+from rapidfuzz.distance import Levenshtein
 
 _PUNCTUATION = re.compile(r"[^\w\s-]")
 # Decimal point or fraction bar between two digits ("2.5", "1/2"): kept as a hyphen
@@ -150,7 +150,7 @@ class EntityNormalizer:
         Returns:
             Similarity score (0.0 to 1.0)
         """
-        return SequenceMatcher(None, text1, text2).ratio()
+        return Levenshtein.normalized_similarity(text1, text2)
     
     def match(self, entity1: str, entity2: str) -> Tuple[bool, float]:
         """

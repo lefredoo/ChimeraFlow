@@ -102,6 +102,63 @@ REDIS_URL = (
 # Data Directory (read-only synthetic data files)
 DATA_DIR = require_env("DATA_DIR", "Directory containing the synthetic data source files")
 
+def normalize_database_url(url: str) -> str:
+    """Select the psycopg 3 driver for PostgreSQL URLs.
+
+    Neon and Doppler provide `postgresql://...`, which SQLAlchemy resolves to
+    the psycopg2 driver (not installed). This is the only place that rewrites it.
+
+    Args:
+        url: Database URL as configured.
+
+    Returns:
+        URL using the `postgresql+psycopg` driver for PostgreSQL, unchanged otherwise.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
+def get_database_url() -> str:
+    """Read DATABASE_URL (required) and normalize it for SQLAlchemy.
+
+    Returns:
+        SQLAlchemy database URL.
+
+    Raises:
+        ValueError: If DATABASE_URL is not set.
+    """
+    return normalize_database_url(require_env("DATABASE_URL", "SQLAlchemy database connection string"))
+
+
+# Access reader: explicit choice, no fallback from one reader to the other
+ACCESS_READERS = ("mdbtools", "access-parser")
+
+
+def _require_access_reader() -> str:
+    """Read the ACCESS_READER setting and check it is a supported reader.
+
+    Returns:
+        "mdbtools" or "access-parser".
+
+    Raises:
+        ValueError: If the variable is missing or has another value.
+    """
+    value = require_env(
+        "ACCESS_READER",
+        f"Reader for .mdb files, one of: {', '.join(ACCESS_READERS)}",
+    )
+    if value not in ACCESS_READERS:
+        raise ValueError(
+            f"Environment variable 'ACCESS_READER' must be one of "
+            f"{', '.join(ACCESS_READERS)}, got '{value}'"
+        )
+    return value
+
+
+ACCESS_READER = _require_access_reader()
+
 # Rate Limiting (None until the rate limiter is configured)
 RATE_LIMIT_PER_IP = _optional_int("RATE_LIMIT_PER_IP")
 RATE_LIMIT_WINDOW_SECONDS = _optional_int("RATE_LIMIT_WINDOW_SECONDS")
