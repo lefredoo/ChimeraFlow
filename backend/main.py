@@ -18,6 +18,7 @@ from config import (
 )
 
 # Import routers
+from api.rate_limit import register_rate_limiting
 from api.sources import router as sources_router
 from api.rules import router as rules_router
 from api.correlations import router as correlations_router
@@ -71,6 +72,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+register_rate_limiting(app)
 
 # Include routers
 app.include_router(sources_router)

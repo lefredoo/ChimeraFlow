@@ -20,6 +20,20 @@ os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["CORS_ORIGINS"] = "http://localhost:3000"
 # Pure Python reader: runs everywhere. Tests of the mdbtools reader build it explicitly.
 os.environ["ACCESS_READER"] = "access-parser"
+# High enough that no functional test hits the limit; the 429 tests lower it explicitly.
+# BACKEND_NODE_ENV=test makes the limiter use memory storage (explicit, not a fallback).
+os.environ["RATE_LIMIT_PER_IP"] = "1000"
+os.environ["RATE_LIMIT_WINDOW_SECONDS"] = "60"
+# The NL->rule feature is configured per test (settings dependency), never from the environment
+for _name in (
+    "LITELLM_API_KEY",
+    "LITELLM_BASE_URL",
+    "LITELLM_MODEL",
+    "LITELLM_BUDGET_USD",
+    "TRUSTED_PROXIES",
+    "RATE_LIMIT_NL_PER_IP",  # unset: the derived default is what test_rate_limit.py checks
+):
+    os.environ.pop(_name, None)
 
 settings.register_profile("dev", max_examples=100, deadline=None)
 settings.register_profile("ci", max_examples=500, deadline=5000)
@@ -34,9 +48,11 @@ def api_client() -> Iterator[TestClient]:
     Entering the client runs the application lifespan, which seeds the
     predefined rules, exactly like a real startup.
     """
+    from api.rate_limit import limiter
     from main import app
     from models.base import Base, engine
 
+    limiter.reset()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     with TestClient(app) as client:

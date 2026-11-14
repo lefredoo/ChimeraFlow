@@ -1,11 +1,12 @@
 """
 Sources API - Expose MCP connectors via REST endpoints
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from typing import Dict, Any
 from pathlib import Path
 import logging
 
+from api.errors import SOURCE_FETCH_FAILED, SOURCE_NOT_FOUND, api_error
 from config import DATA_DIR
 from mcp_servers.base import CONNECTOR_ERRORS
 from mcp_servers.excel_connector import ExcelConnector
@@ -65,7 +66,7 @@ async def source_health(source: str):
     connectors = get_connectors()
     
     if source not in connectors:
-        raise HTTPException(status_code=404, detail=f"Source '{source}' not found")
+        raise api_error(404, SOURCE_NOT_FOUND, "Source not found")
     
     connector = connectors[source]
     health = await connector.health_check()
@@ -122,7 +123,7 @@ async def fetch_source_records(
     connectors = get_connectors()
     
     if source not in connectors:
-        raise HTTPException(status_code=404, detail=f"Source '{source}' not found")
+        raise api_error(404, SOURCE_NOT_FOUND, "Source not found")
     
     connector = connectors[source]
     
@@ -135,4 +136,4 @@ async def fetch_source_records(
         }
     except CONNECTOR_ERRORS as e:
         logger.error(f"Failed to fetch records from {source}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch records from source")
+        raise api_error(500, SOURCE_FETCH_FAILED, "Failed to fetch records from source")

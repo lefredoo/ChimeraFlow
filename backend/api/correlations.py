@@ -2,12 +2,14 @@
 Correlation execution API endpoints
 POST /correlations/execute, GET /correlations
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
 from datetime import datetime, timezone
 
+from api.errors import INVALID_SEVERITY, api_error
+from api.rate_limit import limiter, mutation_limit
 from models.base import get_db
 from models.rule import Rule, Correlation, CorrelationSeverity, RuleExecution, RuleStatus
 from schemas.rule import CorrelationResponse, RuleCreate
@@ -47,12 +49,14 @@ def _to_schema(rule: Rule) -> RuleCreate:
 
 
 @router.post("/execute")
+@limiter.limit(mutation_limit)
 async def execute_correlations(
+    request: Request,
     rule_ids: Optional[List[str]] = Query(None, max_length=MAX_RULE_IDS),
     db: Session = Depends(get_db)
 ):
     """
-    Execute active correlation rules against current data
+    Execute active correlation rules against current data (rate limited per IP)
 
     Inactive and draft rules are never executed. Each execution replaces the
     previous correlations of the rules it runs, so running twice gives the
@@ -180,7 +184,7 @@ async def list_correlations(
         try:
             severity_enum = CorrelationSeverity(severity)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid severity: {severity}")
+            raise api_error(400, INVALID_SEVERITY, "Invalid severity filter")
         query = query.filter(Correlation.severity == severity_enum)
     
     correlations = query.limit(limit).all()
