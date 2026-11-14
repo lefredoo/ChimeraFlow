@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-lint-test:
+    name: Backend lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Install mdbtools
+        run: sudo apt-get update && sudo apt-get install -y mdbtools
+
+      - name: Lint
+        working-directory: backend
+        run: python -m ruff check .
+
+      - name: Test
+        working-directory: backend
+        run: python -m pytest tests -q --hypothesis-profile=ci
+
+  backend-docker-test:
+    name: Backend Docker test stage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build --target test -t chimeraflow-backend-test backend
+
+      - name: Run test image
+        run: docker run --rm -v "${{ github.workspace }}/data:/data:ro" chimeraflow-backend-test
+
+  migrations-postgres:
+    name: Alembic migrations on PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      BACKEND_NODE_ENV: test
+      CORS_ORIGINS: http://localhost:3000
+      DATA_DIR: ../data
+      REDIS_URL: redis://localhost:6379/0
+      ACCESS_READER: access-parser
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Upgrade to head
+        working-directory: backend
+        run: python -m alembic upgrade head
+
+      - name: Check models match migrations
+        working-directory: backend
+        run: python -m alembic check
+
+      - name: Downgrade to base
+        working-directory: backend
+        run: python -m alembic downgrade base
+
+      - name: Offline SQL generation
+        working-directory: backend
+        run: python -m alembic upgrade head --sql > /dev/null
