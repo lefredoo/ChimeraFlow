@@ -13,6 +13,17 @@ Required by AGENTS.md §15.
 
 ## Current Debt
 
+- [2026-11-14] Next.js 15.5.29 : `npm audit --omit=dev` signale encore 2 avis (postcss embarqué par next, XSS/lecture de source map, correctif seulement dans Next 16, changement majeur) ; postcss ne traite ici que le CSS du dépôt au build | Low | frontend/package.json
+- [2026-11-14] Tailwind v4 déclaré dans package.json mais non branché (ni `@tailwindcss/postcss` ni `postcss.config`) : le CSS du frontend est du CSS simple à tokens ; brancher Tailwind demande une dépendance à approuver | Low | frontend/package.json, frontend/app/globals.css
+- [2026-11-14] `next lint` est déprécié (retiré dans Next 16) : migrer vers l'ESLint CLI (`npx @next/codemod@canary next-lint-to-eslint-cli .`) | Low | frontend/package.json, frontend/.eslintrc.json
+- [2026-11-14] Le processus uvicorn hérite de `DOPPLER_TOKEN` (`doppler run` transmet l'environnement) ; un jeton de service en lecture seule limite l'exposition | Low | backend/docker-entrypoint.sh
+- [2026-11-14] HEALTHCHECK de l'image et des compose en dur sur le port 8000 : `BACKEND_PORT` dans Doppler doit rester absent ou égal à 8000 | Low | backend/Dockerfile, docker-compose.prod.yml
+- [2026-11-14] Image `redis:7-alpine` non figée par digest (tag mobile) et Doppler CLI épinglé à 3.77.1 sans mise à jour automatique | Low | backend/Dockerfile
+- [2026-11-14] Documentation à mettre à jour (hors périmètre de cette tâche, édition en cours par un autre agent) : le build runtime exige `--build-context data=./data` hors compose, `docker-compose.prod.yml` et le démarrage Doppler ne sont décrits ni dans README.md, backend/README.md ni docs/deployment | Med | README.md, backend/README.md, docs/deployment/P0-setup.md
+- [2026-11-14] Compose de production non éprouvé sur le VPS (Dokploy, Traefik, Doppler réel) : seuls des essais locaux avec un faux serveur Doppler ont été faits | Med | docker-compose.prod.yml
+- [2026-11-14] Pas de job frontend dans la CI (tsc, lint, vitest, build, audit) : les contrôles frontend ne tournent qu'en local | Med | .github/workflows/ci.yml
+- [2026-11-14] `@import` Google Fonts dans globals.css : requête vers un tiers (confidentialité, CSP) ; migrer vers `next/font` (auto-hébergement des polices IBM Plex) | Low | frontend/app/globals.css
+- [2026-11-14] `npm audit` hors production : vitest 1.x (esbuild, tinypool) et minimatch (typescript-eslint) signalés, correctif de vitest seulement en 4.x (majeur) ; outils de dev uniquement, absents du build déployé | Low | frontend/package.json
 - [2026-11-14] CI GitHub Actions bloquée : jobs non démarrés pour cause de facturation du compte (paiement échoué ou plafond de dépenses), run 43569157569 | High | .github/workflows/ci.yml
 - [2026-11-14] `_record_spend` : un INCRBY en échec est seulement journalisé ; la dépense n'est pas comptée (sécurité assurée aujourd'hui par le 503 du limiteur) | Low | backend/engine/nl_to_rule.py
 - [2026-11-14] Caractères non URL-safe de REDIS_PASSWORD non vérifiés au démarrage | Low | docker-compose.yml, backend/config.py
@@ -29,11 +40,10 @@ Required by AGENTS.md §15.
 - [2026-11-14] Un brouillon NL est validé par `RuleCreate` mais ses `field` (`on.field`, `where.field`, placeholders) ne sont pas confrontés aux colonnes réelles des sources : une colonne inventée ne correspond jamais | Med | backend/engine/nl_to_rule.py, backend/schemas/rule.py
 - [2026-11-14] Le `template` généré par le modèle dérive d'un texte non fiable : le frontend doit l'échapper à l'affichage (comme les textes de sources) | Med | frontend
 - [2026-11-14] `limits.errors.StorageError` importé directement depuis `limits`, dépendance transitive de slowapi non épinglée dans requirements.txt | Low | backend/api/rate_limit.py, backend/requirements.txt
-- [2026-11-14] Image runtime contient tests/ et requirements-dev.txt (COPY . .) | Low | backend/Dockerfile, backend/.dockerignore
 - [2026-11-14] access-parser : une colonne Currency avec propriété Format renvoie une chaîne formatée, prix_achat devient None | Low | backend/mcp_servers/access_connector.py
 - [2026-11-14] Équivalence des lecteurs Access vérifiée seulement là où mdbtools est installé (Docker) : à exécuter en CI | Med | backend/tests/test_access_readers.py
 - [2026-11-14] Boucle for/if dans un test (règle « pas de logique dans les tests ») | Low | backend/tests/test_access_readers.py
-- [2026-11-14] `access-parser` reader has no 5 s timeout (in-process, unlike `mdb-export`) and `mem_limit: 384m` in docker-compose.yml may be too low once `litellm` is imported | Low | backend/mcp_servers/access_connector.py, docker-compose.yml
+- [2026-11-14] `access-parser` reader has no 5 s timeout (in-process, unlike `mdb-export`) | Low | backend/mcp_servers/access_connector.py
 - [2026-11-13] Savepoint partial-rollback path untested: test_should_keep_previous_correlations_when_a_rule_fails raises before any DML | Low | backend/tests/test_api_correlations.py
 - [2026-11-13] Seeding idempotence test counts rows but doesn't assert version == 1 after re-seed | Low | backend/tests/test_api_correlations.py
 - [2026-11-13] models/seed.py change detection relies on JSON round-trip equality; a future Enum field would bump version on every restart | Low | backend/models/seed.py

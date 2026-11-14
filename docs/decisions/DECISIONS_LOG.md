@@ -18,6 +18,19 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-14] Déploiement : Doppler dans le conteneur, données dans l'image, compose de production
+**Context**: Q9 : en production seule la variable `DOPPLER_TOKEN` est fournie (Dokploy). Le bind mount `./backend:/app` masquait le code de l'image, `data/` était un chemin hôte et l'image runtime contenait les tests.
+**Decision**:
+(1) Doppler CLI 3.77.1 installé dans un stage dédié depuis le dépôt apt officiel (paquet signé, empreinte de la clé vérifiée dans le build) ; seul le binaire statique est copié (runtime et Redis). `backend/docker-entrypoint.sh` : `DOPPLER_TOKEN` défini → `doppler run --no-check-version --no-fallback -- sh -c "alembic upgrade head && exec uvicorn ..."`, sinon la même commande sans Doppler (compose local, tests). Le mode est journalisé ; Doppler injoignable ou jeton invalide arrête le conteneur.
+(2) `docker-compose.prod.yml` : services `api` et `redis`, `DOPPLER_TOKEN` seule variable. Redis est construit (`target: redis`) avec le CLI Doppler et reçoit `REDIS_PASSWORD` seul (`doppler run --only-secrets REDIS_PASSWORD`), refuse de démarrer s'il est absent ou vide (sinon Redis démarrerait sans authentification et le healthcheck passerait) et lit sa configuration sur stdin (`redis-server -`, mot de passe hors des arguments du processus) ; `REDIS_URL` dans Doppler le référence (`redis://:${REDIS_PASSWORD}@chimeraflow-redis:6379/0`). Son healthcheck n'a pas le mot de passe : `NOAUTH` signifie serveur vivant. `api` est sur `dokploy-network` (externe) et sur le réseau privé `internal` partagé avec Redis (alias `chimeraflow-redis`) ; aucun port publié, un seul label `traefik.docker.network=dokploy-network` pour fixer le réseau que Traefik utilise. `mem_limit` : api 512m (mesuré ~105 MiB au repos, ~275 MiB avec litellm importé), Redis 128m.
+(3) `data/` copié dans l'image par un contexte de build nommé `data` (`additional_contexts` en compose, `--build-context data=./data` sinon) : aucun chemin hôte sur le VPS, les données sont synthétiques et publiques. Un stage `source` retire tests/, requirements-dev.txt et fichiers de dev du runtime.
+(4) Compose local : bind mount `./backend:/app` retiré, `mem_limit` 512m. Frontend : `lib/env.ts` sans repli (la valeur est passée par l'appelant, Next ne remplace que `process.env.NEXT_PUBLIC_X` littéral), `NEXT_PUBLIC_API_URL` exigée au build, service `health-service`, i18n FR/EN sans dépendance, CSS à tokens, Next 15.0.3 → 15.5.29 (RCE du protocole flight), `next.config.ts` local.
+**Alternatives rejected**: Redis sans Doppler avec `REDIS_PASSWORD` en seconde variable Dokploy (deux variables à tenir synchrones). Réseau Redis `internal: true` (Redis doit joindre Doppler au démarrage). Montage de `data/` depuis l'hôte (chemin à maintenir sur le VPS). Contexte de build à la racine (casse `docker build --target test backend` de la CI). Tailwind v4 branché (nouvelle dépendance non approuvée).
+**Consequences**: le processus uvicorn hérite de `DOPPLER_TOKEN` ; le port 8000 est fixe dans les healthchecks ; secrets à créer dans Doppler `prd` ; `docker build backend` sans `--target test` exige le contexte `data`.
+**AGENTS.md rule concerned**: §7 (deux modes explicites, pas de repli silencieux), §4 (frontend), §8 (i18n)
+
+---
+
 ## [2026-11-14] Durcissement après revue : Redis, défaut dérivé de RATE_LIMIT_NL_PER_IP, IP non stockée
 
 **Context**: La revue de la vague 2 a relevé que le compteur de budget LLM (sans TTL) pouvait être évincé par `allkeys-lru`, que Redis était publié sans mot de passe, que `rules.created_by` stockait l'IP du client et que `RATE_LIMIT_NL_PER_IP` a une valeur dérivée.

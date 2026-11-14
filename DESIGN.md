@@ -23,7 +23,7 @@ Built for the reality of small businesses: where Excel spreadsheets, Access data
 
 **Professional Blue** — Trustworthy, clean, business-focused.
 
-The application must not use static Tailwind color classes (`bg-blue-500`, `text-gray-900`) for structural elements (current frontend/app/page.tsx still does; tracked in TECH_DEBT.md). Everything uses tokens in `frontend/app/globals.css`.
+The application must not use static Tailwind color classes (`bg-blue-500`, `text-gray-900`) for structural elements. Everything uses tokens in `frontend/app/globals.css` (plain CSS: Tailwind v4 is not wired yet).
 
 ### Foundations (Light/Dark Theme)
 - `--bg`: Global background
@@ -52,7 +52,12 @@ The application must not use static Tailwind color classes (`bg-blue-500`, `text
 ### Text Hierarchy
 - `--text-primary`: `#111827` (light) / `#f9fafb` (dark)
 - `--text-secondary`: `#6b7280` (light) / `#9ca3af` (dark)
-- `--text-muted`: `#9ca3af` (light) / `#6b7280` (dark)
+- `--text-muted`: `#6b7280` (light) / `#9ca3af` (dark) — raised from `#9ca3af` / `#6b7280` to reach 4.5:1 for text
+
+### Text-safe status colors
+`--success`, `--error` and `--primary` fail 4.5:1 as text on the light background. For text use
+`--success-text` (`#047857` light / `#34d399` dark), `--error-text` (`#b91c1c` / `#f87171`) and
+`--primary-text` (`#1d4ed8` / `#93c5fd`).
 
 ### Glassmorphism Effects
 ```css
