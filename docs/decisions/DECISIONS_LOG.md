@@ -18,6 +18,33 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-14] Durcissement après revue : Redis, défaut dérivé de RATE_LIMIT_NL_PER_IP, IP non stockée
+
+**Context**: La revue de la vague 2 a relevé que le compteur de budget LLM (sans TTL) pouvait être évincé par `allkeys-lru`, que Redis était publié sans mot de passe, que `rules.created_by` stockait l'IP du client et que `RATE_LIMIT_NL_PER_IP` a une valeur dérivée.
+**Decision**:
+(1) Redis : `noeviction` (le compteur de budget ne doit jamais être évincé ; à saturation les écritures échouent et l'API refuse, `503`), `--appendonly yes` sur le volume nommé `redis-data`, `--requirepass` depuis `REDIS_PASSWORD` (requis, sans défaut, repris dans `REDIS_URL`), aucun port publié.
+(2) Exception assumée à §7 : `RATE_LIMIT_NL_PER_IP`, si absent, vaut `max(1, RATE_LIMIT_PER_IP // 5)`. C'est un calcul à partir d'une variable requise, pas une valeur inventée : la limite NL reste toujours plus stricte que la générale, sans variable de plus à renseigner. Défaut figé par un test (conftest retire la variable ; 1000 donne 200).
+(3) `rules.created_by` supprimée (migration 0002, retour arrière = colonne nullable vide) : l'IP est une donnée personnelle. Clé du limiteur : en-têtes `X-Forwarded-For` multiples joints, IPv4 mappée lue comme IPv4, client IPv6 compté par /64. Un appel LLM en échec enregistre un coût d'entrée pessimiste (caractères / 4 à 15 USD le million).
+**Alternatives rejected**: `volatile-lru` (correct tant que la clé n'a pas de TTL, mais fragile si un TTL est ajouté un jour). Variable `RATE_LIMIT_NL_PER_IP` obligatoire (une configuration de plus pour un réglage secondaire). Hacher l'IP au lieu de la supprimer (aucun usage de la valeur).
+**Consequences**: `docker compose` exige `REDIS_PASSWORD` (URL-safe, par exemple hexadécimal). Redis de production du VPS : mêmes réglages à vérifier, voir `backend/README.md`. À saturation de Redis le limiteur et le budget refusent les requêtes au lieu de les laisser passer.
+**AGENTS.md rule concerned**: §7 (exception documentée pour `RATE_LIMIT_NL_PER_IP`), §9 (pas de PII, limitation par IP)
+
+---
+
+## [2026-11-14] Règles prédéfinies en fichiers, limitation par IP (slowapi + Redis), conversion NL→règle avec budget
+
+**Context**: P2 Q4, Q5, Q7, Q14 : dépendances `slowapi` et `litellm` approuvées, règles prédéfinies à sortir du code, hook à recibler. Aucune règle de sécurité 4 (limitation) ni de plafond LLM n'était tenue.
+**Decision**:
+(1) Une règle prédéfinie = un fichier `data/rules/<id>.json` (champs de `RuleCreate` + `status`), validé par Pydantic à l'import de `engine.predefined_rules` (démarrage), clés inconnues refusées, `id` = nom de fichier, ordre = noms de fichier ; sans émoji.
+(2) Limitation : slowapi, stockage Redis (`REDIS_URL`), mémoire seulement si `BACKEND_NODE_ENV=test`. `RATE_LIMIT_PER_IP` et `RATE_LIMIT_WINDOW_SECONDS` sont requis, un compteur par endpoint (`key_style="endpoint"`, sinon `DELETE /rules/{id}` aurait un compteur par id). Clé = IP du pair TCP ; `X-Forwarded-For` n'est lu que si le pair appartient à `TRUSTED_PROXIES`, de droite à gauche jusqu'à la première adresse non proxy. Limite NL→règle séparée et plus stricte (`RATE_LIMIT_NL_PER_IP`, sinon `RATE_LIMIT_PER_IP // 5`, au moins 1). Redis du limiteur en panne : `503`, mutation refusée.
+(3) NL→règle : `POST /rules/from-text` renvoie un brouillon non stocké ; texte utilisateur passé comme chaîne JSON entre marqueurs dans le message utilisateur ; `id` et `natural_language` fixés par le serveur ; 2 retries avec les erreurs de validation (sans valeurs rejetées). Budget : plafond global `LITELLM_BUDGET_USD`, dépense cumulée en micro-USD dans Redis (`INCRBY`, atomique, sans dérive flottante), vérifiée avant chaque appel ; coût = `litellm.completion_cost`, sinon estimation par tokens à 15 USD/million. Fonctionnalité désactivée sans les quatre variables `LITELLM_*` ; `litellm` importé à la première conversion.
+(4) Erreurs : `{"detail": {"code", "message"}}` partout, `fallback_rules` pour les erreurs `nl_*`. (5) Les trois variables `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL` sont de la configuration : aucune valeur par défaut.
+**Alternatives rejected**: Garder les règles en Python (textes métier dans le code, hook sans cible). Limiter par URL (contournable avec des ids différents) ou lire `X-Forwarded-For` sans condition (spoofable). Stockage mémoire en repli si Redis manque (compteur par worker, repli silencieux). Budget en `INCRBYFLOAT` (dérive). Estimation de coût fixe sans `completion_cost` (faux pour les modèles tarifés). Persister le brouillon (le client doit relire avant `POST /rules`). Laisser le modèle choisir l'`id` (collisions, injection d'un id réservé).
+**Consequences**: `alembic` et la CI exigent `RATE_LIMIT_*` (ajoutés à `ci.yml` et `docker-compose.yml`). Réinitialiser le budget = supprimer la clé Redis `chimeraflow:nl:spent_microusd`. Appels LiteLLM jamais exécutés en réel (clé, URL, modèle inconnus), voir TECH_DEBT.md. Les messages d'erreur des endpoints existants ont changé de format (objet au lieu de texte).
+**AGENTS.md rule concerned**: §7 (pas de repli de configuration), §9 (limitation par IP), §4 (texte utilisateur dans les fichiers de données), §16 (dépendances approuvées)
+
+---
+
 ## [2026-11-14] Lecteur Access explicite, Alembic au démarrage du conteneur, dépendances scindées
 
 **Context**: Python 3.13, nouvelles dépendances approuvées (P2 Q2, Q4, Q6, Q8) : lecture Access sous Windows, schéma géré à la main (`create_all`), pins `requirements.txt` périmés.

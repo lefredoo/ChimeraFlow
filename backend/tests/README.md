@@ -18,6 +18,10 @@ tests/
 ├── test_normalizer.py          # Normalization variants + idempotence (P2)
 ├── test_interpreter.py         # Rule execution, provenance, where conditions
 ├── test_schemas.py             # Rule schema validation
+├── test_rule_files.py          # data/rules/*.json loader (fail fast), validation CLI
+├── test_rate_limit.py          # 429 + Retry-After, client IP / trusted proxies, required rate limit variables
+├── test_nl_to_rule.py          # NL->rule: retries, budget, feature disabled, prompt injection (LiteLLM mocked)
+├── test_api_errors.py          # Stable error codes of the API
 └── test_health.py              # API health check tests
 ```
 
@@ -174,6 +178,8 @@ so no `.env` file is needed:
 | `DATABASE_URL` | `sqlite://` (in-memory) |
 | `CORS_ORIGINS` | `http://localhost:3000` |
 | `ACCESS_READER` | `access-parser` (the mdbtools reader is built explicitly in tests) |
+| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS` | `1000`, `60` (the 429 tests lower the limit; the limiter uses memory storage because `BACKEND_NODE_ENV=test`) |
+| `LITELLM_*`, `TRUSTED_PROXIES` | removed from the environment (the NL->rule feature is configured per test; only `litellm.acompletion` is mocked) |
 
 ## Kiro Hook Integration
 
