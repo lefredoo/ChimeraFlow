@@ -1,0 +1,23 @@
+{
+  "id": "r_stock_replenish",
+  "status": "inactive",
+  "natural_language": "Recommander un réapprovisionnement quand le stock Access est < 15 et qu'il y a eu des commandes WhatsApp récentes.",
+  "trigger": {"source": "access", "entity": "product"},
+  "joins": [
+    {
+      "source": "whatsapp",
+      "on": {"entity": "product", "field": "text"},
+      "where": []
+    },
+    {
+      "source": "excel",
+      "sheet": "Tarifs",
+      "on": {"entity": "product", "field": "Produit"}
+    }
+  ],
+  "window_seconds": 259200,
+  "emit": {
+    "severity": "warning",
+    "template": "Réappro recommandé : {product} - stock actuel: {access.qty_stock}, prix fournisseur: {excel.Prix_Unitaire} FCFA"
+  }
+}

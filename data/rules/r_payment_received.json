@@ -1,0 +1,18 @@
+{
+  "id": "r_payment_received",
+  "status": "inactive",
+  "natural_language": "Quand un paiement Mobile Money est reçu, vérifier s'il correspond à une commande WhatsApp récente.",
+  "trigger": {"source": "momo", "entity": "product"},
+  "joins": [
+    {
+      "source": "whatsapp",
+      "on": {"entity": "product", "field": "text"},
+      "where": []
+    }
+  ],
+  "window_seconds": 86400,
+  "emit": {
+    "severity": "info",
+    "template": "Paiement reçu : {momo.amount} {momo.currency} pour {product} (commande confirmée)"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "r_high_value_order",
+  "status": "active",
+  "natural_language": "Alerter quand une commande WhatsApp concerne un produit Excel dont le prix > 10000 FCFA.",
+  "trigger": {"source": "whatsapp", "entity": "product"},
+  "joins": [
+    {
+      "source": "excel",
+      "sheet": "Tarifs",
+      "on": {"entity": "product", "field": "Produit"},
+      "where": [{"field": "Prix_Unitaire", "op": "gt", "value": 10000}]
+    }
+  ],
+  "window_seconds": 604800,
+  "emit": {
+    "severity": "info",
+    "template": "Commande importante : {product} - prix: {excel.Prix_Unitaire} FCFA"
+  }
+}

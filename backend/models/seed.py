@@ -8,16 +8,14 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from engine.predefined_rules import INACTIVE_PREDEFINED_IDS, get_predefined_rules
-from schemas.rule import RuleCreate
+from engine.predefined_rules import get_predefined_rules
+from engine.rule_files import PredefinedRule
 from .rule import Rule, RuleStatus
 
 logger = logging.getLogger(__name__)
 
-SEEDED_BY = "system"
 
-
-def _definition(rule: RuleCreate) -> dict:
+def _definition(rule: PredefinedRule) -> dict:
     """Serialize the rule columns that make up its definition."""
     return {
         "natural_language": rule.natural_language,
@@ -31,7 +29,7 @@ def _definition(rule: RuleCreate) -> dict:
 def seed_predefined_rules(db: Session) -> None:
     """Insert or update the predefined rules (idempotent).
 
-    A missing rule is inserted (inactive when listed in INACTIVE_PREDEFINED_IDS).
+    A missing rule is inserted with the status of its file.
     An existing rule gets its definition refreshed and its version bumped when
     it changed; its status is kept so an operator's choice survives a restart.
 
@@ -43,8 +41,9 @@ def seed_predefined_rules(db: Session) -> None:
         existing = db.get(Rule, rule.id)
 
         if existing is None:
-            status = RuleStatus.inactive if rule.id in INACTIVE_PREDEFINED_IDS else RuleStatus.active
-            db.add(Rule(id=rule.id, version=1, status=status, created_by=SEEDED_BY, **definition))
+            db.add(Rule(
+                id=rule.id, version=1, status=RuleStatus[rule.status], **definition
+            ))
             continue
 
         if any(getattr(existing, column) != value for column, value in definition.items()):
