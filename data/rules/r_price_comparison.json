@@ -1,0 +1,18 @@
+{
+  "id": "r_price_comparison",
+  "status": "inactive",
+  "natural_language": "Comparer le prix d'achat en stock Access avec le tarif fournisseur Excel pour détecter des écarts > 10%.",
+  "trigger": {"source": "access", "entity": "product"},
+  "joins": [
+    {
+      "source": "excel",
+      "sheet": "Tarifs",
+      "on": {"entity": "product", "field": "Produit"}
+    }
+  ],
+  "window_seconds": 2592000,
+  "emit": {
+    "severity": "warning",
+    "template": "Écart de prix : {product} - stock: {access.prix_achat} FCFA, fournisseur: {excel.Prix_Unitaire} FCFA"
+  }
+}

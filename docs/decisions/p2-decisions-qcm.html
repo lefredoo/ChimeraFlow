@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChimeraFlow — QCM de décisions P2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 3rem;
+        }
+
+        h1 {
+            color: #2563eb;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: #64748b;
+            font-size: 1.05rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .in-progress {
+            background: #eff6ff;
+            border: 2px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .in-progress h2 {
+            font-size: 1.15rem;
+            color: #1e40af;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .in-progress ul {
+            padding-left: 1.25rem;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .in-progress li {
+            margin-bottom: 0.35rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid #2563eb;
+            font-weight: 600;
+        }
+
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .question {
+            background: #f8fafc;
+            border-left: 4px solid #2563eb;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+        }
+
+        .question-title {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .question-context {
+            color: #64748b;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .option {
+            display: flex;
+            align-items: flex-start;
+            padding: 1rem;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .option:hover {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .option input[type="radio"],
+        .option input[type="checkbox"] {
+            margin-right: 1rem;
+            margin-top: 0.25rem;
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            accent-color: #2563eb;
+        }
+
+        .option-body {
+            flex: 1;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .option-note {
+            display: block;
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.4rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: #dbeafe;
+            color: #1e40af;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .other {
+            margin-top: 1rem;
+        }
+
+        .other label {
+            display: block;
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 0.35rem;
+        }
+
+        .other input {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            color: #1e293b;
+        }
+
+        .other input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .option input:focus-visible,
+        .other input:focus-visible,
+        .submit-btn:focus-visible,
+        .copy-btn:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        .submit-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 1rem 3rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.3s ease;
+            display: block;
+            margin: 2rem auto 0;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .submit-btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+
+        .result {
+            display: none;
+            background: #f0fdf4;
+            border: 2px solid #22c55e;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+
+        .result h2 {
+            color: #15803d;
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+
+        .result p {
+            color: #334155;
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+
+        .result pre {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #1e293b;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .copy-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .copy-btn {
+            background: #15803d;
+            color: white;
+            border: none;
+            padding: 0.7rem 1.6rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .copy-btn:hover {
+            background: #166534;
+        }
+
+        .copy-status {
+            color: #15803d;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ChimeraFlow — Décisions P2</h1>
+        <p class="subtitle">
+            Quinze décisions à trancher avant la phase P2. Pour chaque question, sélectionne une ou plusieurs
+            réponses, ajoute une précision si besoin, puis génère le récapitulatif en bas de page.
+            Le récapitulatif se colle dans <code>docs/decisions/P2_DECISIONS.md</code>.
+        </p>
+
+        <div class="in-progress">
+            <h2>Ce qui est déjà en cours sans décision</h2>
+            <ul>
+                <li>Correction des bugs bloquants du backend P2 : module manquant, imports, clés de champs Excel, entité MoMo.</li>
+                <li>Suppression des replis de configuration (AGENTS.md §7).</li>
+                <li>Normalisation idempotente.</li>
+                <li>Retrait des fichiers .pyc et de backend/.env.test du suivi git.</li>
+                <li>Tests du moteur.</li>
+            </ul>
+        </div>
+
+        <form id="qcmForm">
+            <div id="questions"></div>
+
+            <button type="submit" class="submit-btn">Générer le récapitulatif</button>
+        </form>
+
+        <div id="result" class="result" aria-live="polite">
+            <h2>Récapitulatif généré</h2>
+            <p>Copie ce bloc Markdown dans <code>docs/decisions/P2_DECISIONS.md</code>.</p>
+            <pre id="output"></pre>
+            <div class="copy-row">
+                <button type="button" id="copyBtn" class="copy-btn">Copier</button>
+                <span id="copyStatus" class="copy-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const QUESTIONS = [
+            {
+                id: 'q1',
+                title: 'Langue de la documentation utilisateur',
+                context: 'AGENTS.md §6 impose le français. Le README et la documentation backend sont en anglais, et la soumission Devpost est en anglais.',
+                type: 'radio',
+                options: [
+                    { id: 'tout-fr', label: 'Tout en français', note: 'Conforme à AGENTS.md. La soumission Devpost devra être traduite à part.' },
+                    { id: 'readme-en', label: 'README en anglais (soumission), reste en français', note: 'Conforme à la soumission sans modifier AGENTS.md. Le README est à maintenir dans deux langues si besoin.', rec: true },
+                    { id: 'tout-en', label: 'Tout en anglais (modifier AGENTS.md §6)', note: 'Cohérence totale. Impose de modifier AGENTS.md avant les autres changements.' }
+                ]
+            },
+            {
+                id: 'q2',
+                title: 'Lecture Access sous Windows',
+                context: 'mdbtools est absent en local. La base Access est donc silencieusement vide en développement.',
+                type: 'radio',
+                options: [
+                    { id: 'access-parser', label: 'Ajouter access-parser (Python pur) et utiliser mdbtools en production', note: 'Même lecture en dev et en prod. Nouvelle dépendance à approuver (Q4). Une base vide doit produire une erreur explicite.', rec: true },
+                    { id: 'pyodbc', label: 'pyodbc avec pilote Access (Windows uniquement)', note: 'Fonctionne en local sous Windows. Ne tourne pas sur le VPS Linux : deux chemins de code à maintenir.' },
+                    { id: 'docker-wsl', label: 'Développer via Docker ou WSL, avec mdbtools uniquement', note: 'Aucune nouvelle dépendance. Le développement local dépend de Docker ou de WSL.' }
+                ]
+            },
+            {
+                id: 'q3',
+                title: 'Base de données en développement local',
+                context: 'AGENTS.md §7 interdit le repli SQLite : DATABASE_URL devient obligatoire, y compris en développement.',
+                type: 'radio',
+                options: [
+                    { id: 'neon-dev', label: 'Branche Neon « dev » dans Doppler (environnement dev)', note: 'Même moteur qu\'en production. Demande un compte Neon et un accès réseau.', rec: true },
+                    { id: 'sqlite-env', label: 'URL SQLite explicite dans le .env local', note: 'Démarrage immédiat. Doit rester explicite pour ne pas devenir un repli implicite, et à consigner dans DECISIONS_LOG.' },
+                    { id: 'pg-docker', label: 'PostgreSQL en Docker local', note: 'Fonctionne hors ligne avec le moteur de production. Nécessite Docker.' }
+                ]
+            },
+            {
+                id: 'q4',
+                title: 'Nouvelles dépendances à approuver (AGENTS.md §16)',
+                context: 'Aucune dépendance n\'est ajoutée sans accord explicite. Coche celles que tu approuves.',
+                type: 'checkbox',
+                options: [
+                    { id: 'slowapi', label: 'slowapi : rate limiting par IP', note: 'Limite la création de règles par IP. Sans elle, la règle de sécurité 4 n\'est pas tenue.', rec: true },
+                    { id: 'litellm', label: 'litellm : conversion langage naturel vers règle JSON', note: 'Requis pour la conversion NL vers règle. Le coût reste plafonné par le budget LLM.', rec: true },
+                    { id: 'rapidfuzz', label: 'rapidfuzz : distance de Levenshtein réelle', note: 'Le steering impose Levenshtein à 0.85. difflib ne fournit pas cette métrique.', rec: true },
+                    { id: 'psycopg', label: 'psycopg[binary] : pilote PostgreSQL pour Neon', note: 'Requis dès que DATABASE_URL pointe vers PostgreSQL (Q3).', rec: true },
+                    { id: 'access-parser', label: 'access-parser : lecture Access en Python pur (si Q2 option 1)', note: 'Utile seulement si Q2 retient access-parser.', rec: true }
+                ]
+            },
+            {
+                id: 'q5',
+                title: 'Rate limiting',
+                context: 'La règle 4 impose une limite par IP sur la création de règles. Le compteur doit survivre au redémarrage et fonctionner avec plusieurs workers.',
+                type: 'radio',
+                options: [
+                    { id: 'slowapi-redis', label: 'slowapi avec Redis', note: 'Compteur partagé entre workers et persistant. Ajoute un service Redis à déployer.', rec: true },
+                    { id: 'custom-redis', label: 'Compteur maison sur Redis', note: 'Même effet qu\'avec slowapi, mais le code est à écrire et à tester soi-même.' },
+                    { id: 'memory', label: 'En mémoire uniquement', note: 'Remis à zéro au redémarrage et inadapté à plusieurs workers. Non conforme à la règle 4 en production.' }
+                ]
+            },
+            {
+                id: 'q6',
+                title: 'Versions Python et dépendances',
+                context: 'requirements.txt épingle pandas 2.1.3, qui n\'a pas de wheel pour Python 3.13. L\'installation a échoué.',
+                type: 'radio',
+                options: [
+                    { id: 'py312', label: 'venv Python 3.12 avec les versions épinglées actuelles', note: 'Installation immédiate. Versions anciennes, à réviser plus tard.' },
+                    { id: 'py313', label: 'venv Python 3.13 avec versions mises à jour disposant de wheels', note: 'Versions récentes. Les tests sont à relancer après la mise à jour.', rec: true },
+                    { id: 'uv', label: 'uv pour gérer le venv et le lockfile', note: 'Installation reproductible via lockfile. Outil supplémentaire à installer pour toute l\'équipe.' }
+                ]
+            },
+            {
+                id: 'q7',
+                title: 'Textes des règles prédéfinies',
+                context: 'engine/predefined_rules.py contient du français et des emojis en dur. AGENTS.md §4 interdit le texte utilisateur dans le code.',
+                type: 'radio',
+                options: [
+                    { id: 'json-data', label: 'Déplacer les règles dans data/rules/*.json', note: 'Ce sont des données métier, pas de l\'interface. Le moteur les lit au démarrage et le texte sort du code.', rec: true },
+                    { id: 'i18n-keys', label: 'Templates sous forme de clés i18n traduites côté frontend', note: 'Respecte §4 à la lettre. Le backend renvoie des clés, ce qui complique les règles exportées.' },
+                    { id: 'keep', label: 'Garder tel quel et consigner l\'exception dans DECISIONS_LOG', note: 'Aucun travail. Écart à la règle §4, documenté et à traiter plus tard.' }
+                ]
+            },
+            {
+                id: 'q8',
+                title: 'Migrations de base de données',
+                context: 'Le schéma évoluera pendant P2. Le choix détermine comment la base sera modifiée ensuite, jusqu\'en P4.',
+                type: 'radio',
+                options: [
+                    { id: 'alembic', label: 'Alembic dès maintenant', note: 'Historique des schémas versionné. Un peu plus de configuration au départ.', rec: true },
+                    { id: 'create-all', label: 'create_all au démarrage jusqu\'à P4', note: 'Simple et sans outil. Ne gère pas les modifications de colonnes sur une base existante.' }
+                ]
+            },
+            {
+                id: 'q9',
+                title: 'Déploiement (VPS Hetzner, Dokploy, Vercel)',
+                context: 'Le déploiement nécessite des accès à l\'infrastructure. Qui exécute les étapes ?',
+                type: 'radio',
+                options: [
+                    { id: 'agent-guide', label: 'L\'agent prépare Dockerfiles, configuration Dokploy et guide pas à pas. Tu exécutes.', note: 'Tu gardes la main sur les accès. Le délai dépend de tes disponibilités.', rec: true },
+                    { id: 'agent-access', label: 'Tu me donnes un accès et l\'agent pilote', note: 'Plus rapide. L\'agent dispose alors d\'accès à l\'infrastructure de production.' },
+                    { id: 'defer', label: 'Reporter à la fin de P2', note: 'Risque : problèmes CORS et TLS découverts tardivement.' }
+                ]
+            },
+            {
+                id: 'q10',
+                title: 'Ouverture de la PR dev vers main',
+                context: 'AGENTS.md §5 : une PR dev vers main, squash, CI verte et une relecture minimum.',
+                type: 'radio',
+                options: [
+                    { id: 'pr-ci-green', label: 'Dès que la CI est verte sur l\'état corrigé', note: 'Livre le travail sur main tôt. Les corrections de P2 doivent être faites avant.', rec: true },
+                    { id: 'pr-end-p2', label: 'À la fin de P2', note: 'PR plus grosse et relecture plus lourde.' }
+                ]
+            },
+            {
+                id: 'q11',
+                title: 'Intégration continue',
+                context: 'Aucune CI n\'existe. Les règles exigent une CI verte avant toute PR.',
+                type: 'radio',
+                options: [
+                    { id: 'ci-gha', label: 'Workflow GitHub Actions : lint et tests backend', note: 'Bloque les régressions. Demande de configurer les protections de branche et les secrets.', rec: true },
+                    { id: 'no-ci', label: 'Pas de CI pour l\'instant', note: 'Aucun coût de mise en place. La règle de CI verte ne peut pas être tenue.' }
+                ]
+            },
+            {
+                id: 'q12',
+                title: 'Fichiers générés (données synthétiques)',
+                context: 'data/STOCK_ZOBO.mdb et data/tarifs_fournisseurs.xlsx sont synthétiques et produits par les scripts du dossier scripts/.',
+                type: 'radio',
+                options: [
+                    { id: 'commit', label: 'Les commiter', note: 'La démo fonctionne sans régénération. Les binaires alourdissent le dépôt.', rec: true },
+                    { id: 'ignore', label: 'Les ignorer et les régénérer au build', note: 'Dépôt plus léger. Le build dépend alors de openpyxl et de mdbtools.' }
+                ]
+            },
+            {
+                id: 'q13',
+                title: 'Fichiers de spécification manquants',
+                context: 'La documentation cite tasks.md, design.md et .kiro/specs/api-spec.md, qui n\'existent pas.',
+                type: 'radio',
+                options: [
+                    { id: 'create-specs', label: 'Les créer, avec les propriétés P1 à P6 dans design.md', note: 'Spécifications vérifiables par les tests de propriété. Demande du temps de rédaction.', rec: true },
+                    { id: 'remove-refs', label: 'Retirer les références', note: 'Documentation plus courte, mais aucune spécification de référence pour P2.' }
+                ]
+            },
+            {
+                id: 'q14',
+                title: 'Hook rule-validate.json',
+                context: 'Le hook cible un dossier rules/ inexistant. Son sort dépend de la question 7.',
+                type: 'radio',
+                options: [
+                    { id: 'hook-retarget', label: 'Le recibler sur data/rules/*.json (si Q7 = option 1)', note: 'Validation automatique des règles à la création. Dépend de la Q7.', rec: true },
+                    { id: 'hook-delete', label: 'Le supprimer', note: 'Moins de configuration. Plus de validation de schéma automatique à la création.' }
+                ]
+            },
+            {
+                id: 'q15',
+                title: 'Entité candidate et titulaire du copyright LICENSE',
+                context: 'À trancher avant le 20 novembre (Roadmap §1). À valider avec ton comptable.',
+                type: 'radio',
+                options: [
+                    { id: 'license-undecided', label: 'Pas encore décidé', note: 'Aucun blocage technique. La date limite du 20 novembre reste à respecter.', rec: true },
+                    { id: 'license-individual', label: 'Individuel (Fredy)', note: 'Démarrage simple. Responsabilité personnelle.' },
+                    { id: 'license-llc', label: 'LinguaSolution LLC', note: 'Cohérent avec le prix Best Startup. Implique l\'entité juridique et son comptable.' }
+                ]
+            }
+        ];
+
+        const IN_PROGRESS_ITEMS = [
+            'Correction des bugs bloquants du backend P2 : module manquant, imports, clés de champs Excel, entité MoMo.',
+            'Suppression des replis de configuration (AGENTS.md §7).',
+            'Normalisation idempotente.',
+            'Retrait des fichiers .pyc et de backend/.env.test du suivi git.',
+            'Tests du moteur.'
+        ];
+
+        function createElement(tag, className, text) {
+            const el = document.createElement(tag);
+            if (className) {
+                el.className = className;
+            }
+            if (text !== undefined) {
+                el.textContent = text;
+            }
+            return el;
+        }
+
+        function renderOption(question, option, index) {
+            const optionId = question.id + '-' + option.id;
+
+            const wrapper = createElement('div', 'option');
+            const input = createElement('input');
+            input.type = question.type;
+            input.name = question.id;
+            input.id = optionId;
+            input.value = option.id;
+            input.dataset.label = option.label;
+
+            const label = createElement('label', 'option-body');
+            label.htmlFor = optionId;
+
+            const title = createElement('span', '', option.label);
+            if (option.rec) {
+                title.appendChild(createElement('span', 'badge', 'Recommandé'));
+            }
+            label.appendChild(title);
+            label.appendChild(createElement('span', 'option-note', option.note));
+
+            wrapper.appendChild(input);
+            wrapper.appendChild(label);
+            return wrapper;
+        }
+
+        function renderQuestion(question, number) {
+            const block = createElement('div', 'question');
+            block.appendChild(createElement('div', 'question-title', 'Q' + number + '. ' + question.title));
+            block.appendChild(createElement('p', 'question-context', question.context));
+
+            const options = createElement('div', 'options');
+            question.options.forEach(function (option, index) {
+                options.appendChild(renderOption(question, option, index));
+            });
+            block.appendChild(options);
+
+            const other = createElement('div', 'other');
+            const otherLabel = createElement('label', '', 'Autre / précision');
+            const otherInput = createElement('input');
+            otherInput.type = 'text';
+            otherInput.name = question.id + '-other';
+            otherInput.id = question.id + '-other';
+            otherInput.maxLength = 500;
+            otherLabel.htmlFor = otherInput.id;
+            other.appendChild(otherLabel);
+            other.appendChild(otherInput);
+            block.appendChild(other);
+
+            return block;
+        }
+
+        function renderAll() {
+            const container = document.getElementById('questions');
+            const section = createElement('div', 'section');
+            section.appendChild(createElement('h2', 'section-title', 'Décisions'));
+            QUESTIONS.forEach(function (question, index) {
+                section.appendChild(renderQuestion(question, index + 1));
+            });
+            container.appendChild(section);
+        }
+
+        function formatSelection(question, form) {
+            const checked = Array.from(form.querySelectorAll('input[name="' + question.id + '"]:checked'));
+            return checked.map(function (input) {
+                return input.dataset.label;
+            });
+        }
+
+        function buildMarkdown(form) {
+            const date = new Date().toISOString().slice(0, 10);
+            const lines = [];
+
+            lines.push('# Décisions P2');
+            lines.push('');
+            lines.push('Date : ' + date);
+            lines.push('');
+
+            QUESTIONS.forEach(function (question, index) {
+                const selected = formatSelection(question, form);
+                const precision = form.querySelector('#' + question.id + '-other').value.trim();
+
+                lines.push('## Q' + (index + 1) + '. ' + question.title);
+                lines.push('');
+                if (selected.length === 0) {
+                    lines.push('- **Choix** : non tranché');
+                } else {
+                    lines.push('- **Choix** : ' + selected.join(' ; '));
+                }
+                if (precision) {
+                    lines.push('- **Précision** : ' + precision);
+                }
+                lines.push('');
+            });
+
+            lines.push('## Travaux déjà en cours (sans décision)');
+            lines.push('');
+            IN_PROGRESS_ITEMS.forEach(function (item) {
+                lines.push('- ' + item);
+            });
+            lines.push('');
+
+            return lines.join('\n');
+        }
+
+        function copyOutput() {
+            const output = document.getElementById('output');
+            const status = document.getElementById('copyStatus');
+            const text = output.textContent;
+
+            function fallbackCopy() {
+                const range = document.createRange();
+                range.selectNodeContents(output);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                const ok = document.execCommand('copy');
+                selection.removeAllRanges();
+                status.textContent = ok ? 'Copié.' : 'Copie impossible : sélectionne le texte manuellement.';
+            }
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(function () {
+                    status.textContent = 'Copié.';
+                }, fallbackCopy);
+            } else {
+                fallbackCopy();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            renderAll();
+
+            const form = document.getElementById('qcmForm');
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const markdown = buildMarkdown(form);
+                document.getElementById('output').textContent = markdown;
+                document.getElementById('copyStatus').textContent = '';
+                const result = document.getElementById('result');
+                result.style.display = 'block';
+                result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+
+            document.getElementById('copyBtn').addEventListener('click', copyOutput);
+        });
+    </script>
+</body>
+</html>

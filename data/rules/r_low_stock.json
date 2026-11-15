@@ -1,0 +1,24 @@
+{
+  "id": "r_low_stock",
+  "status": "active",
+  "natural_language": "Quand un client demande un produit sur WhatsApp, montre son stock Access et son prix Excel, et alerte-moi si le stock est inférieur à 10.",
+  "trigger": {"source": "whatsapp", "entity": "product"},
+  "joins": [
+    {
+      "source": "access",
+      "table": "Articles",
+      "on": {"entity": "product", "field": "designation"},
+      "where": [{"field": "qty_stock", "op": "lt", "value": 10}]
+    },
+    {
+      "source": "excel",
+      "sheet": "Tarifs",
+      "on": {"entity": "product", "field": "Produit"}
+    }
+  ],
+  "window_seconds": 604800,
+  "emit": {
+    "severity": "warning",
+    "template": "Stock bas : {product} - stock: {access.qty_stock}, prix: {excel.Prix_Unitaire} FCFA"
+  }
+}

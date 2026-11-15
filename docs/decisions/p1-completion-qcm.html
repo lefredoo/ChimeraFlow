@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChimeraFlow — QCM P1 Completion & P2 Planning</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 3rem;
+        }
+        
+        h1 {
+            color: #2563eb;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        
+        .subtitle {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .section {
+            margin-bottom: 3rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid #2563eb;
+            font-weight: 600;
+        }
+        
+        .question {
+            background: #f8fafc;
+            border-left: 4px solid #2563eb;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .question-title {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        
+        .question-context {
+            color: #64748b;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+        
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .option {
+            display: flex;
+            align-items: flex-start;
+            padding: 1rem;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .option:hover {
+            border-color: #2563eb;
+            background: #eff6ff;
+            transform: translateX(4px);
+        }
+        
+        .option input[type="radio"],
+        .option input[type="checkbox"] {
+            margin-right: 1rem;
+            margin-top: 0.25rem;
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            accent-color: #2563eb;
+        }
+        
+        .option label {
+            cursor: pointer;
+            flex: 1;
+            color: #334155;
+            line-height: 1.5;
+        }
+        
+        .option-note {
+            display: block;
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.5rem;
+        }
+        
+        .submit-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 1rem 3rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: block;
+            margin: 2rem auto 0;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        .submit-btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+        }
+        
+        .result {
+            display: none;
+            background: #f0fdf4;
+            border: 2px solid #22c55e;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .result h2 {
+            color: #15803d;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .result pre {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #1e293b;
+        }
+        
+        .priority {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        
+        .priority-high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .priority-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .priority-low {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 ChimeraFlow — P1 Completion & P2 Planning</h1>
+        <p class="subtitle">
+            Phase P1 (Connecteurs) est complétée à ~95%. Avant de passer à P2 (Moteur de règles), 
+            clarifions les bloqueurs restants, les décisions techniques en attente et les priorités.
+        </p>
+        
+        <form id="qcmForm">
+            <!-- SECTION 1: Bloqueurs P1 -->
+            <div class="section">
+                <h2 class="section-title">📦 Section 1 : Résolution des Bloqueurs P1</h2>
+                
+                <!-- Q1: Dependencies -->
+                <div class="question">
+                    <div class="question-title">
+                        Q1. Installation des dépendances Python
+                        <span class="priority priority-high">BLOQUANT</span>
+                    </div>
+                    <p class="question-context">
+                        Les tests nécessitent pytest, hypothesis, openpyxl. Comment procéder ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q1" id="q1a" value="install-now">
+                            <label for="q1a">
+                                Installer maintenant : <code>pip install -r backend/requirements.txt</code>
+                                <span class="option-note">✓ Recommandé : vérifie que les tests passent avant P2</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q1" id="q1b" value="install-later">
+                            <label for="q1b">
+                                Installer plus tard (avant P3)
+                                <span class="option-note">⚠️ Risque : tests non validés pendant P2</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q1" id="q1c" value="ci-only">
+                            <label for="q1c">
+                                CI uniquement (GitHub Actions)
+                                <span class="option-note">⚠️ Risque : découverte tardive des bugs</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q2: Excel generation -->
+                <div class="question">
+                    <div class="question-title">
+                        Q2. Génération du fichier Excel (tarifs_fournisseurs.xlsx)
+                        <span class="priority priority-medium">MOYEN</span>
+                    </div>
+                    <p class="question-context">
+                        Le script existe, nécessite openpyxl. Priorité ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q2" id="q2a" value="generate-now">
+                            <label for="q2a">
+                                Générer maintenant : <code>python scripts/generate_excel.py</code>
+                                <span class="option-note">✓ Complète les données synthétiques P1</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q2" id="q2b" value="generate-p2">
+                            <label for="q2b">
+                                Générer au début de P2
+                                <span class="option-note">OK si P2 ne teste pas encore Excel</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q2" id="q2c" value="skip-excel">
+                            <label for="q2c">
+                                Reporter à P3 (pas critique pour le moteur de règles)
+                                <span class="option-note">⚠️ Réduira la démo multi-sources</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q3: Access database -->
+                <div class="question">
+                    <div class="question-title">
+                        Q3. Génération de la base Access (.mdb)
+                        <span class="priority priority-medium">MOYEN</span>
+                    </div>
+                    <p class="question-context">
+                        Nécessite Windows avec Access, Jackcess (Java) ou mdbtools sous Linux. Approche ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q3" id="q3a" value="access-manual">
+                            <label for="q3a">
+                                Créer manuellement sur Windows avec Access
+                                <span class="option-note">Si tu as accès à une machine Windows + Access</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q3" id="q3b" value="access-jackcess">
+                            <label for="q3b">
+                                Script Java avec Jackcess
+                                <span class="option-note">Nécessite JDK installé</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q3" id="q3c" value="access-mdbtools">
+                            <label for="q3c">
+                                mdbtools sous Linux (WSL ou VPS)
+                                <span class="option-note">Commande : mdb-create + mdb-sql</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q3" id="q3d" value="access-skip">
+                            <label for="q3d">
+                                Reporter à P3, focus sur WhatsApp + MoMo pour la démo
+                                <span class="option-note">⚠️ Réduit la richesse "Frankenstein"</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SECTION 2: P2 Planning -->
+            <div class="section">
+                <h2 class="section-title">🎯 Section 2 : Planification P2 (Moteur de règles)</h2>
+                
+                <!-- Q4: Database choice -->
+                <div class="question">
+                    <div class="question-title">
+                        Q4. Base de données pour stocker les règles de corrélation
+                        <span class="priority priority-high">BLOQUANT P2</span>
+                    </div>
+                    <p class="question-context">
+                        Roadmap mentionne Neon PostgreSQL. Tu as un compte prêt ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q4" id="q4a" value="db-neon">
+                            <label for="q4a">
+                                PostgreSQL sur Neon (gratuit, serverless)
+                                <span class="option-note">✓ Recommandé dans AGENTS.md, compatible SQLAlchemy</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q4" id="q4b" value="db-sqlite">
+                            <label for="q4b">
+                                SQLite local (fichier .db)
+                                <span class="option-note">Plus simple pour dev, pas de config externe</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q4" id="q4c" value="db-hetzner">
+                            <label for="q4c">
+                                PostgreSQL sur VPS Hetzner (Docker)
+                                <span class="option-note">Tu as déjà un VPS, mais ajoute un container</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q4" id="q4d" value="db-json">
+                            <label for="q4d">
+                                Fichiers JSON pour le MVP (pas de BDD)
+                                <span class="option-note">⚠️ Limite les requêtes complexes, pas recommandé</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q5: NL to Rule conversion -->
+                <div class="question">
+                    <div class="question-title">
+                        Q5. Conversion Langage Naturel → Règle JSON (LiteLLM)
+                        <span class="priority priority-high">FEATURE P2</span>
+                    </div>
+                    <p class="question-context">
+                        Budget limité (~5 USD). Stratégie ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="checkbox" name="q5" id="q5a" value="nl-implement">
+                            <label for="q5a">
+                                Implémenter la conversion NL→JSON avec LiteLLM
+                                <span class="option-note">Cœur du démo "écrire une règle en français"</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q5" id="q5b" value="nl-validation">
+                            <label for="q5b">
+                                Validation stricte du schéma JSON avec Pydantic
+                                <span class="option-note">✓ Critique sécurité (aucun code exécuté)</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q5" id="q5c" value="nl-retry">
+                            <label for="q5c">
+                                2 retries max si le JSON généré est invalide
+                                <span class="option-note">✓ Réduit les échecs tout en limitant le budget</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q5" id="q5d" value="nl-fallback">
+                            <label for="q5d">
+                                Fallback sur règles prédéfinies si budget épuisé
+                                <span class="option-note">✓ L'app reste utilisable même sans LLM</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q6: Normalization strategy -->
+                <div class="question">
+                    <div class="question-title">
+                        Q6. Stratégie de normalisation d'entités (FR/EN synonymes)
+                        <span class="priority priority-medium">FEATURE P2</span>
+                    </div>
+                    <p class="question-context">
+                        Base actuelle : lowercase + accents + whitespace. Faut-il ajouter fuzzy matching ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q6" id="q6a" value="norm-current">
+                            <label for="q6a">
+                                Garder la normalisation actuelle (simple, déterministe)
+                                <span class="option-note">Suffit pour le cas démo "ciment 50 kg"</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q6" id="q6b" value="norm-fuzzy">
+                            <label for="q6b">
+                                Ajouter fuzzy matching (Levenshtein, seuil 0.85)
+                                <span class="option-note">Gère "pointe" vs "pointes", "vis" vs "vise"</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q6" id="q6c" value="norm-synonyms">
+                            <label for="q6c">
+                                Dict de synonymes FR/EN ("ciment" = "cement")
+                                <span class="option-note">Lien narratif LinguaSolution, config explicite</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q6" id="q6d" value="norm-hybrid">
+                            <label for="q6d">
+                                Hybride : règles strictes + fuzzy + synonymes
+                                <span class="option-note">✓ Roadmap §2 préconise l'approche hybride</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q7: Rule engine scope -->
+                <div class="question">
+                    <div class="question-title">
+                        Q7. Scope du moteur de règles pour P2
+                        <span class="priority priority-high">SCOPE P2</span>
+                    </div>
+                    <p class="question-context">
+                        P2 = 20h. Quelles features inclure absolument ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="checkbox" name="q7" id="q7a" value="scope-interpret">
+                            <label for="q7a">
+                                Interpréteur de règles JSON (trigger, joins, where, emit)
+                                <span class="option-note">✓ CRITIQUE : cœur du moteur</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q7" id="q7b" value="scope-correlate">
+                            <label for="q7b">
+                                Corrélation multi-sources (WhatsApp × MoMo × Excel/Access)
+                                <span class="option-note">✓ CRITIQUE : démo "Frankenstein"</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q7" id="q7c" value="scope-window">
+                            <label for="q7c">
+                                Fenêtre temporelle (window_seconds)
+                                <span class="option-note">✓ CRITIQUE : corrélation pertinente</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q7" id="q7d" value="scope-predefined">
+                            <label for="q7d">
+                                5 règles prédéfinies (stock bas, paiement reçu, etc.)
+                                <span class="option-note">✓ Roadmap demande 5 règles</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q7" id="q7e" value="scope-api">
+                            <label for="q7e">
+                                API REST (POST /rules, GET /correlations)
+                                <span class="option-note">✓ Nécessaire pour UI (P3)</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q7" id="q7f" value="scope-ratelimit">
+                            <label for="q7f">
+                                Rate limiting par IP (création de règles)
+                                <span class="option-note">✓ Sécurité (R9 du roadmap)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SECTION 3: Git & Deployment -->
+            <div class="section">
+                <h2 class="section-title">🚀 Section 3 : Git, Déploiement et Prochaines Étapes</h2>
+                
+                <!-- Q8: PR to main -->
+                <div class="question">
+                    <div class="question-title">
+                        Q8. Ouvrir une PR dev → main maintenant ?
+                        <span class="priority priority-low">PROCESS</span>
+                    </div>
+                    <p class="question-context">
+                        P0 et P1 sont sur dev. Roadmap suggère une PR après chaque phase.
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q8" id="q8a" value="pr-now">
+                            <label for="q8a">
+                                Oui, ouvrir PR maintenant (P0+P1 complets)
+                                <span class="option-note">Avantage : main reste synchronisé</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q8" id="q8b" value="pr-after-p2">
+                            <label for="q8b">
+                                Attendre la fin de P2 (PR groupée P0+P1+P2)
+                                <span class="option-note">Avantage : moins de PRs, feature complète</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q8" id="q8c" value="pr-p4">
+                            <label for="q8c">
+                                Une seule PR finale en P4 (durcissement)
+                                <span class="option-note">⚠️ Risque : diff énorme, review difficile</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q9: Deployment timing -->
+                <div class="question">
+                    <div class="question-title">
+                        Q9. Déploiement sur Vercel (frontend) et Hetzner (backend)
+                        <span class="priority priority-medium">DÉPLOIEMENT</span>
+                    </div>
+                    <p class="question-context">
+                        Roadmap conseille de déployer dès P0. Quand déployer réellement ?
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="radio" name="q9" id="q9a" value="deploy-now">
+                            <label for="q9a">
+                                Déployer maintenant (backend avec connecteurs uniquement)
+                                <span class="option-note">✓ Recommandé : découvre bugs d'intégration tôt</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q9" id="q9b" value="deploy-p2-end">
+                            <label for="q9b">
+                                Après P2 (backend avec moteur de règles complet)
+                                <span class="option-note">OK : feature testable bout en bout</span>
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="q9" id="q9c" value="deploy-p3">
+                            <label for="q9c">
+                                Après P3 (UI complète)
+                                <span class="option-note">⚠️ Découverte tardive de problèmes CORS/TLS</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Q10: Next priorities -->
+                <div class="question">
+                    <div class="question-title">
+                        Q10. Ordre des priorités immédiates (semaine prochaine)
+                        <span class="priority priority-high">PLANNING</span>
+                    </div>
+                    <p class="question-context">
+                        Choisis les 3 tâches les plus urgentes (ordre de priorité).
+                    </p>
+                    <div class="options">
+                        <div class="option">
+                            <input type="checkbox" name="q10" id="q10a" value="prio-deps">
+                            <label for="q10a">
+                                1. Installer dépendances + lancer tests
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q10" id="q10b" value="prio-data">
+                            <label for="q10b">
+                                2. Générer Excel et Access pour compléter P1
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q10" id="q10c" value="prio-db">
+                            <label for="q10c">
+                                3. Configurer base de données (Neon/SQLite)
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q10" id="q10d" value="prio-engine">
+                            <label for="q10d">
+                                4. Démarrer P2 : interpréteur de règles
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q10" id="q10e" value="prio-deploy">
+                            <label for="q10e">
+                                5. Déployer backend P1 sur Hetzner
+                            </label>
+                        </div>
+                        <div class="option">
+                            <input type="checkbox" name="q10" id="q10f" value="prio-pr">
+                            <label for="q10f">
+                                6. Ouvrir PR dev → main
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn">📋 Générer le Plan d'Action</button>
+        </form>
+        
+        <div id="result" class="result">
+            <h2>✅ Plan d'Action Généré</h2>
+            <pre id="output"></pre>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('qcmForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const answers = {};
+            
+            // Single choice questions
+            ['q1', 'q2', 'q3', 'q4', 'q6', 'q8', 'q9'].forEach(q => {
+                answers[q] = formData.get(q);
+            });
+            
+            // Multi choice questions
+            ['q5', 'q7', 'q10'].forEach(q => {
+                answers[q] = formData.getAll(q);
+            });
+            
+            // Generate action plan
+            let output = "# CHIMERAFLOW — PLAN D'ACTION P1 → P2\n";
+            output += "Généré le : " + new Date().toLocaleString('fr-FR') + "\n\n";
+            output += "=" .repeat(60) + "\n\n";
+            
+            output += "## 1. RÉSOLUTION BLOQUEURS P1\n\n";
+            
+            if (answers.q1 === 'install-now') {
+                output += "✓ IMMÉDIAT : pip install -r backend/requirements.txt\n";
+                output += "  Puis lancer : python -m pytest backend/tests/ -v\n\n";
+            } else if (answers.q1 === 'install-later') {
+                output += "⚠️  Installation dépendances reportée (avant P3)\n\n";
+            }
+            
+            if (answers.q2 === 'generate-now') {
+                output += "✓ IMMÉDIAT : python scripts/generate_excel.py\n";
+                output += "  Vérifie que data/tarifs_fournisseurs.xlsx est créé\n\n";
+            } else if (answers.q2 === 'generate-p2') {
+                output += "⏰ Excel : générer au début de P2\n\n";
+            }
+            
+            if (answers.q3 === 'access-manual') {
+                output += "✓ Access : créer manuellement sur Windows\n\n";
+            } else if (answers.q3 === 'access-jackcess') {
+                output += "✓ Access : script Java Jackcess (vérifier JDK)\n\n";
+            } else if (answers.q3 === 'access-mdbtools') {
+                output += "✓ Access : mdbtools sous WSL/Linux\n\n";
+            } else if (answers.q3 === 'access-skip') {
+                output += "⏸️  Access : reporté à P3\n\n";
+            }
+            
+            output += "\n## 2. CONFIGURATION P2\n\n";
+            
+            if (answers.q4 === 'db-neon') {
+                output += "✓ Base de données : PostgreSQL sur Neon\n";
+                output += "  1. Créer DB sur neon.tech\n";
+                output += "  2. Ajouter DATABASE_URL dans Doppler\n";
+                output += "  3. Configurer SQLAlchemy + Alembic\n\n";
+            } else if (answers.q4 === 'db-sqlite') {
+                output += "✓ Base de données : SQLite local\n";
+                output += "  DATABASE_URL=sqlite:///./chimeraflow.db\n\n";
+            } else if (answers.q4 === 'db-hetzner') {
+                output += "✓ Base de données : PostgreSQL Docker sur Hetzner\n\n";
+            }
+            
+            output += "Stratégie NL→JSON :\n";
+            if (answers.q5.includes('nl-implement')) output += "  ✓ Implémenter conversion LiteLLM\n";
+            if (answers.q5.includes('nl-validation')) output += "  ✓ Validation Pydantic stricte\n";
+            if (answers.q5.includes('nl-retry')) output += "  ✓ 2 retries max\n";
+            if (answers.q5.includes('nl-fallback')) output += "  ✓ Fallback règles prédéfinies\n";
+            output += "\n";
+            
+            if (answers.q6 === 'norm-current') {
+                output += "Normalisation : garder stratégie actuelle (simple)\n\n";
+            } else if (answers.q6 === 'norm-fuzzy') {
+                output += "Normalisation : ajouter fuzzy matching (Levenshtein)\n\n";
+            } else if (answers.q6 === 'norm-synonyms') {
+                output += "Normalisation : dict synonymes FR/EN\n\n";
+            } else if (answers.q6 === 'norm-hybrid') {
+                output += "Normalisation : approche hybride (règles + fuzzy + synonymes)\n\n";
+            }
+            
+            output += "\n## 3. SCOPE P2 (20h)\n\n";
+            output += "Features incluses :\n";
+            if (answers.q7.includes('scope-interpret')) output += "  ✓ Interpréteur de règles JSON\n";
+            if (answers.q7.includes('scope-correlate')) output += "  ✓ Corrélation multi-sources\n";
+            if (answers.q7.includes('scope-window')) output += "  ✓ Fenêtre temporelle\n";
+            if (answers.q7.includes('scope-predefined')) output += "  ✓ 5 règles prédéfinies\n";
+            if (answers.q7.includes('scope-api')) output += "  ✓ API REST (/rules, /correlations)\n";
+            if (answers.q7.includes('scope-ratelimit')) output += "  ✓ Rate limiting\n";
+            output += "\n";
+            
+            output += "\n## 4. GIT & DÉPLOIEMENT\n\n";
+            
+            if (answers.q8 === 'pr-now') {
+                output += "✓ Ouvrir PR dev → main immédiatement\n\n";
+            } else if (answers.q8 === 'pr-after-p2') {
+                output += "⏰ PR après P2 (groupée)\n\n";
+            }
+            
+            if (answers.q9 === 'deploy-now') {
+                output += "✓ Déployer backend maintenant (Vercel + Hetzner)\n\n";
+            } else if (answers.q9 === 'deploy-p2-end') {
+                output += "⏰ Déployer après P2\n\n";
+            }
+            
+            output += "\n## 5. PRIORITÉS IMMÉDIATES\n\n";
+            const priorities = answers.q10.map((val, idx) => {
+                const labels = {
+                    'prio-deps': 'Installer dépendances + tests',
+                    'prio-data': 'Générer Excel et Access',
+                    'prio-db': 'Configurer base de données',
+                    'prio-engine': 'Démarrer interpréteur P2',
+                    'prio-deploy': 'Déployer backend P1',
+                    'prio-pr': 'Ouvrir PR dev → main'
+                };
+                return `${idx + 1}. ${labels[val]}`;
+            });
+            output += priorities.join('\n') + '\n\n';
+            
+            output += "\n" + "=".repeat(60) + "\n";
+            output += "\nCe plan est à copier dans docs/decisions/P2_ACTION_PLAN.md\n";
+            output += "Puis commiter : git add docs/ && git commit -m \"docs: P2 action plan\"\n";
+            
+            document.getElementById('output').textContent = output;
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>

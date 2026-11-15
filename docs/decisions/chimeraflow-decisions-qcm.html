@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChimeraFlow — QCM de Décisions Techniques</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: var(--bg-card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .project-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .info-item strong {
+            display: block;
+            font-size: 0.75rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .question-card {
+            background: var(--bg-card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .question-card:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .question-number {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 32px;
+            font-weight: 600;
+            margin-right: 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .question-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .question-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            padding-left: 2.5rem;
+        }
+
+        .options {
+            padding-left: 2.5rem;
+        }
+
+        .option {
+            margin-bottom: 1rem;
+        }
+
+        .option label {
+            display: flex;
+            align-items: flex-start;
+            cursor: pointer;
+            padding: 0.875rem;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            transition: all 0.2s ease;
+        }
+
+        .option label:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.02);
+        }
+
+        .option input[type="radio"],
+        .option input[type="checkbox"] {
+            margin-right: 0.75rem;
+            margin-top: 0.25rem;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .option input[type="text"],
+        .option textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .option input[type="text"]:focus,
+        .option textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .option textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .sub-options {
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .generate-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            display: block;
+            margin: 3rem auto;
+        }
+
+        .generate-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .generate-btn:active {
+            transform: translateY(0);
+        }
+
+        #output {
+            background: var(--bg-card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-top: 2rem;
+            display: none;
+            border-left: 4px solid var(--success);
+        }
+
+        #output h2 {
+            margin-bottom: 1rem;
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #markdown-output {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 600px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+
+        .copy-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            transition: background 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: #059669;
+        }
+
+        .tag {
+            display: inline-block;
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem 0.5rem;
+            }
+
+            header, .question-card {
+                padding: 1.5rem;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .project-info {
+                grid-template-columns: 1fr;
+            }
+
+            .question-title {
+                font-size: 1.125rem;
+            }
+
+            .generate-btn {
+                width: 100%;
+            }
+        }
+
+        .color-palette {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding-left: 2.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .color-option {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .color-preview {
+            display: flex;
+            height: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .color-swatch {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 ChimeraFlow — QCM de Décisions Techniques</h1>
+            <p class="subtitle">Hackathon Kiroween 2026 · Catégorie Frankenstein</p>
+            <div class="project-info">
+                <div class="info-item">
+                    <strong>Deadline</strong>
+                    4 déc. 2026, 22:00 UTC
+                </div>
+                <div class="info-item">
+                    <strong>Stack</strong>
+                    Next.js + FastAPI
+                </div>
+                <div class="info-item">
+                    <strong>Capacité</strong>
+                    Solo, ≥4h/jour, 84h
+                </div>
+                <div class="info-item">
+                    <strong>Bonus visés</strong>
+                    Startup, Blog, Social
+                </div>
+            </div>
+        </header>
+
+        <form id="decisionsForm">
+            <!-- Question 1: Design System -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">1</span>
+                    Design System et Identité Visuelle
+                </h2>
+                <p class="question-description">
+                    ChimeraFlow est un outil professionnel pour PME. Le design doit inspirer confiance tout en restant moderne.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Style visuel principal :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="visual_style" value="minimalist" required>
+                            <span>Minimaliste professionnel — Design épuré, typographie claire, espaces généreux</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="visual_style" value="modern_glass">
+                            <span>Moderne avec glassmorphism — Cartes semi-transparentes, effets de flou, gradients subtils</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="visual_style" value="bold_colorful">
+                            <span>Bold et coloré — Couleurs vives, contrastes marqués, typographie expressive</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="visual_style" value="other">
+                            <span>Autre (préciser ci-dessous)</span>
+                        </label>
+                        <input type="text" name="visual_style_other" placeholder="Décrivez votre vision...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 2: Palette de couleurs -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">2</span>
+                    Palette de Couleurs Principale
+                </h2>
+                <p class="question-description">
+                    Choisissez une palette cohérente avec l'identité "business tools" du projet.
+                </p>
+                
+                <div class="color-palette">
+                    <div class="color-option">
+                        <label>
+                            <input type="radio" name="color_palette" value="professional_blue" required>
+                            <strong>Professional Blue</strong>
+                        </label>
+                        <div class="color-preview">
+                            <div class="color-swatch" style="background: #2563eb;"></div>
+                            <div class="color-swatch" style="background: #3b82f6;"></div>
+                            <div class="color-swatch" style="background: #60a5fa;"></div>
+                            <div class="color-swatch" style="background: #dbeafe;"></div>
+                        </div>
+                        <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                            Bleu confiance, gris neutres
+                        </small>
+                    </div>
+                    
+                    <div class="color-option">
+                        <label>
+                            <input type="radio" name="color_palette" value="tech_purple">
+                            <strong>Tech Purple</strong>
+                        </label>
+                        <div class="color-preview">
+                            <div class="color-swatch" style="background: #7c3aed;"></div>
+                            <div class="color-swatch" style="background: #8b5cf6;"></div>
+                            <div class="color-swatch" style="background: #a78bfa;"></div>
+                            <div class="color-swatch" style="background: #ede9fe;"></div>
+                        </div>
+                        <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                            Violet tech, accents cyan
+                        </small>
+                    </div>
+                    
+                    <div class="color-option">
+                        <label>
+                            <input type="radio" name="color_palette" value="warm_earth">
+                            <strong>Warm Earth</strong>
+                        </label>
+                        <div class="color-preview">
+                            <div class="color-swatch" style="background: #ea580c;"></div>
+                            <div class="color-swatch" style="background: #f97316;"></div>
+                            <div class="color-swatch" style="background: #fb923c;"></div>
+                            <div class="color-swatch" style="background: #fed7aa;"></div>
+                        </div>
+                        <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                            Orange chaleureux, tons terreux
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="options" style="margin-top: 1.5rem;">
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="color_palette" value="custom">
+                            <span>Palette personnalisée</span>
+                        </label>
+                        <input type="text" name="color_palette_custom" placeholder="Décrivez votre palette (ex: vert forêt + or)...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 3: Typographies -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">3</span>
+                    Typographies
+                </h2>
+                <p class="question-description">
+                    Combinaison de polices pour l'interface utilisateur, les titres et le code.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="typography" value="modern_sans" required>
+                            <span><strong>Modern Sans</strong> — UI: Inter, Display: Poppins, Mono: JetBrains Mono</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="typography" value="classic_professional">
+                            <span><strong>Classic Professional</strong> — UI: IBM Plex Sans, Display: IBM Plex Serif, Mono: IBM Plex Mono</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="typography" value="geometric_clean">
+                            <span><strong>Geometric Clean</strong> — UI: DM Sans, Display: Space Grotesk, Mono: Fira Code</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="typography" value="system_fonts">
+                            <span><strong>System Fonts</strong> — Utiliser les polices système natives (performance optimale)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 4: Gestion d'état frontend -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">4</span>
+                    Architecture Technique — Frontend
+                    <span class="tag">Stack</span>
+                </h2>
+                <p class="question-description">
+                    Next.js est acquis. Comment gérer l'état de l'application ?
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Gestion d'état :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="state_management" value="tanstack_query" required>
+                            <span><strong>TanStack Query</strong> — Cache serveur, refetch automatique, idéal pour data-fetching</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="state_management" value="zustand">
+                            <span><strong>Zustand</strong> — Store global léger, simple, sans boilerplate</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="state_management" value="context_api">
+                            <span><strong>Context API</strong> — Solution native React, pas de dépendance externe</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="state_management" value="tanstack_zustand">
+                            <span><strong>Hybride</strong> — TanStack Query (data serveur) + Zustand (UI local)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 5: Backend architecture -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">5</span>
+                    Architecture Technique — Backend
+                    <span class="tag">Stack</span>
+                </h2>
+                <p class="question-description">
+                    FastAPI sur VPS Hetzner. Choix d'ORM, rate limiting et monitoring.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>ORM / Query Builder :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="orm" value="sqlalchemy" required>
+                            <span><strong>SQLAlchemy</strong> — Standard Python, async support, mature</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="orm" value="tortoise">
+                            <span><strong>Tortoise ORM</strong> — Async-first, Django-like, plus simple</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="orm" value="raw_sql">
+                            <span><strong>Raw SQL</strong> — Contrôle total, pas d'abstraction (plus de travail)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="orm" value="none">
+                            <span><strong>Aucun</strong> — Données synthétiques en JSON/CSV uniquement (pas de BDD)</span>
+                        </label>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Rate Limiting :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="rate_limiting" value="redis" required>
+                            <span><strong>Redis</strong> — Production-ready, distribué, déjà sur le VPS</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="rate_limiting" value="in_memory">
+                            <span><strong>In-memory</strong> — Simple, suffit pour un single-instance</span>
+                        </label>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Monitoring :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="monitoring" value="sentry" required>
+                            <span><strong>Sentry</strong> — Error tracking professionnel</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="monitoring" value="logs_only">
+                            <span><strong>Logs structurés uniquement</strong> — Suffit pour le MVP</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="monitoring" value="none">
+                            <span><strong>Aucun</strong> — Focus sur la démo</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 6: Schéma unifié -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">6</span>
+                    Structure de Données et Normalisation
+                    <span class="tag">Core</span>
+                </h2>
+                <p class="question-description">
+                    Tous les connecteurs produisent un schéma de record unifié pour la corrélation.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Champs du record unifié (confirmer ou modifier) :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="schema_source" value="source" checked>
+                            <span><code>source</code> — identifiant de la source (ex: "whatsapp", "excel")</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="schema_source_ref" value="source_ref" checked>
+                            <span><code>source_ref</code> — référence précise (ex: "chat.txt#L412")</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="schema_timestamp" value="timestamp" checked>
+                            <span><code>timestamp</code> — horodatage ISO 8601</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="schema_lang" value="lang" checked>
+                            <span><code>lang</code> — langue détectée (FR, EN, etc.)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="schema_entities" value="entities" checked>
+                            <span><code>entities[]</code> — entités extraites (type, raw, norm)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="schema_payload" value="payload" checked>
+                            <span><code>payload</code> — données brutes spécifiques à la source</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="schema_additional" placeholder="Champs supplémentaires (séparés par des virgules)...">
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Stratégie de normalisation d'entités :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="normalization_strategy" value="fuzzy_matching" required>
+                            <span><strong>Fuzzy matching</strong> — Levenshtein, unidecode (casse, accents, espaces)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="normalization_strategy" value="embeddings">
+                            <span><strong>Embeddings sémantiques</strong> — Modèle léger (sentence-transformers)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="normalization_strategy" value="manual_rules">
+                            <span><strong>Règles manuelles</strong> — Mapping prédéfini, synonymes FR/EN</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="normalization_strategy" value="hybrid">
+                            <span><strong>Hybride</strong> — Règles d'abord, fuzzy matching en fallback</span>
+                        </label>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Langues supportées pour la détection :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="lang_fr" value="fr" checked>
+                            <span>Français</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="lang_en" value="en" checked>
+                            <span>Anglais</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="lang_additional" placeholder="Autres langues (ex: es, de)...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 7: Fonctionnalités MVP -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">7</span>
+                    Fonctionnalités MVP Prioritaires
+                    <span class="tag">UI</span>
+                </h2>
+                <p class="question-description">
+                    Quelles pages et fonctionnalités pour la démo du 4 décembre ?
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Dashboard principal (sélectionner les éléments à inclure) :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="dashboard_rules" value="active_rules" checked>
+                            <span>Liste des règles actives</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="dashboard_correlations" value="recent_correlations" checked>
+                            <span>Corrélations récentes (cartes avec provenance)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="dashboard_health" value="source_health" checked>
+                            <span>Santé des sources (connectées/déconnectées)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="dashboard_stats" value="statistics">
+                            <span>Statistiques (nb de records, corrélations trouvées)</span>
+                        </label>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Page Règles :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="rules_nl_input" value="nl_input" checked>
+                            <span>Créer une règle en langage naturel (FR/EN)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="rules_json_edit" value="json_edit" checked>
+                            <span>Éditer le JSON de la règle directement</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="rules_list" value="rules_list" checked>
+                            <span>Liste des règles avec toggle actif/inactif</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="rules_predefined" value="predefined" checked>
+                            <span>Règles prédéfinies (fallback si LLM budget épuisé)</span>
+                        </label>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Autres pages nécessaires :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="page_sources" value="sources">
+                            <span>Page Sources (configuration des connecteurs)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="page_logs" value="logs">
+                            <span>Page Logs (historique des actions, erreurs)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="page_settings" value="settings">
+                            <span>Page Settings (paramètres globaux)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="page_other" placeholder="Autres pages...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 8: Usage de Kiro -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">8</span>
+                    Usage de Kiro
+                    <span class="tag">Hackathon</span>
+                </h2>
+                <p class="question-description">
+                    Kiro doit être utilisé visiblement et efficacement. Planifions les specs, agents et hooks.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Specs à créer (sélectionner 2-3 maximum) :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="spec_connectors" value="connectors" checked>
+                            <span><strong>connectors-spec</strong> — Contrat MCP, schéma unifié, tests de contrat</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="spec_rule_engine" value="rule_engine" checked>
+                            <span><strong>rule-engine-spec</strong> — DSL JSON, interpréteur, propriétés PBT</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="spec_ui" value="ui" checked>
+                            <span><strong>ui-spec</strong> — Composants, provenance drawer, état dégradé</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="spec_api" value="api">
+                            <span><strong>api-spec</strong> — Endpoints FastAPI, auth, rate limiting</span>
+                        </label>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Agents Kiro Crew personnalisés (suggérer 2-3) :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="agent_builder" value="chimera_builder" checked>
+                            <span><strong>ChimeraBuilder</strong> — Génère un nouveau connecteur MCP (démo Crew)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="agent_warden" value="test_warden" checked>
+                            <span><strong>TestWarden</strong> — Écrit et exécute les tests PBT</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="agent_smith" value="rule_smith">
+                            <span><strong>RuleSmith</strong> — Optimise les règles JSON, valide la sémantique</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="agent_other" placeholder="Autres agents...">
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Hooks prioritaires :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="hook_parser_test" value="parser_test" checked>
+                            <span>Sur sauvegarde de parser → test de contrat + PBT</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="hook_spec_update" value="spec_update" checked>
+                            <span>Sur modification de spec → rappel de mettre à jour tasks.md</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="hook_rule_validate" value="rule_validate">
+                            <span>Sur création de règle → validation du schéma JSON</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="hook_other" placeholder="Autres hooks...">
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Propriétés PBT principales (sélectionner 3-5) :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="pbt_provenance" value="provenance" checked>
+                            <span><strong>Provenance conservation</strong> — Toute corrélation liste uniquement des records existants</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="pbt_idempotence" value="idempotence" checked>
+                            <span><strong>Normalization idempotence</strong> — norm(norm(x)) == norm(x)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="pbt_roundtrip" value="roundtrip" checked>
+                            <span><strong>Parser round-trip</strong> — parse(export(data)) == data</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="pbt_determinism" value="determinism" checked>
+                            <span><strong>Determinism</strong> — Mêmes inputs + règle → même output</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="pbt_monotonicity" value="monotonicity">
+                            <span><strong>Window monotonicity</strong> — Élargir la fenêtre temporelle ne retire jamais de corrélation</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="pbt_no_fabrication" value="no_fabrication" checked>
+                            <span><strong>No fabrication</strong> — Aucune valeur émise n'est absente des records sources</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 9: LinguaSolution LLC -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">9</span>
+                    LinguaSolution LLC — Best Startup Project
+                    <span class="tag">Bonus $10k</span>
+                </h2>
+                <p class="question-description">
+                    Pour le bonus "Best Startup Project", le lien avec LinguaSolution LLC doit être crédible et honnête.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Modifications nécessaires au site web LinguaSolution :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="linguasolution_page" value="chimeraflow_page" checked>
+                            <span>Ajouter une page ou section "ChimeraFlow" dans les produits/projets</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="linguasolution_services" value="update_services">
+                            <span>Mettre à jour la page Services (normalisation multilingue, données non structurées)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="linguasolution_blog" value="blog_post">
+                            <span>Publier un article de blog sur le projet</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="linguasolution_other" placeholder="Autres modifications...">
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Lien narratif avec le core business de LinguaSolution :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="narrative_normalization" value="normalization" checked>
+                            <span>Normalisation linguistique (accents, casse, synonymes FR/EN)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="narrative_nlp" value="nlp" checked>
+                            <span>NLP et extraction d'entités multilingues</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="checkbox" name="narrative_unstructured" value="unstructured">
+                            <span>Traitement de données non structurées (Excel, WhatsApp)</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="narrative_other" placeholder="Autres liens...">
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Description courte pour LinkedIn de l'entreprise (50 mots max) :</strong>
+                    </div>
+                    <div class="option">
+                        <textarea name="linkedin_description" rows="3" placeholder="Rédigez une description courte et professionnelle de LinguaSolution LLC qui intègre ChimeraFlow..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question 10: Démo -->
+            <div class="question-card">
+                <h2 class="question-title">
+                    <span class="question-number">10</span>
+                    Démo et Présentation
+                    <span class="tag">Vidéo</span>
+                </h2>
+                <p class="question-description">
+                    La vidéo de démo doit être claire, impactante et sous 3 minutes.
+                </p>
+                
+                <div class="options">
+                    <div class="option">
+                        <strong>Nom de la PME fictive (quincaillerie à Douala) :</strong>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="demo_company_name" placeholder='Ex: "Quincaillerie Bassa", "Ets Mballa Matériaux"...' required>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Produit principal pour le cas de démo (avec variantes orthographiques) :</strong>
+                    </div>
+                    <div class="option">
+                        <input type="text" name="demo_product_main" placeholder='Ex: "Ciment 50kg" avec variantes: "ciment 50 kg", "Ciment50kg", "cimént 50kg"...' required>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Autres exemples de produits à inclure (3-5 produits) :</strong>
+                    </div>
+                    <div class="option">
+                        <textarea name="demo_products_other" rows="4" placeholder="Listez 3-5 produits typiques d'une quincaillerie (tôles, peinture, fils électriques, etc.)..."></textarea>
+                    </div>
+                    
+                    <div class="option" style="margin-top: 2rem;">
+                        <strong>Scénario de démo alternatif (si souhaité) :</strong>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="demo_scenario" value="default" checked>
+                            <span>Conserver le scénario quincaillerie</span>
+                        </label>
+                    </div>
+                    <div class="option">
+                        <label>
+                            <input type="radio" name="demo_scenario" value="alternative">
+                            <span>Proposer un scénario alternatif</span>
+                        </label>
+                        <textarea name="demo_scenario_alt" rows="3" placeholder="Décrivez un autre type de PME et son cas d'usage..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="generate-btn">📋 Générer le Rapport de Décisions</button>
+        </form>
+
+        <div id="output">
+            <h2>✅ Rapport Généré</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                Copiez ce rapport et ajoutez-le à <code>docs/decisions/DECISIONS_LOG.md</code>
+            </p>
+            <pre id="markdown-output"></pre>
+            <button class="copy-btn" onclick="copyToClipboard()">📋 Copier le Markdown</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('decisionsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {};
+            
+            // Collect all form data
+            for (let [key, value] of formData.entries()) {
+                if (!data[key]) {
+                    data[key] = [];
+                }
+                data[key].push(value);
+            }
+            
+            // Generate markdown report
+            const markdown = generateMarkdown(data);
+            
+            // Display output
+            document.getElementById('markdown-output').textContent = markdown;
+            document.getElementById('output').style.display = 'block';
+            document.getElementById('output').scrollIntoView({ behavior: 'smooth' });
+        });
+        
+        function generateMarkdown(data) {
+            const today = new Date().toISOString().split('T')[0];
+            let md = `## [${today}] Décisions Techniques et Design — ChimeraFlow\n\n`;
+            md += `**Context**: Finalisation des choix techniques et design avant implémentation du projet Kiroween 2026\n`;
+            md += `**Decision**: Validation des décisions pour AGENTS.md, DESIGN.md et README.md\n\n`;
+            
+            md += `### 1. Design System et Identité Visuelle\n\n`;
+            md += `**Style visuel**: ${getRadioValue(data, 'visual_style')}\n`;
+            if (data.visual_style_other && data.visual_style_other[0]) {
+                md += `  - Précision: ${data.visual_style_other[0]}\n`;
+            }
+            md += `\n`;
+            
+            md += `### 2. Palette de Couleurs\n\n`;
+            md += `**Palette principale**: ${getRadioValue(data, 'color_palette')}\n`;
+            if (data.color_palette_custom && data.color_palette_custom[0]) {
+                md += `  - Palette personnalisée: ${data.color_palette_custom[0]}\n`;
+            }
+            md += `\n`;
+            
+            md += `### 3. Typographies\n\n`;
+            md += `**Combinaison choisie**: ${getRadioValue(data, 'typography')}\n\n`;
+            
+            md += `### 4. Architecture Frontend\n\n`;
+            md += `**Gestion d'état**: ${getRadioValue(data, 'state_management')}\n\n`;
+            
+            md += `### 5. Architecture Backend\n\n`;
+            md += `**ORM**: ${getRadioValue(data, 'orm')}\n`;
+            md += `**Rate Limiting**: ${getRadioValue(data, 'rate_limiting')}\n`;
+            md += `**Monitoring**: ${getRadioValue(data, 'monitoring')}\n\n`;
+            
+            md += `### 6. Structure de Données\n\n`;
+            md += `**Champs du record unifié**:\n`;
+            const schemaFields = ['schema_source', 'schema_source_ref', 'schema_timestamp', 'schema_lang', 'schema_entities', 'schema_payload'];
+            schemaFields.forEach(field => {
+                if (data[field]) {
+                    md += `  - ✓ ${data[field][0]}\n`;
+                }
+            });
+            if (data.schema_additional && data.schema_additional[0]) {
+                md += `  - Champs additionnels: ${data.schema_additional[0]}\n`;
+            }
+            md += `\n**Stratégie de normalisation**: ${getRadioValue(data, 'normalization_strategy')}\n`;
+            md += `\n**Langues supportées**: `;
+            const langs = [];
+            if (data.lang_fr) langs.push('FR');
+            if (data.lang_en) langs.push('EN');
+            if (data.lang_additional && data.lang_additional[0]) {
+                langs.push(data.lang_additional[0]);
+            }
+            md += langs.join(', ') + '\n\n';
+            
+            md += `### 7. Fonctionnalités MVP\n\n`;
+            md += `**Dashboard principal**:\n`;
+            ['dashboard_rules', 'dashboard_correlations', 'dashboard_health', 'dashboard_stats'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ✓ ${data[field][0]}\n`;
+                }
+            });
+            md += `\n**Page Règles**:\n`;
+            ['rules_nl_input', 'rules_json_edit', 'rules_list', 'rules_predefined'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ✓ ${data[field][0]}\n`;
+                }
+            });
+            md += `\n**Autres pages**:\n`;
+            ['page_sources', 'page_logs', 'page_settings'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ✓ ${data[field][0]}\n`;
+                }
+            });
+            if (data.page_other && data.page_other[0]) {
+                md += `  - ${data.page_other[0]}\n`;
+            }
+            md += `\n`;
+            
+            md += `### 8. Usage de Kiro\n\n`;
+            md += `**Specs créées**:\n`;
+            ['spec_connectors', 'spec_rule_engine', 'spec_ui', 'spec_api'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ${data[field][0]}\n`;
+                }
+            });
+            md += `\n**Agents Kiro Crew**:\n`;
+            ['agent_builder', 'agent_warden', 'agent_smith'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ${data[field][0]}\n`;
+                }
+            });
+            if (data.agent_other && data.agent_other[0]) {
+                md += `  - ${data.agent_other[0]}\n`;
+            }
+            md += `\n**Hooks prioritaires**:\n`;
+            ['hook_parser_test', 'hook_spec_update', 'hook_rule_validate'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ${data[field][0]}\n`;
+                }
+            });
+            if (data.hook_other && data.hook_other[0]) {
+                md += `  - ${data.hook_other[0]}\n`;
+            }
+            md += `\n**Propriétés PBT**:\n`;
+            ['pbt_provenance', 'pbt_idempotence', 'pbt_roundtrip', 'pbt_determinism', 'pbt_monotonicity', 'pbt_no_fabrication'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ${data[field][0]}\n`;
+                }
+            });
+            md += `\n`;
+            
+            md += `### 9. LinguaSolution LLC — Best Startup Project\n\n`;
+            md += `**Modifications au site web**:\n`;
+            ['linguasolution_page', 'linguasolution_services', 'linguasolution_blog'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ${data[field][0]}\n`;
+                }
+            });
+            if (data.linguasolution_other && data.linguasolution_other[0]) {
+                md += `  - ${data.linguasolution_other[0]}\n`;
+            }
+            md += `\n**Lien narratif avec le core business**:\n`;
+            ['narrative_normalization', 'narrative_nlp', 'narrative_unstructured'].forEach(field => {
+                if (data[field]) {
+                    md += `  - ${data[field][0]}\n`;
+                }
+            });
+            if (data.narrative_other && data.narrative_other[0]) {
+                md += `  - ${data.narrative_other[0]}\n`;
+            }
+            if (data.linkedin_description && data.linkedin_description[0]) {
+                md += `\n**Description LinkedIn de l'entreprise**:\n`;
+                md += `> ${data.linkedin_description[0]}\n`;
+            }
+            md += `\n`;
+            
+            md += `### 10. Démo et Présentation\n\n`;
+            md += `**PME fictive**: ${data.demo_company_name ? data.demo_company_name[0] : '[Non renseigné]'}\n`;
+            md += `**Produit principal**: ${data.demo_product_main ? data.demo_product_main[0] : '[Non renseigné]'}\n`;
+            if (data.demo_products_other && data.demo_products_other[0]) {
+                md += `\n**Autres produits**:\n${data.demo_products_other[0]}\n`;
+            }
+            if (data.demo_scenario && data.demo_scenario[0] === 'alternative' && data.demo_scenario_alt && data.demo_scenario_alt[0]) {
+                md += `\n**Scénario alternatif**:\n${data.demo_scenario_alt[0]}\n`;
+            }
+            md += `\n`;
+            
+            md += `**Alternatives rejetées**: N/A (décisions par QCM)\n\n`;
+            md += `**Consequences**: Ces décisions seront intégrées dans AGENTS.md (sections 4-10), DESIGN.md et README.md. `;
+            md += `Elles fixent l'architecture technique et le design pour la durée du hackathon.\n\n`;
+            md += `**AGENTS.md rule concerned**: Section 14 (Decision Log)\n`;
+            
+            return md;
+        }
+        
+        function getRadioValue(data, name) {
+            if (!data[name] || data[name].length === 0) return '[Non sélectionné]';
+            
+            const valueMap = {
+                // Visual styles
+                'minimalist': 'Minimaliste professionnel',
+                'modern_glass': 'Moderne avec glassmorphism',
+                'bold_colorful': 'Bold et coloré',
+                'other': 'Autre',
+                
+                // Color palettes
+                'professional_blue': 'Professional Blue',
+                'tech_purple': 'Tech Purple',
+                'warm_earth': 'Warm Earth',
+                'custom': 'Palette personnalisée',
+                
+                // Typography
+                'modern_sans': 'Modern Sans (Inter + Poppins + JetBrains Mono)',
+                'classic_professional': 'Classic Professional (IBM Plex Sans + Serif + Mono)',
+                'geometric_clean': 'Geometric Clean (DM Sans + Space Grotesk + Fira Code)',
+                'system_fonts': 'System Fonts (natives)',
+                
+                // State management
+                'tanstack_query': 'TanStack Query',
+                'zustand': 'Zustand',
+                'context_api': 'Context API',
+                'tanstack_zustand': 'Hybride (TanStack Query + Zustand)',
+                
+                // ORM
+                'sqlalchemy': 'SQLAlchemy',
+                'tortoise': 'Tortoise ORM',
+                'raw_sql': 'Raw SQL',
+                'none': 'Aucun (JSON/CSV)',
+                
+                // Rate limiting
+                'redis': 'Redis',
+                'in_memory': 'In-memory',
+                
+                // Monitoring
+                'sentry': 'Sentry',
+                'logs_only': 'Logs structurés uniquement',
+                
+                // Normalization
+                'fuzzy_matching': 'Fuzzy matching (Levenshtein, unidecode)',
+                'embeddings': 'Embeddings sémantiques',
+                'manual_rules': 'Règles manuelles',
+                'hybrid': 'Hybride (règles + fuzzy)',
+                
+                // Demo scenario
+                'default': 'Scénario quincaillerie (default)',
+                'alternative': 'Scénario alternatif'
+            };
+            
+            return valueMap[data[name][0]] || data[name][0];
+        }
+        
+        function copyToClipboard() {
+            const text = document.getElementById('markdown-output').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copié !';
+                btn.style.background = '#10b981';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

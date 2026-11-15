@@ -1,0 +1,31 @@
+# ChimeraFlow Backend Dependencies (runtime)
+# Python 3.13 (all pins have cp313 wheels). Dev and test tools: requirements-dev.txt
+
+# Web Framework
+fastapi==0.162.7
+uvicorn[standard]==0.54.0
+pydantic==2.14.3
+pydantic-settings==2.16.3
+slowapi==0.1.10  # Per-IP rate limiting (Redis storage)
+
+# Database & ORM
+sqlalchemy==2.1.8
+alembic==1.20.1
+psycopg[binary]==3.3.9  # PostgreSQL driver (Neon)
+
+# Redis
+redis==8.1.0
+hiredis==3.5.0
+
+# Data Processing
+pandas==3.1.1
+openpyxl==3.1.5  # Excel support
+python-dateutil==4.0.0
+rapidfuzz==3.14.6  # Levenshtein similarity (entity matching)
+
+# Access Database readers (selected by ACCESS_READER)
+# mdbtools: system package (apt install mdbtools), used in Docker/production
+access-parser==0.0.6  # pure Python reader, used for local Windows
+
+# NL -> rule conversion
+litellm==1.97.0

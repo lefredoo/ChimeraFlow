@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Validate Rule Schema",
+      "trigger": "PostFileSave",
+      "description": "When a predefined rule file (data/rules/*.json) is created or modified, validate it against the RuleCreate schema",
+      "matcher": "data[/\\\\]rules[/\\\\][^/\\\\]+\\.json$",
+      "action": {
+        "type": "agent",
+        "prompt": "A predefined rule file in data/rules/ was saved. Validate it against the RuleCreate schema in backend/schemas/rule.py and the declarative rule format of AGENTS.md §20 (trigger, joins, window_seconds, emit; allowed operators: eq, ne, lt, lte, gt, gte, contains, in). The file also needs a `status` (active or inactive), no unknown key, and an `id` equal to the file name. To check it, run from backend/: python -m engine.validate_rules (validates every file of <DATA_DIR>/rules, or pass a directory). Fix any error reported."
+      }
+    }
+  ]
+}

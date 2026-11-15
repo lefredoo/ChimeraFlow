@@ -1,0 +1,18 @@
+# Doppler Configuration for ChimeraFlow
+# https://docs.doppler.com/docs/enclave-project-setup
+
+setup:
+  project: chimeraflow
+  config: dev
+
+# Development environment
+dev:
+  description: Local development environment
+  
+# Staging environment  
+staging:
+  description: Staging environment on VPS
+  
+# Production environment
+production:
+  description: Production environment (Vercel + VPS Hetzner)
