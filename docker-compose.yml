@@ -37,6 +37,7 @@ services:
       - RESEND_API_KEY
       - ALERT_EMAIL_FROM
       - ALERT_EMAIL_TO
+      - ALERT_EMAIL_COOLDOWN_SECONDS
     volumes:
       # Read-only mount of the synthetic data: edits show up without a rebuild. It
       # shadows the copy baked in the image (the code in /app comes from the image).

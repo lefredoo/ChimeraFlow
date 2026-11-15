@@ -263,10 +263,11 @@ class EntityNormalizer:
             A score in [TOKEN_BASE_SCORE, TOKEN_MAX_SCORE]: the more of the
             longer name the shorter one covers, the higher it is.
         """
-        small, large = (
-            (first, second)
-            if len(set(first.tokens)) <= len(set(second.tokens))
-            else (second, first)
+        # The order of the arguments must not matter: ties on the number of distinct
+        # words are broken by the number of words, then by the text itself
+        small, large = sorted(
+            (first, second),
+            key=lambda prepared: (len(set(prepared.tokens)), len(prepared.tokens), prepared.canonical),
         )
         small_set, large_set = frozenset(small.tokens), frozenset(large.tokens)
         if not small_set <= large_set or not self._has_anchor(small_set):

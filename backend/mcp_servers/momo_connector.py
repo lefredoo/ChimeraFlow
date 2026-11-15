@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 import csv
 
-from .base import BaseConnector, UnifiedRecord
+from .base import BaseConnector, UnifiedRecord, to_finite_float
 
 
 class MobileMoneyConnector(BaseConnector):
@@ -57,7 +57,7 @@ class MobileMoneyConnector(BaseConnector):
                         continue
 
                     try:
-                        amount = float((row.get("amount") or "").strip())
+                        amount = to_finite_float((row.get("amount") or "").strip())
                     except ValueError:
                         self.logger.warning(f"Mobile Money row {idx}: invalid amount, skipped")
                         self.parse_errors += 1

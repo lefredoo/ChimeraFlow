@@ -9,11 +9,19 @@ import logging
 import httpx
 import pytest
 
+from redis.exceptions import ConnectionError as RedisConnectionError
+
 import config
 from engine import alerts
-from engine.alerts import AlertItem, AlertSettings
+from engine.alerts import AlertItem, AlertSettings, CooldownStoreError, RedisCooldownStore
+from tests.cooldown_store import MemoryCooldownStore
 
-SETTINGS = AlertSettings(api_key="re_test_key", sender="alerts@example.test", recipients=("ops@example.test",))
+SETTINGS = AlertSettings(
+    api_key="re_test_key",
+    sender="alerts@example.test",
+    recipients=("ops@example.test",),
+    cooldown_seconds=300,
+)
 ITEMS = [
     AlertItem("r_low_stock", "warning", "Stock bas : Ciment 50 kg"),
     AlertItem("r_price_comparison", "error", "Écart de prix : Perceuse"),
@@ -44,6 +52,26 @@ def _enable(monkeypatch):
     monkeypatch.setattr(config, "RESEND_API_KEY", "re_test_key")
     monkeypatch.setattr(config, "ALERT_EMAIL_FROM", "alerts@example.test")
     monkeypatch.setattr(config, "ALERT_EMAIL_TO", ("ops@example.test",))
+    monkeypatch.setattr(config, "ALERT_EMAIL_COOLDOWN_SECONDS", 300)
+
+
+def _use_cooldown(monkeypatch, store):
+    monkeypatch.setattr(alerts, "get_cooldown_store", lambda: store)
+
+
+class FakeRedis:
+    """Records the SET calls; answers like Redis (True when set, None when the key exists)."""
+
+    def __init__(self, existing=False, failing=False):
+        self.existing = existing
+        self.failing = failing
+        self.calls = []
+
+    async def set(self, key, value, nx=False, ex=None):
+        if self.failing:
+            raise RedisConnectionError("down")
+        self.calls.append((key, nx, ex))
+        return None if self.existing else True
 
 
 def test_should_post_one_digest_to_resend_when_items_are_given(provider):
@@ -154,6 +182,87 @@ def test_should_send_nothing_when_dispatching_without_settings(provider):
     asyncio.run(alerts.dispatch_alerts(ITEMS))
 
     assert provider.requests == []
+
+
+def test_should_be_disabled_when_the_cooldown_is_missing(monkeypatch):
+    _enable(monkeypatch)
+    monkeypatch.setattr(config, "ALERT_EMAIL_COOLDOWN_SECONDS", None)
+
+    assert alerts.alert_settings_from_config() is None
+
+
+def test_should_send_one_digest_when_dispatching_twice_within_the_cooldown(provider, monkeypatch):
+    _enable(monkeypatch)
+    store = MemoryCooldownStore()
+    _use_cooldown(monkeypatch, store)
+    provider.statuses = [200, 200]
+
+    asyncio.run(alerts.dispatch_alerts(ITEMS))
+    asyncio.run(alerts.dispatch_alerts(ITEMS))
+
+    assert (len(provider.requests), store.windows) == (1, [300, 300])
+
+
+def test_should_send_nothing_when_there_is_no_cooldown_store(provider, monkeypatch):
+    _enable(monkeypatch)
+    _use_cooldown(monkeypatch, None)
+
+    asyncio.run(alerts.dispatch_alerts(ITEMS))
+
+    assert provider.requests == []
+
+
+def test_should_send_nothing_when_the_cooldown_store_fails(provider, monkeypatch):
+    _enable(monkeypatch)
+    _use_cooldown(monkeypatch, MemoryCooldownStore(failing=True))
+
+    asyncio.run(alerts.dispatch_alerts(ITEMS))
+
+    assert provider.requests == []
+
+
+def test_should_set_the_key_with_nx_and_expiry_when_acquiring_the_cooldown():
+    client = FakeRedis()
+
+    granted = asyncio.run(RedisCooldownStore(client).acquire(300))
+
+    assert (granted, client.calls) == (True, [(alerts.COOLDOWN_KEY, True, 300)])
+
+
+def test_should_refuse_when_the_cooldown_key_already_exists():
+    assert asyncio.run(RedisCooldownStore(FakeRedis(existing=True)).acquire(300)) is False
+
+
+def test_should_raise_a_store_error_when_redis_is_down_on_acquire():
+    with pytest.raises(CooldownStoreError):
+        asyncio.run(RedisCooldownStore(FakeRedis(failing=True)).acquire(300))
+
+
+def test_should_require_the_cooldown_when_the_alert_is_enabled(monkeypatch):
+    monkeypatch.delenv("ALERT_EMAIL_COOLDOWN_SECONDS", raising=False)
+
+    with pytest.raises(ValueError, match="ALERT_EMAIL_COOLDOWN_SECONDS"):
+        config._alert_cooldown(True)
+
+
+def test_should_leave_the_cooldown_unset_when_the_alert_is_disabled(monkeypatch):
+    monkeypatch.delenv("ALERT_EMAIL_COOLDOWN_SECONDS", raising=False)
+
+    assert config._alert_cooldown(False) is None
+
+
+@pytest.mark.parametrize("raw", ["59", "0", "-5", "abc", "1.5"])
+def test_should_reject_an_invalid_cooldown_when_reading_the_setting(monkeypatch, raw):
+    monkeypatch.setenv("ALERT_EMAIL_COOLDOWN_SECONDS", raw)
+
+    with pytest.raises(ValueError, match="ALERT_EMAIL_COOLDOWN_SECONDS"):
+        config._alert_cooldown(True)
+
+
+def test_should_read_the_cooldown_when_it_is_at_least_60_seconds(monkeypatch):
+    monkeypatch.setenv("ALERT_EMAIL_COOLDOWN_SECONDS", "60")
+
+    assert config._alert_cooldown(True) == 60
 
 
 def test_should_only_keep_warning_and_error_when_selecting_items():

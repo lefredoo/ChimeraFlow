@@ -188,3 +188,11 @@ def test_should_reject_rule_when_a_join_has_more_than_10_conditions():
 
     with pytest.raises(ValidationError):
         RuleCreate.model_validate(_where_of_join(*conditions))
+
+
+def test_should_reject_rule_when_two_joins_use_the_same_source():
+    second_join = copy.deepcopy(VALID_RULE["joins"][0])
+    second_join["where"] = [{"field": "qty_stock", "op": "gt", "value": 1}]
+
+    with pytest.raises(ValidationError, match="already joined"):
+        RuleCreate.model_validate(_rule_with(joins=[VALID_RULE["joins"][0], second_join]))

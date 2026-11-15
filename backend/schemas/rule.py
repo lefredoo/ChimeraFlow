@@ -192,6 +192,7 @@ class RuleCreate(BaseModel):
 
         - every column named by the rule is exposed by its source;
         - trigger conditions use literal values (nothing is matched yet);
+        - each source is joined at most once;
         - a `ref` points to the trigger or to an earlier join;
         - a template placeholder names the product or a source of the rule, and
           never a column that identifies a person.
@@ -203,8 +204,14 @@ class RuleCreate(BaseModel):
                 raise ValueError("trigger.where: 'ref' is not allowed on the trigger")
 
         available = {trigger_source}
+        joined_sources = set()
         for index, join in enumerate(self.joins):
             where = f"joins[{index}]"
+            # A `ref` and a template placeholder name a source, not a join: two joins on the
+            # same source would make them ambiguous
+            if join.source in joined_sources:
+                raise ValueError(f"{where}: source '{join.source}' is already joined by an earlier join")
+            joined_sources.add(join.source)
             _check_column(join.source, join.on.field, f"{where}.on", allow_entities=True)
             for condition in join.where:
                 _check_column(join.source, condition.field, f"{where}.where")

@@ -13,6 +13,7 @@ from api import correlation_stream
 from engine import alerts
 from models.base import SessionLocal
 from models.rule import Correlation, Rule, RuleExecution, RuleStatus
+from tests.cooldown_store import MemoryCooldownStore
 from tests.factories import make_access_record, make_excel_record, make_whatsapp_record
 
 EXECUTE_URL = "/api/v1/correlations/execute"
@@ -59,6 +60,8 @@ def resend(monkeypatch) -> Resend:
     monkeypatch.setattr(config, "RESEND_API_KEY", "re_test_key")
     monkeypatch.setattr(config, "ALERT_EMAIL_FROM", "alerts@example.test")
     monkeypatch.setattr(config, "ALERT_EMAIL_TO", ("ops@example.test",))
+    monkeypatch.setattr(config, "ALERT_EMAIL_COOLDOWN_SECONDS", 300)
+    monkeypatch.setattr(alerts, "get_cooldown_store", lambda: MemoryCooldownStore())
     return provider
 
 

@@ -3,7 +3,10 @@ E-mail alert digest for new warning and error correlations (Resend HTTP API).
 
 Enabled only when RESEND_API_KEY, ALERT_EMAIL_FROM and ALERT_EMAIL_TO are all
 set. One digest is sent per execution, from a background task: a slow or
-failing provider never delays or fails the request. Recipients, the API key
+failing provider never delays or fails the request. A global cooldown
+(ALERT_EMAIL_COOLDOWN_SECONDS, enforced in Redis with SET NX EX) allows at most
+one digest per window, whatever the number of executions or workers; when Redis
+is unavailable nothing is sent (fail closed). Recipients, the API key
 and the message bodies are never logged. Correlation messages come from source
 text (untrusted): control characters are stripped, the length is bounded, and
 the HTML part is escaped.
@@ -13,9 +16,11 @@ import html
 import logging
 import unicodedata
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence, Tuple
+from functools import lru_cache
+from typing import Any, List, Optional, Protocol, Sequence, Tuple
 
 import httpx
+from redis.exceptions import RedisError
 
 import config
 
@@ -28,6 +33,8 @@ RETRY_DELAY_SECONDS = 0.5
 MAX_ITEMS_PER_DIGEST = 50
 MAX_MESSAGE_CHARS = 300
 ALERT_SEVERITIES = ("warning", "error")
+COOLDOWN_KEY = "chimeraflow:alerts:cooldown"
+REDIS_TIMEOUT_SECONDS = 2
 
 DEFAULT_LANGUAGE = "fr"
 # Texts of the digest. {count} is the number of correlations; "more" counts those not listed.
@@ -63,6 +70,7 @@ class AlertSettings:
     api_key: str = field(repr=False)
     sender: str = field(repr=False)
     recipients: Tuple[str, ...] = field(repr=False)
+    cooldown_seconds: int
 
 
 @dataclass(frozen=True)
@@ -78,15 +86,74 @@ def alert_settings_from_config() -> Optional[AlertSettings]:
     """Settings of the alert e-mail, or None when the feature is disabled.
 
     Returns:
-        The settings when the API key, the sender and a recipient are all set.
+        The settings when the API key, the sender, a recipient and the cooldown are all set.
     """
-    if not config.RESEND_API_KEY or not config.ALERT_EMAIL_FROM or not config.ALERT_EMAIL_TO:
+    cooldown = config.ALERT_EMAIL_COOLDOWN_SECONDS
+    if not config.RESEND_API_KEY or not config.ALERT_EMAIL_FROM or not config.ALERT_EMAIL_TO or cooldown is None:
         return None
     return AlertSettings(
         api_key=config.RESEND_API_KEY,
         sender=config.ALERT_EMAIL_FROM,
         recipients=tuple(config.ALERT_EMAIL_TO),
+        cooldown_seconds=cooldown,
     )
+
+
+class CooldownStoreError(Exception):
+    """The cooldown store (Redis) failed."""
+
+
+class CooldownStore(Protocol):
+    """Shared cooldown between digests."""
+
+    async def acquire(self, seconds: int) -> bool:
+        """Start a cooldown of `seconds` unless one is running.
+
+        Returns:
+            True if no cooldown was running (the caller may send), False otherwise.
+
+        Raises:
+            CooldownStoreError: If the store fails.
+        """
+
+
+class RedisCooldownStore:
+    """Cooldown kept in Redis: one key set with NX and an expiry, atomic across workers."""
+
+    def __init__(self, client: Any) -> None:
+        """Create the store.
+
+        Args:
+            client: A `redis.asyncio.Redis` client (anything with an async `set`).
+        """
+        self._client = client
+
+    async def acquire(self, seconds: int) -> bool:
+        """See `CooldownStore.acquire`."""
+        try:
+            return bool(await self._client.set(COOLDOWN_KEY, "1", nx=True, ex=seconds))
+        except RedisError as exc:
+            raise CooldownStoreError("Cannot start the alert cooldown") from exc
+
+
+@lru_cache
+def _redis_cooldown_store() -> Optional[RedisCooldownStore]:
+    """Create the Redis cooldown store once (None when REDIS_URL is not set, i.e. in tests)."""
+    if config.REDIS_URL is None:
+        return None
+    from redis.asyncio import Redis
+
+    client = Redis.from_url(
+        config.REDIS_URL,
+        socket_timeout=REDIS_TIMEOUT_SECONDS,
+        socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+    )
+    return RedisCooldownStore(client)
+
+
+def get_cooldown_store() -> Optional[CooldownStore]:
+    """The cooldown store; the seam tests replace (no Redis in tests)."""
+    return _redis_cooldown_store()
 
 
 def select_alert_items(correlations: Sequence[dict]) -> List[AlertItem]:
@@ -180,14 +247,25 @@ async def send_digest(settings: AlertSettings, items: Sequence[AlertItem], langu
 
 
 async def dispatch_alerts(items: Sequence[AlertItem]) -> None:
-    """Background task: send the digest when the feature is configured.
+    """Background task: send the digest when configured and outside the cooldown.
 
+    Fails closed: with no cooldown store or a failing one, nothing is sent. The
+    items of a skipped digest are not queued: they are new only once.
     Never raises, so a failure cannot surface in the request that scheduled it.
     """
     settings = alert_settings_from_config()
     if settings is None or not items:
         return
     try:
+        store = get_cooldown_store()
+        if store is None:
+            logger.warning("alert_email outcome=skipped reason=no_cooldown_store items=%d", len(items))
+            return
+        if not await store.acquire(settings.cooldown_seconds):
+            logger.info("alert_email outcome=skipped reason=cooldown items=%d", len(items))
+            return
         await send_digest(settings, items)
+    except CooldownStoreError:
+        logger.warning("alert_email outcome=skipped reason=cooldown_store_unavailable items=%d", len(items))
     except Exception:
         logger.exception("alert_email outcome=failed")

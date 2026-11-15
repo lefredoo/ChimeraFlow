@@ -464,6 +464,7 @@ A missing required variable stops the process at startup. There is no `.env.exam
 - `RATE_LIMIT_LOGIN_PER_IP` — Limit of `POST /api/v1/auth/login` per IP per window. When unset: `RATE_LIMIT_PER_IP // 2`, at least 3
 - `TRUSTED_PROXIES` — Comma-separated IPs or CIDR networks of trusted reverse proxies (Traefik). `X-Forwarded-For` is read only from them. When unset, the TCP peer is the client
 - `RESEND_API_KEY`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` — E-mail digest of new `warning`/`error` correlations after each execution (Resend HTTP API). Enabled only when all three are set. `ALERT_EMAIL_FROM` is an address or `Name <address>`; `ALERT_EMAIL_TO` is 1 to 5 comma-separated addresses. Malformed values stop startup (never echoed)
+- `ALERT_EMAIL_COOLDOWN_SECONDS` — Minimum delay between two alert e-mails (integer ≥ 60), enforced globally in Redis (`SET NX EX`, key `chimeraflow:alerts:cooldown`). **Required** when the three Resend variables are set (startup stops otherwise, no fallback); ignored when the e-mail alert is disabled. Without Redis, or when Redis fails, no e-mail is sent
 - `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` — NL→rule conversion. Enabled only when all four are set (otherwise `503 nl_feature_disabled`). `LITELLM_BUDGET_USD` is the global cap in USD, must be a finite number greater than 0; `LITELLM_MODEL` is `openai/<alias>` when `LITELLM_BASE_URL` points to a LiteLLM proxy
 
 **Frontend (required at `next build`, read by `lib/config.ts` and `lib/demo-credentials.ts`):**

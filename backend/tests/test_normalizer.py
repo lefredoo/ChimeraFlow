@@ -143,6 +143,24 @@ def test_should_be_symmetric_when_comparing_any_two_names(first, second):
     assert normalizer.match_detail(first, second) == normalizer.match_detail(second, first)
 
 
+NAME_WORDS = st.sampled_from(["tuyau", "pvc", "ciment", "32", "50", "mm", "kg", "barre"])
+
+
+@given(st.lists(NAME_WORDS, min_size=1, max_size=5), st.lists(NAME_WORDS, min_size=1, max_size=5))
+def test_should_be_symmetric_when_comparing_names_made_of_repeated_words(first, second):
+    normalizer = EntityNormalizer()
+
+    assert normalizer.match_detail(" ".join(first), " ".join(second)) == normalizer.match_detail(
+        " ".join(second), " ".join(first)
+    )
+
+
+def test_should_give_the_same_answer_in_both_orders_when_a_number_is_repeated():
+    normalizer = EntityNormalizer()
+
+    assert normalizer.match("tuyau 32", "tuyau 32 32") == normalizer.match("tuyau 32 32", "tuyau 32")
+
+
 @given(st.text(max_size=40), st.text(max_size=40))
 def test_should_keep_score_between_0_and_1_when_comparing_any_two_names(first, second):
     result = EntityNormalizer().match_detail(first, second)

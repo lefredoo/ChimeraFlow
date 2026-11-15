@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional
 from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
+import math
 import subprocess
 import csv
 from io import StringIO
@@ -267,6 +268,11 @@ class AccessConnector(BaseConnector):
                 prix_achat: Optional[float] = float((row.get("prix_achat") or "").strip())
             except ValueError:
                 prix_achat = None
+
+            if prix_achat is not None and not math.isfinite(prix_achat):
+                self.logger.warning(f"Access row {idx}: non-finite prix_achat, skipped")
+                self.parse_errors += 1
+                continue
 
             records.append(UnifiedRecord(
                 id=f"access-{article_id or idx}",

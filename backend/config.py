@@ -364,6 +364,42 @@ def _optional_alert_sender() -> Optional[str]:
     return value.strip()
 
 
+MIN_ALERT_COOLDOWN_SECONDS = 60
+
+
+def _alert_cooldown(email_enabled: bool) -> Optional[int]:
+    """Read ALERT_EMAIL_COOLDOWN_SECONDS: at most one digest per window.
+
+    Required (no fallback) once the e-mail alert is enabled, so that a
+    misconfigured deployment stops at startup instead of flooding a mailbox.
+
+    Args:
+        email_enabled: True when the API key, the sender and a recipient are all set.
+
+    Returns:
+        The cooldown in seconds, or None when unset and the alert is disabled.
+
+    Raises:
+        ValueError: If the alert is enabled and the variable is unset, or if it is
+            not an integer of at least MIN_ALERT_COOLDOWN_SECONDS.
+    """
+    value = _optional_int("ALERT_EMAIL_COOLDOWN_SECONDS")
+    if value is None:
+        if email_enabled:
+            raise ValueError(
+                "Required environment variable 'ALERT_EMAIL_COOLDOWN_SECONDS' is not set.\n"
+                "Purpose: minimum delay in seconds between two alert e-mails (the e-mail alert is enabled)\n"
+                "Set it in .env file or via Doppler."
+            )
+        return None
+    if value < MIN_ALERT_COOLDOWN_SECONDS:
+        raise ValueError(
+            f"Environment variable 'ALERT_EMAIL_COOLDOWN_SECONDS' must be at least {MIN_ALERT_COOLDOWN_SECONDS}"
+        )
+    return value
+
+
 RESEND_API_KEY = optional_env("RESEND_API_KEY")
 ALERT_EMAIL_FROM = _optional_alert_sender()
 ALERT_EMAIL_TO = _parse_alert_recipients(optional_env("ALERT_EMAIL_TO"))
+ALERT_EMAIL_COOLDOWN_SECONDS = _alert_cooldown(bool(RESEND_API_KEY and ALERT_EMAIL_FROM and ALERT_EMAIL_TO))

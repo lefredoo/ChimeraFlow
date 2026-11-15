@@ -123,6 +123,7 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
 | `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
 | `RESEND_API_KEY`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API HTTP Resend) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les trois** doivent être définies, sinon la fonction est désactivée. `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
+| `ALERT_EMAIL_COOLDOWN_SECONDS` | délai minimal, en secondes, entre deux e-mails d'alerte (entier ≥ 60). **Obligatoire** dès que les trois variables Resend sont définies, sinon le démarrage s'arrête. Sans les trois variables Resend, elle est ignorée |
 
 `LITELLM_MODEL` est une chaîne de modèle LiteLLM. Pour un proxy LiteLLM, utiliser
 `openai/<alias du modèle sur le proxy>` avec `LITELLM_BASE_URL` = URL du proxy.
@@ -251,7 +252,11 @@ POST /api/v1/demo/reset     # supprime corrélations et exécutions, rétablit l
 
 Quand `RESEND_API_KEY`, `ALERT_EMAIL_FROM` et `ALERT_EMAIL_TO` sont définies, une exécution qui produit de
 **nouvelles** corrélations `warning` ou `error` envoie un seul e-mail récapitulatif, après la réponse (tâche de
-fond : un fournisseur lent ou en panne ne retarde ni ne fait échouer `execute`). Deux essais de 5 s. Les messages
+fond : un fournisseur lent ou en panne ne retarde ni ne fait échouer `execute`). Deux essais de 5 s. Un délai
+global (`ALERT_EMAIL_COOLDOWN_SECONDS`, clé Redis `chimeraflow:alerts:cooldown` posée avec `SET NX EX`) limite
+l'envoi à un récapitulatif par fenêtre, quel que soit le nombre d'exécutions ou de workers. Pendant le délai, les
+nouvelles corrélations ne sont pas envoyées plus tard (elles restent visibles dans l'interface). Sans Redis, ou si
+Redis est en panne, rien n'est envoyé (échec fermé, journalisé). Les messages
 viennent de textes de sources : caractères de contrôle retirés, 300 caractères au plus par ligne, HTML échappé.
 Ni destinataire, ni clé, ni contenu dans les journaux. Vérification réelle auprès de Resend : non faite (voir
 `docs/decisions/TECH_DEBT.md`).
