@@ -19,8 +19,8 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Générateurs de données synthétiques : `scripts/generate_excel.py`, `generate_whatsapp.py`, `generate_momo.py`, `generate_access_windows.vbs`
 - [x] Spike Access : `data/STOCK_ZOBO.mdb` lu par `access-parser` (`test_access_readers.py`)
 - [x] Licence MIT, LinguaSolution LLC (`LICENSE`)
-- [ ] Hello-world en production : frontend Vercel relié à l'API en HTTPS (**non vérifié dans le dépôt**)
-- [ ] Déploiement VPS (Dokploy/Traefik) de l'API et de Redis (**non vérifié dans le dépôt**)
+- [x] Hello-world en production : frontend Vercel relié à l'API en HTTPS (en ligne depuis `dev`, voir `DECISIONS_LOG.md`)
+- [x] Déploiement VPS (Dokploy/Traefik) de l'API et de Redis (en ligne en HTTPS depuis `dev`, voir `DECISIONS_LOG.md`)
 - [ ] Specs approuvées : approbation non tracée dans le dépôt
 - [ ] Dépôt GitHub public (**non vérifié dans le dépôt**)
 
@@ -55,7 +55,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [ ] Doppler : configuration de développement et secrets (`doppler.yaml` présent, configuration non vérifiée)
 - [ ] Neon : branche de développement de la base PostgreSQL
 - [ ] CI verte sur GitHub Actions : **bloquée par la facturation du compte** (run 43569157569, voir `TECH_DEBT.md`)
-- [ ] Déploiement du backend sur le VPS avec migrations au démarrage
+- [x] Déploiement du backend sur le VPS avec migrations au démarrage (API en ligne en HTTPS)
 - [ ] Pull request `dev` → `main` ouverte et fusionnée (squash, CI verte, une revue)
 
 ## P3 : Interface et Crew (25–29 nov.) — non commencée
@@ -81,6 +81,8 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [ ] Gel du code le 1er décembre au soir
 
 ## P5 : Soumission (2–3 déc.) — non commencée
+
+Rappel : Passer le dépôt GitHub en public avant la soumission (3 déc.)
 
 - [ ] Vidéo de moins de 3 minutes (2 prises), publiée sur YouTube
 - [ ] Write-up Kiro

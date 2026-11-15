@@ -3,7 +3,7 @@
 Liste des endpoints définis dans `backend/main.py` et `backend/api/*.py` au 2026-11-14.
 Seuls les endpoints présents dans le code figurent ici. Aucun endpoint de conversion vers
 la base n'existe. La documentation interactive est générée par FastAPI (`/docs`, `/redoc`,
-`/openapi.json`) et n'est pas servie quand `BACKEND_NODE_ENV=production`.
+`/openapi.json`) et n'est servie que si `BACKEND_NODE_ENV` vaut `development` ou `test`.
 
 **Authentification.** Tous les endpoints `/api/v1` exigent l'en-tête `Authorization: Bearer <jeton>`,
 sauf `POST /api/v1/auth/login`. Seuls `GET /` et `GET /health` sont publics. Le jeton s'obtient par
@@ -84,7 +84,7 @@ validation (422) n'est pas comptée. Toutes les lectures (GET) ne sont pas limit
 Renvoie les liens de l'API.
 
 - **Limite** : aucune.
-- **Réponse 200** : `{"message": "ChimeraFlow API", "docs": "/docs", "health": "/health", "endpoints": {"auth": "/api/v1/auth", "sources": "/api/v1/sources", "rules": "/api/v1/rules", "correlations": "/api/v1/correlations"}}`. `docs` vaut `null` en production.
+- **Réponse 200** : `{"message": "ChimeraFlow API", "docs": "/docs", "health": "/health", "endpoints": {"auth": "/api/v1/auth", "sources": "/api/v1/sources", "rules": "/api/v1/rules", "correlations": "/api/v1/correlations"}}`. `docs` vaut `null` hors `development` et `test`.
 
 ### GET /health
 Contrôle de vie du processus. Public.
@@ -221,6 +221,6 @@ Exécute les règles actives (ou celles demandées) sur les données courantes. 
 
 - **Authentification par jeton Bearer** sur tous les endpoints `/api/v1` (lectures et mutations), sauf le login. Jeton signé HMAC-SHA256 par `AUTH_TOKEN_SECRET`, valable 1 h, sans révocation avant l'expiration. Compte unique et public : il protège contre l'accès anonyme et les robots, pas contre un utilisateur qui connaît le mot de passe affiché (voir TECH_DEBT).
 - Le login est limité par IP (`RATE_LIMIT_LOGIN_PER_IP`) et renvoie la même réponse que l'email soit inconnu ou le mot de passe faux. Ni jeton, ni mot de passe, ni email dans les journaux ni dans les réponses d'erreur.
-- CORS : liste blanche `CORS_ORIGINS`, méthodes et en-têtes ouverts (`*`), identifiants autorisés. `Retry-After` est exposé au navigateur.
-- Documentation `/docs`, `/redoc` et `/openapi.json` : non servies quand `BACKEND_NODE_ENV=production`, servies sinon (Swagger UI ne peut pas envoyer le jeton au chargement du schéma).
+- CORS : liste blanche `CORS_ORIGINS`, méthodes et en-têtes ouverts (`*`), cookies non autorisés (`allow_credentials=False`, jeton Bearer seulement). `Retry-After` est exposé au navigateur.
+- Documentation `/docs`, `/redoc` et `/openapi.json` : servies seulement quand `BACKEND_NODE_ENV` vaut `development` ou `test` (non définie ou autre valeur : absentes) (Swagger UI ne peut pas envoyer le jeton au chargement du schéma).
 - L'IP du client n'est jamais stockée (migration `0002`).

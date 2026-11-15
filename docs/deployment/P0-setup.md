@@ -93,7 +93,7 @@ cd backend
 .venv\Scripts\python.exe -m alembic upgrade head
 .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 # API : http://localhost:8000
-# Documentation : http://localhost:8000/docs
+# Documentation : http://localhost:8000/docs (exige BACKEND_NODE_ENV=development)
 ```
 
 ### Lancer le frontend

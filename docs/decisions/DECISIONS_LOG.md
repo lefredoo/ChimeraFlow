@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-15] Déploiement initial depuis dev
+**Context**: La démonstration doit être en ligne avant la fusion de la PR `dev` → `main`, sans quoi rien n'est testable en conditions réelles.
+**Decision**: Le compose Dokploy `chimeraflow-api` (VPS) et le projet Vercel `chimeraflow` se déploient depuis la branche `dev` jusqu'à la fusion de la PR. La branche de production Vercel reste `main` : les déploiements de `dev` sont donc lancés à la main, par référence git. Les noms `api.chimeraflow` et `chimeraflow` (zone `linguasolution.com`) sont en DNS seul (sans proxy) ; Traefik obtient les certificats Let's Encrypt par HTTP-01.
+**Alternatives rejetées**: Fusionner `dev` dans `main` avant la revue (contredit la règle PR du §5) ; proxy DNS du fournisseur (le défi HTTP-01 et l'IP client de la limitation de débit en dépendent).
+**Consequences**: Après la fusion, Dokploy et Vercel doivent passer sur `main` (voir `TECH_DEBT.md`). Les secrets viennent de Doppler, jamais du dépôt.
+**AGENTS.md rule concerned**: §5 (Git Workflow), déploiement hors `main` toléré jusqu'à la PR
+
+---
+
 ## [2026-11-15] Authentification : compte de démonstration, session émise par le backend
 **Context**: AGENTS.md §9 exige une authentification des opérations sensibles et l'API était ouverte. Le frontend (Vercel) et le backend (VPS) sont deux origines distinctes, sans base d'utilisateurs : un seul compte de démonstration public suffit.
 **Decision**:
