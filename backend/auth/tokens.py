@@ -20,6 +20,8 @@ from typing import Optional
 
 TOKEN_TTL_SECONDS = 3600
 TOKEN_VERSION = 1
+# A genuine token is about 150 characters; anything longer is rejected before decoding
+MAX_TOKEN_LENGTH = 1024
 
 
 class InvalidTokenError(Exception):
@@ -95,6 +97,8 @@ def verify_token(token: str, secret: str, now: Optional[float] = None) -> TokenC
         InvalidTokenError: Malformed token or wrong signature.
         ExpiredTokenError: Genuine token past its expiry.
     """
+    if len(token) > MAX_TOKEN_LENGTH:
+        raise InvalidTokenError("token too long")
     parts = token.split(".")
     if len(parts) != 2:
         raise InvalidTokenError("malformed token")
@@ -115,6 +119,8 @@ def verify_token(token: str, secret: str, now: Optional[float] = None) -> TokenC
         or not isinstance(issued_at, int)
         or not isinstance(expires_at, int)
     ):
+        raise InvalidTokenError("malformed payload")
+    if issued_at > expires_at:
         raise InvalidTokenError("malformed payload")
     if (time.time() if now is None else now) >= expires_at:
         raise ExpiredTokenError("token expired")

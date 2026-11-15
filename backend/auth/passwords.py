@@ -31,8 +31,8 @@ KEY_BYTES = 32
 
 # Bounds accepted when reading a hash: a bad value cannot make the server
 # allocate gigabytes or spin for minutes
-MIN_N, MAX_N = 2**14, 2**17
-MIN_R, MAX_R = 1, 16
+MIN_N, MAX_N = 2**14, 2**16
+MIN_R, MAX_R = 1, 8
 MIN_P, MAX_P = 1, 4
 MIN_SALT_BYTES, MAX_SALT_BYTES = 16, 64
 MIN_KEY_BYTES, MAX_KEY_BYTES = 16, 64

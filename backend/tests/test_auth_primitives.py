@@ -48,6 +48,8 @@ class TestPasswords:
             "scrypt:32767:8:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "scrypt:1073741824:8:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "scrypt:32768:99:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "scrypt:131072:8:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "scrypt:32768:16:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "scrypt:32768:8:1:!!!!:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "scrypt:32768:8:1:AA:AA",
         ],
@@ -107,6 +109,18 @@ class TestTokens:
 
         with pytest.raises(InvalidTokenError):
             verify_token(token, SECRET, now=5000)
+
+    def test_should_raise_invalid_when_the_token_is_longer_than_the_limit(self):
+        token = issue_token("x" * 1024 + "@example.test", SECRET, now=1000)
+
+        with pytest.raises(InvalidTokenError):
+            verify_token(token, SECRET, now=1001)
+
+    def test_should_raise_invalid_when_the_token_is_issued_after_its_expiry(self):
+        token = issue_token("demo@example.test", SECRET, now=1000, ttl_seconds=-10)
+
+        with pytest.raises(InvalidTokenError):
+            verify_token(token, SECRET, now=500)
 
     @pytest.mark.parametrize("garbage", ["", ".", "a.b.c", "abc", "é.é", "....", "AA.AA", " . "])
     def test_should_raise_invalid_when_the_token_is_malformed(self, garbage):

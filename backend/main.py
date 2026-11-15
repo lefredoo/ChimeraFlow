@@ -61,12 +61,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+DOCS_ENVIRONMENTS = ("development", "test")
+
+
 def docs_urls(node_env: Optional[str]) -> Dict[str, Any]:
     """FastAPI options of the interactive documentation for an environment.
 
     Swagger UI and ReDoc cannot send the Bearer header when they load the
-    schema, so protecting them is not practical. In production they are not
-    served at all: the API surface is not published to anonymous visitors.
+    schema, so protecting them is not practical. They are served only in
+    development and test: an unset or unknown environment must not publish the
+    API surface to anonymous visitors.
 
     Args:
         node_env: Value of BACKEND_NODE_ENV.
@@ -74,9 +78,9 @@ def docs_urls(node_env: Optional[str]) -> Dict[str, Any]:
     Returns:
         Keyword arguments for FastAPI (empty: documentation served at the defaults).
     """
-    if node_env == "production":
-        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
-    return {}
+    if node_env in DOCS_ENVIRONMENTS:
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
 
 
 DOCS_ENABLED = not docs_urls(NODE_ENV)
@@ -92,7 +96,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=True,
+    # Bearer header only: the API sets and reads no cookie
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     # Retry-After is not CORS-safelisted: without this the login page cannot read it

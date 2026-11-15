@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 
 import pytest
-from fastapi.routing import APIRoute
 
 import config
 from auth.tokens import issue_token
@@ -28,11 +27,13 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 PUBLIC_API_PATHS = {LOGIN_URL}
 
 # Every route under /api/v1 except login, as (method, path with placeholders filled)
+# Read from the OpenAPI schema: FastAPI 0.162 wraps included routers in `app.routes`,
+# so walking `app.routes` finds no APIRoute and silently skips the protection tests.
 PROTECTED_ROUTES = sorted(
-    (method, re.sub(r"\{[^}]+\}", "x", route.path))
-    for route in app.routes
-    if isinstance(route, APIRoute) and route.path.startswith("/api/v1/") and route.path not in PUBLIC_API_PATHS
-    for method in route.methods
+    (method.upper(), re.sub(r"\{[^}]+\}", "x", path))
+    for path, operations in app.openapi()["paths"].items()
+    if path.startswith("/api/v1/") and path not in PUBLIC_API_PATHS
+    for method in operations
 )
 
 
@@ -166,6 +167,9 @@ class TestLoginRateLimit:
 
 
 class TestProtection:
+    def test_should_find_the_protected_routes_when_reading_the_schema(self):
+        assert len(PROTECTED_ROUTES) >= 10
+
     @pytest.mark.parametrize("method, path", PROTECTED_ROUTES)
     def test_should_return_401_when_an_api_endpoint_is_called_without_a_token(
         self, anonymous_client, method, path
@@ -274,12 +278,23 @@ class TestCrossOrigin:
 
 
 class TestDocsExposure:
-    def test_should_disable_the_documentation_when_running_in_production(self):
-        assert docs_urls("production") == {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    @pytest.mark.parametrize("node_env", ["production", None, "", "staging", "Development"])
+    def test_should_disable_the_documentation_when_the_environment_is_not_development_or_test(self, node_env):
+        assert docs_urls(node_env) == {"docs_url": None, "redoc_url": None, "openapi_url": None}
 
-    @pytest.mark.parametrize("node_env", ["development", "test", None])
-    def test_should_keep_the_documentation_when_not_running_in_production(self, node_env):
+    @pytest.mark.parametrize("node_env", ["development", "test"])
+    def test_should_keep_the_documentation_when_running_in_development_or_test(self, node_env):
         assert docs_urls(node_env) == {}
+
+
+class TestCorsCredentials:
+    def test_should_not_allow_credentials_when_the_origin_is_whitelisted(self, anonymous_client):
+        response = anonymous_client.options(
+            RULES_URL,
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"},
+        )
+
+        assert "access-control-allow-credentials" not in response.headers
 
 
 class TestAuthConfiguration:
@@ -318,6 +333,14 @@ class TestAuthConfiguration:
 
     def test_should_fail_fast_when_the_password_hash_is_malformed(self):
         result = self._import_config(DEMO_LOGIN_PASSWORD_HASH="plain-text-password")
+
+        assert result.returncode != 0
+        assert "DEMO_LOGIN_PASSWORD_HASH" in result.stderr
+
+    def test_should_fail_fast_when_the_password_hash_parameters_exceed_the_bounds(self):
+        out_of_bounds = "scrypt:131072:8:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+        result = self._import_config(DEMO_LOGIN_PASSWORD_HASH=out_of_bounds)
 
         assert result.returncode != 0
         assert "DEMO_LOGIN_PASSWORD_HASH" in result.stderr
