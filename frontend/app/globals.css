@@ -7,6 +7,8 @@
  */
 
 :root {
+  color-scheme: light;
+
   /* Fonts */
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
   --font-display: 'IBM Plex Serif', Georgia, serif;
@@ -29,6 +31,18 @@
   --success-text: #047857;
   --error-text: #b91c1c;
   --primary-text: #1d4ed8;
+  --warning-text: #92400e;
+  --info-text: #0369a1;
+
+  /* Fill of the destructive button: 4.5:1 against white text in both themes */
+  --error-solid: #b91c1c;
+  --error-solid-hover: #991b1b;
+
+  /* One color per source (text-safe on the light surfaces; icons and names carry the meaning too) */
+  --source-excel: #166534;
+  --source-access: #9f1239;
+  --source-whatsapp: #0f766e;
+  --source-momo: #92400e;
 
   --text-primary: #111827;
   --text-secondary: #4b5563;
@@ -43,8 +57,45 @@
   --page-gradient-to: #eff6ff;
 }
 
+/*
+ * Dark theme. `data-theme` is set by the ThemeProvider (stored choice or OS
+ * setting). Before it runs, and without JavaScript, the OS setting applies.
+ * The two blocks hold the same values: plain CSS cannot share a declaration
+ * between a selector and a media query.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0f1419;
+  --bg-elevated: rgba(17, 24, 39, 0.7);
+  --bg-subtle: #1a202c;
+  --surface: #2d3748;
+
+  --success-text: #34d399;
+  --error-text: #f87171;
+  --primary-text: #93c5fd;
+  --warning-text: #fbbf24;
+  --info-text: #7dd3fc;
+
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-muted: #9ca3af;
+
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --row-bg: rgba(31, 41, 55, 0.5);
+  --page-gradient-from: #0f172a;
+  --page-gradient-to: #1e293b;
+
+  --source-excel: #86efac;
+  --source-access: #fda4af;
+  --source-whatsapp: #5eead4;
+  --source-momo: #fcd34d;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
     --bg: #0f1419;
     --bg-elevated: rgba(17, 24, 39, 0.7);
     --bg-subtle: #1a202c;
@@ -53,6 +104,8 @@
     --success-text: #34d399;
     --error-text: #f87171;
     --primary-text: #93c5fd;
+    --warning-text: #fbbf24;
+    --info-text: #7dd3fc;
 
     --text-primary: #f9fafb;
     --text-secondary: #9ca3af;
@@ -62,6 +115,11 @@
     --row-bg: rgba(31, 41, 55, 0.5);
     --page-gradient-from: #0f172a;
     --page-gradient-to: #1e293b;
+
+    --source-excel: #86efac;
+    --source-access: #fda4af;
+    --source-whatsapp: #5eead4;
+    --source-momo: #fcd34d;
   }
 }
 
@@ -176,76 +234,9 @@ body {
   font-weight: 600;
 }
 
-.status-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  background: var(--row-bg);
-}
-
 .status-label {
   font-size: 0.875rem;
   color: var(--text-secondary);
-}
-
-.status-value {
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.status-value[data-state='connected'] {
-  color: var(--success-text);
-}
-
-.status-value[data-state='error'],
-.status-value[data-state='unreachable'] {
-  color: var(--error-text);
-}
-
-.status-version {
-  font-weight: 500;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-}
-
-.feature-card {
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-}
-
-.feature-card-icon {
-  margin-bottom: 0.75rem;
-  font-size: 2.25rem;
-}
-
-.feature-card-title {
-  margin: 0 0 0.5rem;
-  font-size: 1.125rem;
-  font-weight: 600;
-}
-
-.badge {
-  display: inline-block;
-  margin-top: 1rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--primary-text);
-  background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 @media (min-width: 768px) {
@@ -255,10 +246,6 @@ body {
 
   .hero-title {
     font-size: 3rem;
-  }
-
-  .feature-grid {
-    grid-template-columns: repeat(3, 1fr);
   }
 }
 

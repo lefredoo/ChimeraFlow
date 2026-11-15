@@ -58,14 +58,17 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Déploiement du backend sur le VPS avec migrations au démarrage (API en ligne en HTTPS)
 - [ ] Pull request `dev` → `main` ouverte et fusionnée (squash, CI verte, une revue)
 
-## P3 : Interface et Crew (25–29 nov.) — non commencée
+## P3 : Interface et Crew (25–29 nov.) — interface livrée, Crew non commencée
 
-- [ ] Tableau de bord mobile-first (le frontend actuel est une page d'accueil de test)
-- [ ] Composeur de règles en langage naturel, avec aperçu du brouillon et repli sur les règles prédéfinies
-- [ ] Cartes de corrélation avec badges par source et tiroir de provenance (R10)
-- [ ] Assainissement des textes de source avant affichage (R12) : côté frontend, aucun code aujourd'hui
-- [ ] État dégradé quand une source est absente (R8)
-- [ ] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11)
+- [x] Tableau de bord mobile-first : état des 4 sources, statistiques, bouton « Exécuter les règles », dernières corrélations (`frontend/components/dashboard.tsx`)
+- [x] Composeur de règles en langage naturel, avec aperçu du brouillon et repli sur les règles prédéfinies (`rule-composer.tsx`)
+- [x] Liste des règles avec détail JSON et suppression confirmée (`rules-view.tsx`)
+- [x] Cartes de corrélation avec badges par source et tiroir de provenance (R10)
+- [x] Assainissement des textes de source avant affichage (R12) : rendu en texte React seulement, jamais de HTML ; testé (`correlation-card.test.tsx`)
+- [x] État dégradé quand une source est absente (R8) : bandeau et fil coupé sur le tableau de bord
+- [~] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : conçue ainsi (éléments `<dialog>`, focus visible, lien d'évitement, couleurs par jetons), mais non mesurée dans un navigateur
+- [x] Bascule FR/EN mémorisée et thème sombre (système par défaut, choix mémorisé)
+- [x] Vue « pourquoi ça correspond » (affichée seulement quand la corrélation a une `explanation`), bac à sable de normalisation (`/sandbox`), corrélations en temps réel (flux SSE, sinon actualisation toutes les 15 s)
 - [ ] Connecteur n°4 généré par Crew en session enregistrée (`.kiro/agents/` absent)
 - [ ] Hook `rule-validate` : déjà présent (`.kiro/hooks/rule-validate.json`, cible `data/rules/*.json`) ; l'agent qu'il lance reste à valider en session
 
@@ -75,7 +78,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Pas de `.env.example` ; un seul `.env` racine (en production, seul `DOPPLER_TOKEN` est local)
 - [~] README et documentation : traduction française et mise à jour des faits en cours (2026-11-14)
 - [ ] Tests de fumée en production
-- [ ] Bouton de réinitialisation des données de démo
+- [~] Bouton de réinitialisation des données de démo : bouton et confirmation livrés sur le tableau de bord ; il appelle `POST /api/v1/demo/reset` (chantier backend)
 - [ ] Scan de secrets du dépôt et de l'historique
 - [ ] Revue du `.kiro` et du `.gitignore`
 - [ ] Gel du code le 1er décembre au soir

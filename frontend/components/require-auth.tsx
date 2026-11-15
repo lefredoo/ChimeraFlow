@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { t } from "../lib/i18n";
 import { useAuth } from "./auth-provider";
+import { useI18n } from "./locale-provider";
 
 export const LOGIN_PATH = "/login";
 
@@ -15,6 +15,7 @@ export const LOGIN_PATH = "/login";
  */
 export function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
   const { state } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
 
   useEffect(() => {
