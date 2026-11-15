@@ -4,6 +4,7 @@ Follows AGENTS.md §7: No fallback values, fail fast on missing required vars
 """
 import math
 import os
+import re
 from ipaddress import IPv4Network, IPv6Network, ip_network
 from typing import Optional, Tuple, Union
 
@@ -317,3 +318,52 @@ LITELLM_BUDGET_USD = _optional_float("LITELLM_BUDGET_USD")
 # A cap that is NaN (every comparison false), infinite or not positive is no cap
 if LITELLM_BUDGET_USD is not None and not (math.isfinite(LITELLM_BUDGET_USD) and LITELLM_BUDGET_USD > 0):
     raise ValueError("Environment variable 'LITELLM_BUDGET_USD' must be a finite number greater than 0")
+
+
+# E-mail alert digest through Resend (optional: disabled unless the API key, the
+# sender and at least one recipient are all set)
+MAX_ALERT_RECIPIENTS = 5
+_EMAIL_ADDRESS = re.compile(r"^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$")
+# "Name <address>" or a bare address, on one line
+_EMAIL_SENDER = re.compile(r"^(?:[^<>\r\n@]{1,100} )?<?[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+>?$")
+
+
+def _parse_alert_recipients(raw: Optional[str]) -> Tuple[str, ...]:
+    """Parse the comma-separated ALERT_EMAIL_TO list.
+
+    Args:
+        raw: Raw variable value, or None when unset.
+
+    Returns:
+        Recipient addresses (empty when unset).
+
+    Raises:
+        ValueError: If an entry is not an e-mail address or there are too many (never echoed).
+    """
+    if raw is None:
+        return ()
+    recipients = tuple(item.strip() for item in raw.split(",") if item.strip())
+    if len(recipients) > MAX_ALERT_RECIPIENTS:
+        raise ValueError(f"Environment variable 'ALERT_EMAIL_TO' accepts at most {MAX_ALERT_RECIPIENTS} addresses")
+    if not all(_EMAIL_ADDRESS.match(address) for address in recipients):
+        raise ValueError("Environment variable 'ALERT_EMAIL_TO' must hold comma-separated e-mail addresses")
+    return recipients
+
+
+def _optional_alert_sender() -> Optional[str]:
+    """Read ALERT_EMAIL_FROM (an address or "Name <address>").
+
+    Raises:
+        ValueError: If the value is not a one-line sender (never echoed).
+    """
+    value = optional_env("ALERT_EMAIL_FROM")
+    if value is None:
+        return None
+    if not _EMAIL_SENDER.match(value.strip()):
+        raise ValueError("Environment variable 'ALERT_EMAIL_FROM' must be an e-mail address")
+    return value.strip()
+
+
+RESEND_API_KEY = optional_env("RESEND_API_KEY")
+ALERT_EMAIL_FROM = _optional_alert_sender()
+ALERT_EMAIL_TO = _parse_alert_recipients(optional_env("ALERT_EMAIL_TO"))

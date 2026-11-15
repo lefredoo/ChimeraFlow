@@ -115,6 +115,10 @@ class Correlation(Base):
     # [{source, source_ref, record_id}]
     provenance = Column(JSON, nullable=False)
     
+    # Why the records match: trigger entity, per-join candidate, score, method and
+    # the conditions that held, with their values. Null for rows stored before 0003.
+    explanation = Column(JSON, nullable=True)
+
     # Optional: time window bounds
     window_start = Column(DateTime(timezone=True), nullable=True)
     window_end = Column(DateTime(timezone=True), nullable=True)

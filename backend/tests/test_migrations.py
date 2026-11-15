@@ -62,6 +62,26 @@ class TestMigrations:
 
         assert "created_by" in _column_names(alembic_config, "rules")
 
+    def test_should_add_a_nullable_explanation_column_when_upgraded_to_head(self, alembic_config):
+        command.upgrade(alembic_config, "head")
+
+        assert "explanation" in _column_names(alembic_config, "correlations")
+
+    def test_should_drop_the_explanation_column_when_downgrading_one_revision(self, alembic_config):
+        command.upgrade(alembic_config, "head")
+
+        command.downgrade(alembic_config, "-1")
+
+        assert "explanation" not in _column_names(alembic_config, "correlations")
+
+    def test_should_upgrade_again_when_downgraded_one_revision(self, alembic_config):
+        command.upgrade(alembic_config, "head")
+        command.downgrade(alembic_config, "-1")
+
+        command.upgrade(alembic_config, "head")
+
+        assert "explanation" in _column_names(alembic_config, "correlations")
+
     def test_should_generate_sql_when_upgrading_in_offline_mode(self, alembic_config, capsys):
         command.upgrade(alembic_config, "0001:0002", sql=True)
 
