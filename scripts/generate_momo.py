@@ -54,8 +54,8 @@ def generate_transactions(num_transactions: int = 50) -> list:
         quantity = random.randint(1, 5)
         amount = base_price * quantity
         
-        # Phone number: synthetic (237 = Cameroon, 6XXXXXXXX)
-        phone = f"237{random.choice([670, 690, 650, 655])}{random.randint(100000, 999999)}"
+        # Phone number: obviously fake (237 = Cameroon code, then a 00x block that is not assigned)
+        phone = f"237{random.choice(['000', '001', '002', '003'])}{random.randint(100000, 999999)}"
         
         operator = random.choice(OPERATORS)
         status = "SUCCESS" if random.random() > 0.05 else "PENDING"
@@ -73,10 +73,42 @@ def generate_transactions(num_transactions: int = 50) -> list:
             "quantity": quantity
         })
     
+    transactions.extend(_scenario_transactions(len(transactions)))
+
     # Sort by timestamp
     transactions.sort(key=lambda x: x["timestamp"])
     
     return transactions
+
+
+def _scenario_transactions(already_generated: int) -> list:
+    """Scripted payments that match WhatsApp orders of generate_whatsapp.py.
+
+    The same ciment order is paid twice: one SUCCESS (r_payment_received
+    correlates it) and one PENDING (the rule ignores it). The other references
+    are partial names of the catalog ("Tuyau PVC 32mm", "Perceuse électrique 500W").
+    """
+    rows = [
+        ("2026-11-01 10:05:00", "Client A", "Perceuse électrique 500W", 45000, "SUCCESS", 1),
+        ("2026-11-02 09:00:00", "M. Talla", "Tuyau PVC 32mm", 9600, "SUCCESS", 2),
+        ("2026-11-06 09:30:00", "Client C", "Ciment 50 kg", 15000, "SUCCESS", 2),
+        ("2026-11-06 10:15:00", "Client C", "Ciment 50 kg", 7500, "PENDING", 1),
+    ]
+    return [
+        {
+            "transaction_id": f"MM2026{already_generated + index + 1:06d}",
+            "timestamp": timestamp,
+            "phone": f"2370009{index:05d}",
+            "customer_name": customer,
+            "operator": "MTN MoMo",
+            "amount": amount,
+            "currency": "XAF",
+            "status": status,
+            "reference": reference,
+            "quantity": quantity,
+        }
+        for index, (timestamp, customer, reference, amount, status, quantity) in enumerate(rows)
+    ]
 
 
 def main():

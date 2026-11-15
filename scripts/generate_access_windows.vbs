@@ -55,14 +55,14 @@ Dim products(23)
 products(0) = "('Pointes 2.5 pouces', 'Bo\xEEte 500g', 45, 1500, #2026-11-01#)"
 products(1) = "('Vis bois 4x40mm', 'Bo\xEEte 100', 120, 850, #2026-11-02#)"
 products(2) = "('Clous t\xEAte plate 70mm', 'kg', 8, 2200, #2026-11-03#)"
-products(3) = "('Tuyau PVC 32mm', 'Barre 6m', 25, 4800, #2026-11-04#)"
+products(3) = "('Tuyau PVC 32mm', 'Barre 6m', 12, 4800, #2026-11-02#)"  ' low stock (r_stock_replenish)
 products(4) = "('Raccord PVC coude 90', 'Unit\xE9', 150, 245, #2026-11-05#)"
 products(5) = "('Tuyau PPR 20mm', 'Barre 4m', 18, 3500, #2026-11-06#)"
-products(6) = "('C\xE2ble \xE9lectrique 2.5mm\xB2', 'Rouleau 100m', 5, 45000, #2026-11-07#)"
+products(6) = "('C\xE2ble \xE9lectrique 2.5mm\xB2', 'Rouleau 100m', 5, 45000, #2026-11-04#)"
 products(7) = "('Interrupteur va-et-vient', 'Unit\xE9', 85, 1250, #2026-11-08#)"
 products(8) = "('Prise de courant double', 'Unit\xE9', 72, 2100, #2026-11-09#)"
 products(9) = "('Cadenas laiton 40mm', 'Unit\xE9', 35, 3500, #2026-11-10#)"
-products(10) = "('Serrure \xE0 mortaiser', 'Unit\xE9', 12, 12000, #2026-11-11#)"
+products(10) = "('Serrure \xE0 mortaiser', 'Unit\xE9', 12, 14000, #2026-11-05#)"  ' >10% above the supplier price
 products(11) = "('Penture acier 30cm', 'Paire', 28, 4200, #2026-11-12#)"
 products(12) = "('Peinture satin\xE9e blanc', 'Litre', 42, 5500, #2026-11-13#)"
 products(13) = "('Pinceau plat 2 pouces', 'Unit\xE9', 95, 1800, #2026-11-14#)"
@@ -71,7 +71,7 @@ products(15) = "('Ciment 50 kg', 'Sac', 180, 7500, #2026-11-01#)"
 products(16) = "('Ciment-colle 25 kg', 'Sac', 65, 3900, #2026-11-02#)"
 products(17) = "('Marteau rivoir 500g', 'Unit\xE9', 22, 5900, #2026-11-03#)"
 products(18) = "('Scie \xE9go\xEFne 450mm', 'Unit\xE9', 15, 8500, #2026-11-04#)"
-products(19) = "('Perceuse \xE9lectrique 500W', 'Unit\xE9', 8, 45000, #2026-11-05#)"
+products(19) = "('Perceuse \xE9lectrique 500W', 'Unit\xE9', 8, 52000, #2026-11-03#)"  ' low stock, >10% above the supplier price
 
 ' Intentional variations for testing normalization
 products(20) = "('ciment 50 kg', 'Sac', 175, 7500, #2026-11-06#)"  ' lowercase
