@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-15] Durcissement CI et exploitation : jobs frontend et secrets, moniteur, test de fumée, Dokploy sur main
+**Context**: Le dépôt est public, les Actions sont gratuites et `main` devient la production ; la CI ne couvrait pas le frontend, aucun contrôle ne vérifiait la production et Dokploy suivait encore `dev`.
+**Decision**: (1) CI : job « Frontend lint, tests and build » (Node 22, `npm ci`, tsc, lint, vitest, build avec des `NEXT_PUBLIC_*` factices) et job « Secret scan » (binaire gitleaks 8.30.1 épinglé par somme SHA-256, historique complet) ; actions tierces épinglées par SHA de commit. (2) `uptime.yml` toutes les 30 min : `/health` et `/login`, un seul ticket `uptime` ouvert puis fermé au retour ; la permission `issues: write` n'est donnée qu'au job qui gère le ticket. (3) `scripts/ops/smoke-prod.{sh,ps1}` : identifiants lus dans `SMOKE_EMAIL` / `SMOKE_PASSWORD`, jamais dans le dépôt ; workflow manuel « Production smoke » avec deux secrets de dépôt copiés depuis Doppler (valeurs publiques par construction). (4) Compose Dokploy `chimeraflow-api` : branche `main` (via l'API Dokploy), sans redéploiement ; `autoDeploy` laissé désactivé. (5) `docs/deployment/PRODUCTION.md` décrit déploiement, rotation du jeton Doppler, retour arrière.
+**Alternatives rejected**: `gitleaks/gitleaks-action` (code tiers avec accès au dépôt, licence selon le type de compte) au profit du binaire vérifié par somme ; service Redis dans la CI (aucun test d'intégration Redis n'existe, il tournerait sans rien tester) ; `autoDeploy` sur `main` (une fusion déploierait sans contrôle d'une variable Doppler manquante, l'API s'arrêterait au démarrage) ; URLs de production en paramètre des scripts de fumée (repli de configuration, §7).
+**Consequences**: `main` exige maintenant aussi les nouveaux jobs si le propriétaire les ajoute aux contrôles requis ; les secrets de dépôt `SMOKE_*` suivent `NEXT_PUBLIC_DEMO_LOGIN_*` ; le ticket d'indisponibilité dépend des notifications GitHub du dépôt ; le compose Dokploy est sur `main` : le prochain déploiement attend la fusion de la PR `dev` → `main`.
+**AGENTS.md rule concerned**: §4 et §12 (dette corrigée dans le cycle), §7 (pas de repli de configuration)
+
+---
+
 ## [2026-11-15] Déploiement initial depuis dev
 **Context**: La démonstration doit être en ligne avant la fusion de la PR `dev` → `main`, sans quoi rien n'est testable en conditions réelles.
 **Decision**: Le compose Dokploy `chimeraflow-api` (VPS) et le projet Vercel `chimeraflow` se déploient depuis la branche `dev` jusqu'à la fusion de la PR. La branche de production Vercel reste `main` : les déploiements de `dev` sont donc lancés à la main, par référence git. Les noms `api.chimeraflow` et `chimeraflow` (zone `linguasolution.com`) sont en DNS seul (sans proxy) ; Traefik obtient les certificats Let's Encrypt par HTTP-01.

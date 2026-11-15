@@ -13,9 +13,7 @@ Required by AGENTS.md §15.
 
 ## Current Debt
 - [2026-11-15] Dokploy utilise le jeton Doppler en écriture : à remplacer par un jeton de service en lecture seule pour `chimeraflow/prd` | High | docker-compose.yml, Dokploy
-- [2026-11-15] Déploiement temporaire depuis `dev` (Dokploy et Vercel) : à repasser sur `main` après la fusion de la PR | Med | Dokploy, Vercel
 - [2026-11-15] Branche de production Vercel encore `main` : les déploiements de `dev` sont manuels, à basculer | Med | Vercel
-- [2026-11-15] Pas de job frontend dans la CI : un `NEXT_PUBLIC_*` manquant n'est détecté qu'au déploiement | Med | .github/workflows/ci.yml
 - [2026-11-15] Résidus de revue non corrigés : corps de requête analysé avant l'authentification (422 avant 401), file d'attente du `CapacityLimiter` non bornée, scrypt par défaut sous la recommandation OWASP (N = 2^17) | Low | backend/api/auth.py, backend/auth/passwords.py
 - [2026-11-15] Les identifiants de démonstration sont masqués derrière un bouton « Voir les identifiants » : cela évite le HTML prérendu mais pas la lecture du bundle JS | Low | frontend/components/login-form.tsx
 
@@ -35,13 +33,14 @@ Required by AGENTS.md §15.
 - [2026-11-14] Image `redis:7-alpine` non figée par digest (tag mobile) et Doppler CLI épinglé à 3.77.1 sans mise à jour automatique | Low | backend/Dockerfile
 - [2026-11-14] Documentation à mettre à jour (hors périmètre de cette tâche, édition en cours par un autre agent) : le build runtime exige `--build-context data=./data` hors compose, `docker-compose.prod.yml` et le démarrage Doppler ne sont décrits ni dans README.md, backend/README.md ni docs/deployment | Med | README.md, backend/README.md, docs/deployment/P0-setup.md
 - [2026-11-14] Compose de production non éprouvé sur le VPS (Dokploy, Traefik, Doppler réel) : seuls des essais locaux avec un faux serveur Doppler ont été faits | Med | docker-compose.prod.yml
-- [2026-11-14] Pas de job frontend dans la CI (tsc, lint, vitest, build, audit) : les contrôles frontend ne tournent qu'en local | Med | .github/workflows/ci.yml
+- [2026-11-15] CI frontend : `npm audit` ne tourne pas en CI (avis connus de Next et de vitest listés plus haut, sans correctif non majeur) | Low | .github/workflows/ci.yml
 - [2026-11-14] `@import` Google Fonts dans globals.css : requête vers un tiers (confidentialité, CSP) ; migrer vers `next/font` (auto-hébergement des polices IBM Plex) | Low | frontend/app/globals.css
 - [2026-11-14] `npm audit` hors production : vitest 1.x (esbuild, tinypool) et minimatch (typescript-eslint) signalés, correctif de vitest seulement en 4.x (majeur) ; outils de dev uniquement, absents du build déployé | Low | frontend/package.json
 - [2026-11-14] CI GitHub Actions bloquée : jobs non démarrés pour cause de facturation du compte (paiement échoué ou plafond de dépenses), run 43569157569 | High | .github/workflows/ci.yml
 - [2026-11-14] `_record_spend` : un INCRBY en échec est seulement journalisé ; la dépense n'est pas comptée (sécurité assurée aujourd'hui par le 503 du limiteur) | Low | backend/engine/nl_to_rule.py
 - [2026-11-14] Caractères non URL-safe de REDIS_PASSWORD non vérifiés au démarrage | Low | docker-compose.yml, backend/config.py
-- [2026-11-14] Pas de service Redis dans la CI (chemins Redis du limiteur et du budget non testés automatiquement) | Med | .github/workflows/ci.yml
+- [2026-11-15] Pas de service Redis dans la CI : aucun test d'intégration marqué Redis n'existe (le limiteur utilise la mémoire en `BACKEND_NODE_ENV=test`, le compteur de dépense un faux client) ; ajouter le service avec le premier test d'intégration Redis | Med | .github/workflows/ci.yml, backend/tests
+- [2026-11-15] Dokploy : `autoDeploy` désactivé sur `chimeraflow-api` (branche `main`), le déploiement reste manuel ; à activer après un premier déploiement vérifié depuis `main` | Low | Dokploy, docs/deployment/PRODUCTION.md
 - [2026-11-14] Budget LLM : la dépense est enregistrée après l'appel ; réserver le coût estimé par `INCRBY` avant l'appel puis corriger après la réponse supprimerait le dépassement dû aux appels concurrents | Med | backend/engine/nl_to_rule.py, backend/engine/nl_budget.py
 - [2026-11-14] Les `template` générés par le modèle ne sont pas limités à une liste de colonnes autorisées : `{momo.phone}` ou `{momo.customer_name}` exposent des données personnelles dans les corrélations | Med | backend/engine/nl_to_rule.py, backend/schemas/rule.py
 - [2026-11-14] Schéma `RuleCreate` sans borne sur la liste `where` ni sur la longueur des champs (`field`, `value`, `template`) : un brouillon NL peut être démesuré | Med | backend/schemas/rule.py

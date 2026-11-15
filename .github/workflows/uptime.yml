@@ -1,0 +1,103 @@
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+env:
+  API_URL: https://api.chimeraflow.linguasolution.com
+  WEB_URL: https://chimeraflow.linguasolution.com
+
+jobs:
+  check:
+    name: Check production endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ok: ${{ steps.probe.outputs.ok }}
+      details: ${{ steps.probe.outputs.details }}
+    steps:
+      - name: Probe API health and login page
+        id: probe
+        shell: bash
+        run: |
+          set -u
+          failures=""
+
+          # Three attempts so a single network blip does not open an issue
+          probe() {
+            local url="$1" attempt code
+            for attempt in 1 2 3; do
+              code=$(curl -s -o "$2" -w '%{http_code}' --max-time 15 "$url" || true)
+              if [ "$code" = "200" ]; then
+                echo 200
+                return 0
+              fi
+              sleep 10
+            done
+            echo "${code:-000}"
+            return 1
+          }
+
+          code=$(probe "${API_URL}/health" health.json) || failures="${failures}- ${API_URL}/health returned HTTP ${code}\n"
+          if [ "$code" = "200" ]; then
+            if ! python3 -c "import json,sys; sys.exit(0 if json.load(open('health.json')).get('status') == 'ok' else 1)"; then
+              failures="${failures}- ${API_URL}/health answered 200 but the JSON status is not ok\n"
+            fi
+          fi
+
+          code=$(probe "${WEB_URL}/login" login.html) || failures="${failures}- ${WEB_URL}/login returned HTTP ${code}\n"
+
+          if [ -z "$failures" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "All endpoints healthy"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            printf 'details<<EOF\n%b\nEOF\n' "$failures" >> "$GITHUB_OUTPUT"
+            printf '%b' "$failures"
+            exit 1
+          fi
+
+  report:
+    name: Open or close the uptime issue
+    needs: check
+    if: ${{ always() && needs.check.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      CHECK_OK: ${{ needs.check.outputs.ok }}
+      CHECK_DETAILS: ${{ needs.check.outputs.details }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Sync the uptime issue with the probe result
+        shell: bash
+        run: |
+          set -eu
+          title="Production is down"
+          gh label create uptime --color B60205 --description "Production uptime monitor" --force >/dev/null
+          number=$(gh issue list --label uptime --state open --json number --jq '.[0].number // empty')
+
+          if [ "$CHECK_OK" = "true" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "Recovered: all endpoints answer again. Run: ${RUN_URL}"
+            fi
+            exit 0
+          fi
+
+          body=$(printf 'The uptime check failed.\n\n%s\n\nRun: %s' "$CHECK_DETAILS" "$RUN_URL")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --label uptime --body "$body"
+          fi
