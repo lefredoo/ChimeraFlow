@@ -81,6 +81,10 @@ jobs:
       ACCESS_READER: access-parser
       RATE_LIMIT_PER_IP: "10"
       RATE_LIMIT_WINDOW_SECONDS: "60"
+      # Throwaway values: config import validates the format, nothing authenticates here
+      AUTH_TOKEN_SECRET: ci-only-secret-0123456789abcdef-0123456789abcdef
+      DEMO_LOGIN_EMAIL: ci@example.test
+      DEMO_LOGIN_PASSWORD_HASH: scrypt:32768:8:1:AAAAAAAAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     steps:
       - uses: actions/checkout@v4
 

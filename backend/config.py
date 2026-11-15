@@ -7,6 +7,9 @@ import os
 from ipaddress import IPv4Network, IPv6Network, ip_network
 from typing import Optional, Tuple, Union
 
+from auth.credentials import normalize_email
+from auth.passwords import PasswordHash, parse_password_hash
+
 IPNetwork = Union[IPv4Network, IPv6Network]
 
 
@@ -234,6 +237,18 @@ RATE_LIMIT_NL_PER_IP = (
 if RATE_LIMIT_NL_PER_IP < 1:
     raise ValueError("Environment variable 'RATE_LIMIT_NL_PER_IP' must be at least 1")
 
+# Login attempts are limited per client IP, more strictly than the mutations (each
+# attempt costs a scrypt hash). When unset: half of RATE_LIMIT_PER_IP, at least 3
+# (a deliberate exception to AGENTS.md §7, see docs/decisions/DECISIONS_LOG.md).
+_RATE_LIMIT_LOGIN_PER_IP = _optional_int("RATE_LIMIT_LOGIN_PER_IP")
+RATE_LIMIT_LOGIN_PER_IP = (
+    _RATE_LIMIT_LOGIN_PER_IP
+    if _RATE_LIMIT_LOGIN_PER_IP is not None
+    else max(3, RATE_LIMIT_PER_IP // 2)
+)
+if RATE_LIMIT_LOGIN_PER_IP < 1:
+    raise ValueError("Environment variable 'RATE_LIMIT_LOGIN_PER_IP' must be at least 1")
+
 # Proxies whose X-Forwarded-For header is trusted (Traefik). Without it the
 # socket peer is the client address.
 TRUSTED_PROXIES = _parse_trusted_proxies(optional_env("TRUSTED_PROXIES"))
@@ -241,6 +256,57 @@ TRUSTED_PROXIES = _parse_trusted_proxies(optional_env("TRUSTED_PROXIES"))
 # Limiter storage: memory only in the explicit test environment, Redis otherwise
 # (REDIS_URL is required outside tests, see above)
 RATE_LIMIT_STORAGE_URI = "memory://" if NODE_ENV == "test" else REDIS_URL
+
+# Demo account authentication (all required, no fallback: a missing secret must
+# stop the process, not open the API)
+MIN_AUTH_SECRET_BYTES = 32
+
+
+def _require_non_empty(name: str, description: str) -> str:
+    """Read a required environment variable that must not be blank.
+
+    Raises:
+        ValueError: If the variable is missing or blank.
+    """
+    value = require_env(name, description)
+    if value.strip() == "":
+        raise ValueError(f"Environment variable '{name}' must not be empty")
+    return value
+
+
+def _require_auth_secret() -> str:
+    """Read AUTH_TOKEN_SECRET and check its length.
+
+    Raises:
+        ValueError: If the secret is missing or shorter than MIN_AUTH_SECRET_BYTES bytes.
+    """
+    value = _require_non_empty("AUTH_TOKEN_SECRET", "Secret signing the access tokens (random, 32 bytes or more)")
+    if len(value.encode("utf-8")) < MIN_AUTH_SECRET_BYTES:
+        raise ValueError(
+            f"Environment variable 'AUTH_TOKEN_SECRET' must be at least {MIN_AUTH_SECRET_BYTES} bytes long"
+        )
+    return value
+
+
+def _require_password_hash() -> PasswordHash:
+    """Read and parse DEMO_LOGIN_PASSWORD_HASH.
+
+    Raises:
+        ValueError: If the variable is missing or is not a valid hash (never echoed).
+    """
+    value = _require_non_empty(
+        "DEMO_LOGIN_PASSWORD_HASH",
+        "scrypt hash of the demo account password (python -m auth.hash_password)",
+    )
+    try:
+        return parse_password_hash(value.strip())
+    except ValueError as exc:
+        raise ValueError(f"Environment variable 'DEMO_LOGIN_PASSWORD_HASH' is invalid: {exc}") from exc
+
+
+AUTH_TOKEN_SECRET = _require_auth_secret()
+DEMO_LOGIN_EMAIL = normalize_email(_require_non_empty("DEMO_LOGIN_EMAIL", "Email of the demo account"))
+DEMO_LOGIN_PASSWORD_HASH = _require_password_hash()
 
 # LiteLLM NL->rule conversion (optional: the feature is disabled unless the
 # API key, proxy URL, model and budget are all set)

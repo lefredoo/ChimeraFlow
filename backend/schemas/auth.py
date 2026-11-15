@@ -1,0 +1,29 @@
+"""
+Pydantic schemas of the authentication endpoints
+"""
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class LoginRequest(BaseModel):
+    """Credentials sent to POST /api/v1/auth/login (bounds protect the scrypt cost)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=1, max_length=254)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class TokenResponse(BaseModel):
+    """Access token returned by a successful login."""
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+
+
+class MeResponse(BaseModel):
+    """Account behind the presented token."""
+
+    email: str

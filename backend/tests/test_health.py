@@ -31,9 +31,9 @@ def test_root_endpoint():
     assert data["health"] == "/health"
 
 
-def test_sources_endpoint():
-    """Test /api/v1/sources endpoint"""
-    response = client.get("/api/v1/sources")
+def test_sources_endpoint(api_client):
+    """Test /api/v1/sources endpoint (authenticated)"""
+    response = api_client.get("/api/v1/sources")
     
     assert response.status_code == 200
     

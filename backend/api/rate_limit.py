@@ -126,6 +126,11 @@ def nl_limit() -> str:
     return f"{config.RATE_LIMIT_NL_PER_IP} per {config.RATE_LIMIT_WINDOW_SECONDS} second"
 
 
+def login_limit() -> str:
+    """Limit of the login endpoint (each attempt costs a scrypt hash, and guesses are the threat)."""
+    return f"{config.RATE_LIMIT_LOGIN_PER_IP} per {config.RATE_LIMIT_WINDOW_SECONDS} second"
+
+
 # key_style="endpoint": one counter per endpoint function, not per URL
 # (DELETE /rules/{id} must share a single counter whatever the id)
 limiter = Limiter(
