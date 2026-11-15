@@ -29,3 +29,6 @@ access-parser==0.0.6  # pure Python reader, used for local Windows
 
 # NL -> rule conversion
 litellm==1.97.0
+
+# MCP servers (one stdio server per data source)
+mcp==2.3.0
