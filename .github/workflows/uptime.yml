@@ -70,7 +70,9 @@ jobs:
             echo "All endpoints healthy"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            printf 'details<<EOF\n%b\nEOF\n' "$failures" >> "$GITHUB_OUTPUT"
+            # Random delimiter: probe output must not be able to end the multiline value early
+            delimiter="EOF_$(openssl rand -hex 8)"
+            printf 'details<<%s\n%b\n%s\n' "$delimiter" "$failures" "$delimiter" >> "$GITHUB_OUTPUT"
             printf '%b' "$failures"
             exit 1
           fi
