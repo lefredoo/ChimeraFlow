@@ -49,3 +49,31 @@ Each connector SHALL implement:
 - Fields: transaction_id, phone, amount, status, timestamp
 
 ## Implementation (P1)
+
+Les quatre connecteurs sont des classes Python (`backend/mcp_servers/*_connector.py`) qui
+respectent R1 à R7. Ils sont appelés directement par l'API et exposés en serveurs MCP.
+
+### Exposition MCP (implémentée)
+
+- Un processus par source : `python backend/mcp_main.py --source excel|access|whatsapp|momo`.
+  Kiro liste donc quatre serveurs (`chimeraflow-excel`, `chimeraflow-access`,
+  `chimeraflow-whatsapp`, `chimeraflow-momo`).
+- Transport : stdio uniquement. Le HTTP streamable n'est pas exposé (pas de port
+  supplémentaire dans les fichiers compose).
+- Outils (R1) : `fetch_records(limit: int = 100)` avec `1 <= limit <= 1000`, validé par le
+  schéma de l'outil ; `health_check()`. Les deux sont déclarés en lecture seule.
+  `fetch_records` renvoie `{source, count, parse_errors, records}` ; `records` contient des
+  `UnifiedRecord` (R2). `parse_errors` compte les lignes ignorées pendant l'appel (R3).
+- Ressource `chimeraflow://source/<source>` : métadonnées statiques de la source.
+- Configuration : `DATA_DIR` (obligatoire) et, pour `access` seulement, `ACCESS_READER`
+  (`mdbtools` ou `access-parser`). Aucune valeur par défaut : une variable manquante arrête
+  le processus avec le code 2. Les serveurs n'importent pas `config.py` et n'ont donc besoin
+  d'aucun réglage de l'API.
+- Contraintes de `connectors.md` : 5 secondes par opération (lecture dans un thread
+  de travail), 2 tentatives avec attente exponentielle, journaux JSON sur stderr
+  (`connector`, `operation`, `records_count`, `errors_count`, `duration_ms`, sans contenu
+  de record). stdout est réservé au protocole.
+- Une erreur de lecture est renvoyée comme erreur d'outil sans chemin de fichier ; le détail
+  reste dans les journaux. `health_check` renvoie `status: error` au lieu de lever.
+- Enregistrement dans Kiro : `.kiro/settings/mcp.json` (modèle versionné dans
+  `backend/mcp_servers/kiro-mcp.json`), uniquement des références à des chemins, aucun secret.

@@ -34,7 +34,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [~] Propriétés de parseur (PBT) : P2 couverte ; P1 et P6 partielles ; P3 non couverte (`design.md` §12)
 - [~] Parseur WhatsApp : format Android seulement ; le format iOS et les messages sur plusieurs lignes sont comptés comme erreurs (`TECH_DEBT.md`)
 - [x] Les quatre connecteurs servis en serveurs MCP stdio (`backend/mcp_servers/mcp_app.py`, lanceur `backend/mcp_main.py`, tests `backend/tests/test_mcp_servers.py`)
-- [~] Enregistrement dans Kiro : modèle `backend/mcp_servers/kiro-mcp.json` écrit et testé ; la copie vers `.kiro/settings/mcp.json` reste à faire (écriture bloquée par une règle de permission), puis vérification dans le panneau MCP de Kiro
+- [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` (copie du modèle `backend/mcp_servers/kiro-mcp.json`, testé) ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
 - [ ] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18, cible d'architecture) : l'image runtime contient le lanceur, mais aucun service compose ne le démarre (stdio uniquement)
 
 ## P2 : Moteur de règles (20–24 nov.) — en cours
