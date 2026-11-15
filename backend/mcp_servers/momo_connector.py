@@ -34,6 +34,7 @@ class MobileMoneyConnector(BaseConnector):
         """
         records: List[UnifiedRecord] = []
         limit = min(limit, 1000)
+        self.parse_errors = 0  # counts the errors of this fetch only
 
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:

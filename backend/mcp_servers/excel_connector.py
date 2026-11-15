@@ -35,6 +35,7 @@ class ExcelConnector(BaseConnector):
         """
         records: List[UnifiedRecord] = []
         limit = min(limit, 1000)  # Max 1000
+        self.parse_errors = 0  # counts the errors of this fetch only
 
         try:
             # Read Excel with openpyxl engine (handles merged cells better)

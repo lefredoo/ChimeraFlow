@@ -122,6 +122,23 @@ def estimate_input_cost_usd(messages: List[Message]) -> float:
     return tokens * UNPRICED_USD_PER_1M_TOKENS / 1_000_000
 
 
+def estimate_reservation_usd(messages: List[Message]) -> float:
+    """Cost to reserve before a call: the prompt plus a full-length answer.
+
+    Same pessimistic rate as `estimate_input_cost_usd`. The reservation is
+    replaced by the real cost once the call ends.
+
+    Args:
+        messages: Conversation about to be sent.
+
+    Returns:
+        Cost in USD, strictly positive.
+    """
+    characters = sum(len(message["content"]) for message in messages)
+    tokens = max(1, math.ceil(characters / CHARS_PER_TOKEN)) + MAX_OUTPUT_TOKENS
+    return tokens * UNPRICED_USD_PER_1M_TOKENS / 1_000_000
+
+
 class LiteLLMClient:
     """Chat completion through LiteLLM, pointed at the configured proxy."""
 

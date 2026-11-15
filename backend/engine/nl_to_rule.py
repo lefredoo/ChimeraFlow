@@ -10,6 +10,7 @@ nothing is stored here.
 """
 import json
 import logging
+import math
 import re
 import time
 import uuid
@@ -19,8 +20,15 @@ from typing import Callable, List, Optional
 from pydantic import ValidationError
 
 import config
-from engine.llm_client import LlmClient, LlmError, LlmSettings, Message, estimate_input_cost_usd
-from engine.nl_budget import SpendStore, SpendStoreError
+from engine.llm_client import (
+    LlmClient,
+    LlmError,
+    LlmSettings,
+    Message,
+    estimate_input_cost_usd,
+    estimate_reservation_usd,
+)
+from engine.nl_budget import MICROUSD_PER_USD, SpendStore, SpendStoreError
 from engine.rule_files import summarize_validation_error
 from schemas.rule import RuleCreate
 
@@ -47,21 +55,29 @@ SECURITY
 
 RULE FORMAT
 {{
-  "trigger": {{"source": "whatsapp|momo|excel|access", "entity": "product"}},
+  "trigger": {{
+    "source": "whatsapp|momo|excel|access",
+    "entity": "product",
+    "where": [{{"field": "<column of the trigger source>", "op": "eq|ne|lt|lte|gt|gte|contains|in", "value": "<string, number or list>"}}]
+  }},
   "joins": [
     {{
       "source": "whatsapp|momo|excel|access",
       "table": "Articles (required for access, forbidden otherwise)",
       "sheet": "Tarifs (required for excel, forbidden otherwise)",
-      "on": {{"entity": "product", "field": "<column of the joined source used for matching>"}},
-      "where": [{{"field": "<column of the joined source>", "op": "eq|ne|lt|lte|gt|gte|contains|in", "value": "<string, number or list>"}}]
+      "on": {{"entity": "product", "field": "<column of the joined source used for matching, or \\"entities\\" to match the products of a whatsapp message>"}},
+      "where": [
+        {{"field": "<column of the joined source>", "op": "eq|ne|lt|lte|gt|gte|contains|in", "value": "<string, number or list>"}},
+        {{"field": "<column of the joined source>", "op": "gt|gte|lt|lte", "ref": "<earlier source>.<column>", "tolerance_pct": <number, 0 to 1000>}}
+      ]
     }}
   ],
   "window_seconds": <integer, 60 to 2592000>,
   "emit": {{"severity": "info|warning|error", "template": "<text with placeholders>"}}
 }}
-- 1 to 10 joins. "where" may be empty or omitted.
-- Template placeholders: {{product}} and {{source.column}} such as {{access.qty_stock}}. Write the template text in the language given by "language".
+- 1 to 10 joins. "where" may be empty or omitted, at most 10 conditions each; "trigger.where" too.
+- A condition has either a "value" or a "ref", never both. "ref" names a column of the trigger source or of an earlier join, and is not allowed in "trigger.where". With "tolerance_pct", the condition holds when the relative gap between the column and the "ref" value, in percent, is above (gt, gte) or below (lt, lte) the tolerance: use it for "price differs by more than 10 %".
+- Template placeholders: {{product}} and {{source.column}} such as {{access.qty_stock}}, only for the sources the rule uses and never for the columns phone and customer_name. Write the template text in the language given by "language" (at most 500 characters).
 
 DATA SOURCES (use only these names)
 - whatsapp: columns author, text. Entity: product.
@@ -267,24 +283,38 @@ class NLRuleService:
         self._spend_store = spend_store
         self._new_rule_id = new_rule_id
 
-    async def _ensure_budget(self) -> None:
-        """Refuse to go on when the budget is spent or cannot be checked."""
+    async def _reserve_budget(self, reservation_usd: float) -> None:
+        """Reserve the estimated cost of a call, or refuse when the budget is spent.
+
+        The reservation is added to the shared counter before the call, in one
+        atomic step that also returns the total: calls in flight at the same
+        time each see the others' reservations, so the cap is overshot by at
+        most the cost of the last call admitted. A refused call gives its
+        reservation back.
+
+        Raises:
+            NLBudgetUnavailable: The counter cannot be read or updated.
+            NLBudgetExceeded: The amount spent before this call reaches the cap.
+        """
         if self._spend_store is None:
             raise NLBudgetUnavailable()
         try:
-            spent = await self._spend_store.get_spent_usd()
+            total_usd = await self._spend_store.add_spent_usd(reservation_usd)
         except SpendStoreError as exc:
-            logger.error("LLM spend counter unreadable")
+            logger.error("LLM spend counter unavailable")
             raise NLBudgetUnavailable() from exc
-        if spent >= self._settings.budget_usd:
+        # Whole micro-dollars: float subtraction must not let an exactly spent budget through
+        spent_before = round(total_usd * MICROUSD_PER_USD) - math.ceil(reservation_usd * MICROUSD_PER_USD)
+        if spent_before >= round(self._settings.budget_usd * MICROUSD_PER_USD):
+            await self._record_spend(-reservation_usd)
             raise NLBudgetExceeded()
 
-    async def _record_spend(self, cost_usd: float) -> None:
-        """Add a cost to the counter. A failure is logged: the next call is refused anyway."""
+    async def _record_spend(self, delta_usd: float) -> None:
+        """Add an amount to the counter (negative to give back). A failure is logged: the next call is refused anyway."""
         if self._spend_store is None:
             return
         try:
-            await self._spend_store.add_spent_usd(cost_usd)
+            await self._spend_store.add_spent_usd(delta_usd)
         except SpendStoreError:
             logger.error("LLM spend could not be recorded")
 
@@ -311,18 +341,19 @@ class NLRuleService:
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
-            await self._ensure_budget()
+            reservation = estimate_reservation_usd(messages)
+            await self._reserve_budget(reservation)
             try:
                 reply = await self._client.complete(messages)
             except LlmError as exc:
                 # The prompt was sent: the provider may have billed it even without an answer
                 unanswered_cost = estimate_input_cost_usd(messages)
                 spent_here += unanswered_cost
-                await self._record_spend(unanswered_cost)
+                await self._record_spend(unanswered_cost - reservation)
                 self._log("provider_error", attempt, spent_here, started)
                 raise NLProviderError() from exc
             spent_here += reply.cost_usd
-            await self._record_spend(reply.cost_usd)
+            await self._record_spend(reply.cost_usd - reservation)
 
             try:
                 rule = parse_rule(reply.content, text, rule_id)

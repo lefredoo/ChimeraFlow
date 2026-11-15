@@ -6,13 +6,28 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
+import csv
 import logging
 import subprocess
+import zipfile
+
+from openpyxl.utils.exceptions import InvalidFileException
 
 logger = logging.getLogger(__name__)
 
-# Errors a connector may raise while reading its source
-CONNECTOR_ERRORS = (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError)
+# Errors a connector may raise while reading its source: I/O, bad values, and the
+# format errors of the readers (a truncated CSV, an .xlsx that is not a zip archive
+# or has the wrong extension)
+CONNECTOR_ERRORS = (
+    OSError,
+    ValueError,
+    KeyError,
+    RuntimeError,
+    subprocess.SubprocessError,
+    csv.Error,
+    zipfile.BadZipFile,
+    InvalidFileException,
+)
 
 
 @dataclass
