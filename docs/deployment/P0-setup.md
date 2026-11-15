@@ -115,7 +115,7 @@ docker compose logs -f
 docker compose down
 ```
 
-`docker-compose.yml` exige `DATABASE_URL`, `REDIS_PASSWORD`, `RATE_LIMIT_PER_IP` et `RATE_LIMIT_WINDOW_SECONDS`. Redis n'expose aucun port sur l'hôte.
+`docker-compose.yml` exige `DATABASE_URL`, `REDIS_PASSWORD`, `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS`, `AUTH_TOKEN_SECRET`, `DEMO_LOGIN_EMAIL` et `DEMO_LOGIN_PASSWORD_HASH`. Redis n'expose aucun port sur l'hôte.
 
 ---
 

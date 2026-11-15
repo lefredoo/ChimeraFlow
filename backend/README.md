@@ -91,6 +91,9 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `ACCESS_READER` | `mdbtools` (Docker, production) ou `access-parser` (Python pur, Windows local). Toute autre valeur arrête le démarrage |
 | `RATE_LIMIT_PER_IP` | requêtes de mutation autorisées par IP et par fenêtre (entier ≥ 1) |
 | `RATE_LIMIT_WINDOW_SECONDS` | durée de la fenêtre de limitation, en secondes (entier ≥ 1) |
+| `AUTH_TOKEN_SECRET` | secret de signature des jetons d'accès, 32 octets ou plus (par exemple 48 octets aléatoires en hexadécimal). Le renouveler invalide toutes les sessions |
+| `DEMO_LOGIN_EMAIL` | email du compte de démonstration (comparé sans casse ni espaces de bord) |
+| `DEMO_LOGIN_PASSWORD_HASH` | hash scrypt du mot de passe du compte, produit par `python -m auth.hash_password` (voir Authentification). Un hash mal formé arrête le démarrage, sans être affiché |
 
 **Facultatives** (le comportement associé est désactivé, ou laissé au défaut de la bibliothèque, quand elles ne sont pas définies)
 
@@ -100,6 +103,7 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `BACKEND_PORT` | port utilisé par `python main.py` (défaut d'uvicorn si absent) |
 | `BACKEND_LOG_LEVEL` | niveau de journalisation |
 | `RATE_LIMIT_NL_PER_IP` | limite de `POST /rules/from-text` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 5` (au moins 1) |
+| `RATE_LIMIT_LOGIN_PER_IP` | limite de `POST /auth/login` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 2` (au moins 3) |
 | `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
 | `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
 
@@ -140,6 +144,9 @@ $env:DATA_DIR = "../data"
 $env:ACCESS_READER = "access-parser"
 $env:RATE_LIMIT_PER_IP = "10"
 $env:RATE_LIMIT_WINDOW_SECONDS = "60"
+$env:AUTH_TOKEN_SECRET = "<au moins 32 caractères aléatoires>"
+$env:DEMO_LOGIN_EMAIL = "demo@example.com"
+$env:DEMO_LOGIN_PASSWORD_HASH = "<sortie de python -m auth.hash_password>"
 ```
 
 ### 3. Générer les données synthétiques
@@ -162,9 +169,20 @@ une fois (et après chaque nouvelle révision) avant de démarrer le serveur :
 .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 ```
 
-Documentation de l'API : http://localhost:8000/docs
+Documentation de l'API : http://localhost:8000/docs (hors production : elle n'est pas servie quand
+`BACKEND_NODE_ENV=production`, voir Authentification).
 
 ## Endpoints
+
+Tous les endpoints `/api/v1` sauf `POST /api/v1/auth/login` exigent `Authorization: Bearer <jeton>`.
+`/` et `/health` sont publics.
+
+### Authentification (`/api/v1/auth`)
+
+```
+POST /api/v1/auth/login   # {email, password} -> {access_token, token_type: "bearer", expires_in} (limité par IP)
+GET  /api/v1/auth/me      # compte du jeton présenté : {email}
+```
 
 ### Sources (`/api/v1/sources`)
 
@@ -232,11 +250,50 @@ Fonctionnement :
 **État réel :** le pipeline est testé avec LiteLLM simulé. Aucun appel à un vrai proxy n'a encore été fait
 (voir `docs/decisions/TECH_DEBT.md`).
 
+### Authentification
+
+Un compte de démonstration unique, public, défini par `DEMO_LOGIN_EMAIL` et `DEMO_LOGIN_PASSWORD_HASH`. Aucune
+dépendance : `hashlib.scrypt` (hash), `hmac` (HMAC-SHA256 des jetons), `secrets.compare_digest`.
+
+**Créer le hash du mot de passe.** Le mot de passe est lu sur l'entrée standard (jamais en argument, il
+resterait dans l'historique du shell) :
+
+```powershell
+# Depuis backend/. Le mot de passe fait 8 caractères au moins.
+"mot-de-passe-de-demo" | .venv\Scripts\python.exe -m auth.hash_password
+# scrypt:32768:8:1:<sel>:<clé>   <- valeur de DEMO_LOGIN_PASSWORD_HASH
+```
+
+Le format `scrypt:N:r:p:sel:clé` décrit ses paramètres ; il ne contient pas de `$` et passe donc dans un shell, un
+compose ou Doppler sans échappement.
+
+**Session.** `POST /api/v1/auth/login` répond `200` avec un jeton valable `expires_in` secondes (3600). Le jeton
+est `<charge utile>.<signature>` (JSON `{v, sub, iat, exp}` signé en HMAC-SHA256 avec `AUTH_TOKEN_SECRET`) : la
+signature est vérifiée avant de lire la charge, l'algorithme est fixe. Il n'y a pas de révocation avant
+l'expiration ; changer `AUTH_TOKEN_SECRET` (ou `DEMO_LOGIN_EMAIL`) invalide toutes les sessions.
+
+**Erreurs `401`** (avec `WWW-Authenticate: Bearer`) : `auth_invalid_credentials` (login : le même message que
+l'email soit inconnu ou le mot de passe faux, le hash est calculé dans les deux cas), `auth_required` (pas de jeton),
+`auth_token_invalid` (mal formé, signature fausse, autre compte), `auth_token_expired`.
+
+**Protection.** La dépendance `require_auth` est attachée à l'inclusion des routeurs dans `main.py` : un nouveau
+routeur `/api/v1` doit y être inscrit avec elle, et `tests/test_auth.py` vérifie que chaque route `/api/v1` hors login
+répond `401` sans jeton.
+
+**Limitation.** `POST /auth/login` a son compteur par IP (`RATE_LIMIT_LOGIN_PER_IP`, plus strict que les mutations).
+Le calcul du hash (32 Mio) tourne dans un thread, deux au plus à la fois.
+
+**Documentation interactive.** `/docs`, `/redoc` et `/openapi.json` ne sont pas servis quand
+`BACKEND_NODE_ENV=production` : Swagger UI ne peut pas envoyer l'en-tête Bearer au chargement du schéma.
+
+**Journaux.** Ni jeton, ni mot de passe, ni email ne sont journalisés (« Login accepted » / « Login refused »).
+
 ### Format des erreurs
 
 Toute erreur applicative a le corps `{"detail": {"code": "<code_stable>", "message": "<message court en anglais>"}}`.
 Le client traduit le `code` ; le `message` est une aide pour le développeur et ne s'affiche pas. Les erreurs
-de validation de requête (`422` de FastAPI) gardent le format liste de FastAPI.
+de validation de requête (`422`) sont une liste `{loc, msg, type}` sans la valeur rejetée (un mot de passe
+n'est jamais renvoyé).
 
 | Code | HTTP | Cas |
 |------|------|-----|
@@ -244,6 +301,8 @@ de validation de requête (`422` de FastAPI) gardent le format liste de FastAPI.
 | `rule_already_exists` | 409 | identifiant déjà pris ou réservé (règle prédéfinie) |
 | `invalid_status`, `invalid_severity` | 400 | filtre invalide |
 | `source_fetch_failed` | 500 | lecture de la source impossible |
+| `auth_invalid_credentials` | 401 | login : email ou mot de passe incorrect |
+| `auth_required`, `auth_token_invalid`, `auth_token_expired` | 401 | jeton absent, invalide ou expiré |
 | `rate_limit_exceeded` | 429 | limite par IP dépassée (en-tête `Retry-After` en secondes) |
 | `rate_limit_unavailable` | 503 | Redis du limiteur injoignable : la mutation est refusée |
 | `nl_feature_disabled` | 503 | variables `LITELLM_*` incomplètes |
@@ -450,7 +509,8 @@ Selon AGENTS.md §1 (règles de sécurité) :
 - Implémenté : aucune adresse IP, aucun texte utilisateur et aucune clé API dans les journaux du nouveau code
   (l'avertissement de slowapi, qui contient l'IP, est désactivé)
 - **Non implémenté** : assainissement des textes de source avant affichage (travail frontend)
-- **Non implémenté** : authentification des endpoints (voir `.kiro/specs/api-spec.md` §6)
+- Implémenté : **authentification** de tous les endpoints `/api/v1` (jeton Bearer, compte de démonstration unique),
+  connexion limitée par IP, `/docs` absent en production (voir Authentification)
 
 ## Développement
 

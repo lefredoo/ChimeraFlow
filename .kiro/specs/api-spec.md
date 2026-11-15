@@ -2,8 +2,12 @@
 
 Liste des endpoints définis dans `backend/main.py` et `backend/api/*.py` au 2026-11-14.
 Seuls les endpoints présents dans le code figurent ici. Aucun endpoint de conversion vers
-la base ni d'authentification n'existe. La documentation interactive est générée par
-FastAPI : `/docs` (Swagger UI), `/redoc` et `/openapi.json`.
+la base n'existe. La documentation interactive est générée par FastAPI (`/docs`, `/redoc`,
+`/openapi.json`) et n'est pas servie quand `BACKEND_NODE_ENV=production`.
+
+**Authentification.** Tous les endpoints `/api/v1` exigent l'en-tête `Authorization: Bearer <jeton>`,
+sauf `POST /api/v1/auth/login`. Seuls `GET /` et `GET /health` sont publics. Le jeton s'obtient par
+`POST /api/v1/auth/login` (§2.1) et expire au bout d'une heure.
 
 Toutes les réponses JSON sont en UTF-8. Les dates sont des chaînes ISO 8601.
 
@@ -18,11 +22,16 @@ Toutes les réponses JSON sont en UTF-8. Les dates sont des chaînes ISO 8601.
 ```
 
 - `code` est stable : le client traduit ce code. `message` est une aide pour le développeur, en anglais, à ne pas afficher.
+- Les réponses `401` portent `WWW-Authenticate: Bearer`.
 - Les erreurs `nl_*` ajoutent `fallback_rules` (liste de `RuleResponse`, les règles prédéfinies) dans `detail`.
-- Les erreurs de validation de requête (FastAPI, `422`) gardent le format FastAPI : `{"detail": [{"loc", "msg", "type"}]}`.
+- Les erreurs de validation de requête (`422`) sont une liste `{"detail": [{"loc", "msg", "type"}]}` : le format de FastAPI sans la valeur rejetée (`input`), pour ne pas renvoyer un mot de passe.
 
 | Code | HTTP | Endpoint(s) | Cas |
 |------|------|-------------|-----|
+| `auth_invalid_credentials` | 401 | auth/login | email inconnu ou mot de passe faux (même réponse dans les deux cas) |
+| `auth_required` | 401 | tous les endpoints `/api/v1` sauf login | en-tête `Authorization: Bearer` absent |
+| `auth_token_invalid` | 401 | idem | jeton mal formé, signature fausse ou compte inconnu |
+| `auth_token_expired` | 401 | idem | jeton authentique mais expiré |
 | `source_not_found` | 404 | sources/{source}/health, sources/{source}/records | source inconnue (`excel`, `access`, `whatsapp`, `momo`) |
 | `source_fetch_failed` | 500 | sources/{source}/records | lecture du fichier impossible |
 | `rule_not_found` | 404 | rules/{id} (GET, DELETE) | règle absente |
@@ -39,7 +48,7 @@ Toutes les réponses JSON sont en UTF-8. Les dates sont des chaînes ISO 8601.
 
 ### 1.2 Limitation par IP
 
-Limitées : `POST /api/v1/rules`, `DELETE /api/v1/rules/{rule_id}`,
+Limitées : `POST /api/v1/auth/login` (limite `RATE_LIMIT_LOGIN_PER_IP`, plus stricte), `POST /api/v1/rules`, `DELETE /api/v1/rules/{rule_id}`,
 `POST /api/v1/correlations/execute` (limite `RATE_LIMIT_PER_IP` par `RATE_LIMIT_WINDOW_SECONDS`)
 et `POST /api/v1/rules/from-text` (limite `RATE_LIMIT_NL_PER_IP`). Une requête refusée par la
 validation (422) n'est pas comptée. Toutes les lectures (GET) ne sont pas limitées.
@@ -75,13 +84,30 @@ validation (422) n'est pas comptée. Toutes les lectures (GET) ne sont pas limit
 Renvoie les liens de l'API.
 
 - **Limite** : aucune.
-- **Réponse 200** : `{"message": "ChimeraFlow API", "docs": "/docs", "health": "/health", "endpoints": {"sources": "/api/v1/sources", "rules": "/api/v1/rules", "correlations": "/api/v1/correlations"}}`
+- **Réponse 200** : `{"message": "ChimeraFlow API", "docs": "/docs", "health": "/health", "endpoints": {"auth": "/api/v1/auth", "sources": "/api/v1/sources", "rules": "/api/v1/rules", "correlations": "/api/v1/correlations"}}`. `docs` vaut `null` en production.
 
 ### GET /health
-Contrôle de vie du processus.
+Contrôle de vie du processus. Public.
 
 - **Limite** : aucune.
 - **Réponse 200** : `{"status": "ok", "service": "chimeraflow-api", "version": "0.1.0", "environment": "<BACKEND_NODE_ENV ou null>"}`
+
+### 2.1 Authentification (`/api/v1/auth`)
+
+Un seul compte de démonstration, public (`DEMO_LOGIN_EMAIL`, hash dans `DEMO_LOGIN_PASSWORD_HASH`).
+
+#### POST /api/v1/auth/login
+Échange les identifiants contre un jeton. Public.
+
+- **Corps** : `{"email": "<1 à 254 caractères>", "password": "<1 à 256 caractères>"}`. Aucun autre champ. L'email est comparé sans casse ni espaces de bord.
+- **Limite** : `RATE_LIMIT_LOGIN_PER_IP` par IP et par fenêtre.
+- **Réponse 200** : `{"access_token": "<jeton>", "token_type": "bearer", "expires_in": 3600}`
+- **Erreurs** : 401 `auth_invalid_credentials` ; 422 validation ; 429 `rate_limit_exceeded` (`Retry-After`) ; 503 `rate_limit_unavailable`.
+
+#### GET /api/v1/auth/me
+- **Limite** : aucune.
+- **Réponse 200** : `{"email": "<compte du jeton>"}`
+- **Erreurs** : 401 `auth_required`, `auth_token_invalid`, `auth_token_expired`.
 
 ---
 
@@ -193,7 +219,8 @@ Exécute les règles actives (ou celles demandées) sur les données courantes. 
 
 ## 6. Sécurité (état réel)
 
-- **Pas d'authentification.** Les endpoints de mutation sont protégés seulement par la limitation par IP. `AGENTS.md` §9 exige une authentification pour les opérations sensibles : écart à traiter avant une exposition publique (voir TECH_DEBT).
-- CORS : liste blanche `CORS_ORIGINS`, méthodes et en-têtes ouverts (`*`), identifiants autorisés.
-- Documentation `/docs` et `/openapi.json` publiques.
+- **Authentification par jeton Bearer** sur tous les endpoints `/api/v1` (lectures et mutations), sauf le login. Jeton signé HMAC-SHA256 par `AUTH_TOKEN_SECRET`, valable 1 h, sans révocation avant l'expiration. Compte unique et public : il protège contre l'accès anonyme et les robots, pas contre un utilisateur qui connaît le mot de passe affiché (voir TECH_DEBT).
+- Le login est limité par IP (`RATE_LIMIT_LOGIN_PER_IP`) et renvoie la même réponse que l'email soit inconnu ou le mot de passe faux. Ni jeton, ni mot de passe, ni email dans les journaux ni dans les réponses d'erreur.
+- CORS : liste blanche `CORS_ORIGINS`, méthodes et en-têtes ouverts (`*`), identifiants autorisés. `Retry-After` est exposé au navigateur.
+- Documentation `/docs`, `/redoc` et `/openapi.json` : non servies quand `BACKEND_NODE_ENV=production`, servies sinon (Swagger UI ne peut pas envoyer le jeton au chargement du schéma).
 - L'IP du client n'est jamais stockée (migration `0002`).

@@ -13,6 +13,14 @@ Required by AGENTS.md §15.
 
 ## Current Debt
 
+- [2026-11-15] Authentification : un seul compte de démonstration partagé et public, pas de comptes individuels ni de rôles | Med | backend/api/auth.py, backend/config.py
+- [2026-11-15] Les identifiants de démonstration sont dans le bundle JS public (`NEXT_PUBLIC_DEMO_LOGIN_*`) : un robot qui lit le bundle peut se connecter, seule la limitation par IP (`RATE_LIMIT_LOGIN_PER_IP`) le freine ; un défi anti-robot (CAPTCHA) ne serait pas une dépendance triviale | Med | frontend/lib/demo-credentials.ts, frontend/components/login-form.tsx
+- [2026-11-15] Pas de révocation d'un jeton avant son expiration (1 h) ; seul le changement de `AUTH_TOKEN_SECRET` invalide toutes les sessions | Low | backend/auth/tokens.py
+- [2026-11-15] Jeton conservé dans `sessionStorage` : lisible par un script injecté (XSS) ; atténué par l'échappement des textes affichés et la durée de 1 h | Low | frontend/lib/auth/token-storage.ts
+- [2026-11-15] Pas de test de composant de la page de connexion (parcours « Voir la démo », message d'erreur, redirection) : il faudrait jsdom et Testing Library (dépendances à approuver) ; seuls le stockage du jeton et les services sont testés, le parcours n'a pas été exécuté dans un navigateur | Med | frontend/components/login-form.tsx, frontend/components/auth-provider.tsx
+- [2026-11-15] `anyio` importé directement (plafond de hachages simultanés), dépendance transitive de FastAPI non épinglée dans requirements.txt | Low | backend/api/auth.py, backend/requirements.txt
+- [2026-11-15] `/docs` absent quand `BACKEND_NODE_ENV=production`, y compris avec `docker-compose.yml` local : pour l'utiliser en local, lancer uvicorn sans cette valeur | Low | backend/main.py, docker-compose.yml
+- [2026-11-15] CI : le job `migrations-postgres` reçoit un hash factice (valide, jamais utilisé) ; la CI n'exécute pas le parcours de connexion de bout en bout | Low | .github/workflows/ci.yml
 - [2026-11-14] Next.js 15.5.29 : `npm audit --omit=dev` signale encore 2 avis (postcss embarqué par next, XSS/lecture de source map, correctif seulement dans Next 16, changement majeur) ; postcss ne traite ici que le CSS du dépôt au build | Low | frontend/package.json
 - [2026-11-14] Tailwind v4 déclaré dans package.json mais non branché (ni `@tailwindcss/postcss` ni `postcss.config`) : le CSS du frontend est du CSS simple à tokens ; brancher Tailwind demande une dépendance à approuver | Low | frontend/package.json, frontend/app/globals.css
 - [2026-11-14] `next lint` est déprécié (retiré dans Next 16) : migrer vers l'ESLint CLI (`npx @next/codemod@canary next-lint-to-eslint-cli .`) | Low | frontend/package.json, frontend/.eslintrc.json

@@ -93,5 +93,5 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 
 ## Hors plan : dette à traiter
 
-- [ ] Sécurité : authentification des endpoints sensibles (`api-spec.md` §6)
+- [x] Sécurité : authentification de tous les endpoints `/api/v1` (jeton Bearer, compte de démonstration) et page `/login` (`api-spec.md` §2.1 et §6, résidus dans TECH_DEBT)
 - [ ] Voir `docs/decisions/TECH_DEBT.md` pour la liste complète, avec impact et fichiers

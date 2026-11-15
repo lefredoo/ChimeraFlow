@@ -66,6 +66,9 @@ $env:ACCESS_READER = "access-parser"              # Windows : pas de mdbtools
 $env:REDIS_URL = "redis://localhost:6379/0"
 $env:RATE_LIMIT_PER_IP = "10"
 $env:RATE_LIMIT_WINDOW_SECONDS = "60"
+$env:AUTH_TOKEN_SECRET = "<au moins 32 caractères aléatoires>"
+$env:DEMO_LOGIN_EMAIL = "demo@example.com"
+$env:DEMO_LOGIN_PASSWORD_HASH = "<sortie de : python -m auth.hash_password>"   # voir backend/README.md, Authentification
 ```
 
 Une variable requise absente arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
@@ -78,8 +81,10 @@ cd backend
 .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 ```
 
-- Documentation interactive : http://localhost:8000/docs
+- Documentation interactive : http://localhost:8000/docs (non servie quand `BACKEND_NODE_ENV=production`)
 - Santé : http://localhost:8000/health
+
+Tous les endpoints `/api/v1` exigent un jeton Bearer, obtenu par `POST /api/v1/auth/login` avec le compte de démonstration.
 
 ### 5. Lancer le frontend
 
@@ -89,13 +94,15 @@ npm install
 npm run dev     # http://localhost:3000
 ```
 
+Le frontend exige `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_DEMO_LOGIN_EMAIL` et `NEXT_PUBLIC_DEMO_LOGIN_PASSWORD` au build (le compte de démonstration est public : la page `/login` l'affiche). La page d'accueil redirige vers `/login` sans session.
+
 ### Docker Compose
 
 ```powershell
 docker compose up -d
 ```
 
-Le fichier `docker-compose.yml` démarre l'API (port 8000) et Redis (sans port publié). Il exige `DATABASE_URL`, `REDIS_PASSWORD`, `RATE_LIMIT_PER_IP` et `RATE_LIMIT_WINDOW_SECONDS`. L'API applique les migrations avant de servir les requêtes (point d'entrée du conteneur, voir `backend/Dockerfile`).
+Le fichier `docker-compose.yml` démarre l'API (port 8000) et Redis (sans port publié). Il exige `DATABASE_URL`, `REDIS_PASSWORD`, `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS`, `AUTH_TOKEN_SECRET`, `DEMO_LOGIN_EMAIL` et `DEMO_LOGIN_PASSWORD_HASH`. L'API applique les migrations avant de servir les requêtes (point d'entrée du conteneur, voir `backend/Dockerfile`).
 
 ---
 

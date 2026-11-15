@@ -440,6 +440,9 @@ A missing required variable stops the process at startup. There is no `.env.exam
 - `ACCESS_READER` — `mdbtools` (Docker/production) | `access-parser` (local Windows). Any other value stops startup, no fallback
 - `RATE_LIMIT_PER_IP` — Mutation requests allowed per client IP per window (integer ≥ 1)
 - `RATE_LIMIT_WINDOW_SECONDS` — Length of the rate limit window in seconds (integer ≥ 1)
+- `AUTH_TOKEN_SECRET` — Secret signing the access tokens (HMAC-SHA256), 32 bytes or more, random. Changing it invalidates every session
+- `DEMO_LOGIN_EMAIL` — Email of the single demo account
+- `DEMO_LOGIN_PASSWORD_HASH` — scrypt hash of its password (`python -m auth.hash_password`, password on stdin). A malformed hash stops startup
 - `REDIS_PASSWORD` — Required by `docker-compose.yml` only: Redis `requirepass`, embedded in `REDIS_URL` by compose. Must be URL-safe (e.g. `openssl rand -hex 24`)
 
 **Optional:**
@@ -447,8 +450,13 @@ A missing required variable stops the process at startup. There is no `.env.exam
 - `BACKEND_PORT` — Port used by `python main.py` (uvicorn default when unset; compose sets 8000)
 - `BACKEND_LOG_LEVEL` — Logging level (root logger untouched when unset)
 - `RATE_LIMIT_NL_PER_IP` — Limit of `POST /api/v1/rules/from-text` per IP per window. When unset: `RATE_LIMIT_PER_IP // 5`, at least 1
+- `RATE_LIMIT_LOGIN_PER_IP` — Limit of `POST /api/v1/auth/login` per IP per window. When unset: `RATE_LIMIT_PER_IP // 2`, at least 3
 - `TRUSTED_PROXIES` — Comma-separated IPs or CIDR networks of trusted reverse proxies (Traefik). `X-Forwarded-For` is read only from them. When unset, the TCP peer is the client
 - `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` — NL→rule conversion. Enabled only when all four are set (otherwise `503 nl_feature_disabled`). `LITELLM_BUDGET_USD` is the global cap in USD, must be a finite number greater than 0; `LITELLM_MODEL` is `openai/<alias>` when `LITELLM_BASE_URL` points to a LiteLLM proxy
+
+**Frontend (required at `next build`, read by `lib/config.ts` and `lib/demo-credentials.ts`):**
+- `NEXT_PUBLIC_API_URL` — Backend API base URL
+- `NEXT_PUBLIC_DEMO_LOGIN_EMAIL`, `NEXT_PUBLIC_DEMO_LOGIN_PASSWORD` — Demo account displayed on `/login`. Public by design (they ship in the client bundle): never a real credential, same values as `DEMO_LOGIN_EMAIL` and the password behind `DEMO_LOGIN_PASSWORD_HASH`
 
 ---
 

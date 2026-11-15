@@ -171,7 +171,8 @@ Le script VBS doit rester en ASCII seul (cscript le lit en ANSI) : les lettres a
 | `CORS_ORIGINS` | `http://localhost:3000` |
 | `ACCESS_READER` | `access-parser` (le lecteur mdbtools est construit explicitement dans les tests) |
 | `RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS` | `1000`, `60` (les tests de 429 abaissent la limite ; le limiteur utilise le stockage mémoire car `BACKEND_NODE_ENV=test`) |
-| `LITELLM_*`, `TRUSTED_PROXIES`, `RATE_LIMIT_NL_PER_IP` | retirés de l'environnement (la conversion NL→règle se configure par test ; seul `litellm.acompletion` est simulé) |
+| `AUTH_TOKEN_SECRET`, `DEMO_LOGIN_EMAIL`, `DEMO_LOGIN_PASSWORD_HASH` | valeurs de test (`tests/demo_account.py`) ; le hash est calculé à chaque exécution avec un sel neuf. La fixture `api_client` envoie un jeton valide, `anonymous_client` n'en envoie pas |
+| `LITELLM_*`, `TRUSTED_PROXIES`, `RATE_LIMIT_NL_PER_IP`, `RATE_LIMIT_LOGIN_PER_IP` | retirés de l'environnement (la conversion NL→règle se configure par test ; seul `litellm.acompletion` est simulé) |
 
 ## Intégration avec les hooks Kiro
 
