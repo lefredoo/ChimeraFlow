@@ -34,6 +34,9 @@ services:
       - LITELLM_BASE_URL
       - LITELLM_MODEL
       - LITELLM_BUDGET_USD
+      - RESEND_API_KEY
+      - ALERT_EMAIL_FROM
+      - ALERT_EMAIL_TO
     volumes:
       # Read-only mount of the synthetic data: edits show up without a rebuild. It
       # shadows the copy baked in the image (the code in /app comes from the image).

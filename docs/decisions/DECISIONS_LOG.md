@@ -18,6 +18,51 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-15] Noms partiels : inclusion de mots plutôt que `token_set_ratio`
+**Context**: « perceuse 500W » et « tuyau PVC » ne correspondaient pas à « Perceuse électrique 500W » et « Tuyau PVC Ø 32mm (barre 6m) » (comparaison de chaîne entière, garde numérique stricte).
+**Decision**: Un nom contenu mot pour mot dans l'autre correspond (méthode `token`, score de 0.85 à 0.99, jamais devant l'exact). Ses nombres doivent figurer dans l'autre nom (un nom sans nombre peut donc correspondre à un nom chiffré). La faute de frappe (`fuzzy`) exige le même nombre de mots et des mots d'au moins 5 lettres. Le résultat porte la méthode (`exact`, `synonym`, `fuzzy`, `token`) pour l'explication.
+**Alternatives rejected**: `token_set_ratio` seul : il vaut 100 pour une inclusion mais note 0.9 « tuyau pvc 32mm » et « tuyau ppr 32mm » (deux produits). Il reste utilisé sous forme de `fuzz.ratio` sur les mots triés, pour noter la couverture. Lever la garde numérique : « ciment 50 kg » et « ciment 40 kg » se confondraient.
+**Consequences**: Un nom d'un seul mot correspond à tout produit qui le contient (dette notée). Le test « tuyau PVC » contre « tuyau PVC 32mm » (rejeté avant) est inversé. Le faux positif préexistant PVC/PPR en chaîne entière est corrigé au passage.
+**AGENTS.md rule concerned**: aucune (le seuil flou 0.85 de `steering/connectors.md` est conservé)
+
+---
+
+## [2026-11-15] DSL étendu : conditions du déclencheur, écart calculé fermé, jointure sur `entities`
+**Context**: Trois règles prédéfinies étaient inactives car le DSL ne savait ni filtrer le record déclencheur, ni calculer un écart, ni joindre sur les entités d'un message.
+**Decision**: `trigger.where` (valeurs littérales), `ref` (`<source>.<colonne>` du déclencheur ou d'un join précédent) avec `tolerance_pct` (0 à 1000, opérateurs d'ordre), `on.field = "entities"`. Vocabulaire fermé et validé : colonnes connues par source (`schemas/sources.py`), bornes de taille, `momo.phone` et `momo.customer_name` interdits dans un template, clés inconnues refusées. Réactivation livrée par le seed : quand la définition d'une règle prédéfinie change, la version est incrémentée et le statut du fichier est appliqué ; une règle inchangée garde son statut. `POST /demo/reset` rétablit tout.
+**Alternatives rejected**: Expressions libres ou mini-langage (surface d'attaque, règle « pas d'exécution de code ») ; toujours écraser le statut au seed (efface un choix d'opérateur à chaque redémarrage) ; migration de données (une règle prédéfinie vient des fichiers, pas d'une migration).
+**Consequences**: Les règles stockées doivent respecter les nouvelles bornes (les cinq prédéfinies et les brouillons du modèle les respectent). La version de toutes les règles prédéfinies est incrémentée une fois. Aucun endpoint ne change le statut, donc rien n'est perdu.
+**AGENTS.md rule concerned**: §20 (schéma de règle étendu et mis à jour), §4 (JSON déclaratif, pas de code)
+
+---
+
+## [2026-11-15] Corrélations stables, explication stockée, flux lu avec fetch, alerte Resend
+**Context**: Il fallait expliquer chaque correspondance, offrir le temps réel et alerter par e-mail sans renvoyer les mêmes alertes à chaque exécution.
+**Decision**: `correlations.explanation` (JSON nullable, migration 0003). Une exécution garde la ligne, l'`id` et le `detected_at` d'une corrélation retrouvée (identité : message + records de la provenance) ; `since` et le flux ne voient que le nouveau. Flux SSE par interrogation de la base toutes les 2 s, lu avec `fetch` et l'en-tête Bearer (pas de jeton de flux). E-mail : un récapitulatif des nouvelles corrélations `warning` et `error`, tâche de fond, Resend via `httpx` (déjà présent), activé si les trois variables sont définies. `POST /normalize` sans limite par IP (sans état, borné, authentifié) pour noter pendant la frappe.
+**Alternatives rejected**: Remplacer toutes les lignes à chaque exécution (ids changeants, e-mail à chaque fois) ; jeton de flux signé en URL (jeton dans les journaux des proxys) ; Redis pub/sub ou mémoire de processus pour le flux (inutile avec plusieurs processus) ; SDK Resend (dépendance de plus).
+**Consequences**: Le flux coûte une lecture de base par flux toutes les 2 s (20 flux au plus). Les nouvelles variables sont facultatives et passées par `docker-compose.yml`. L'alerte n'a jamais été envoyée à un vrai Resend (dette).
+**AGENTS.md rule concerned**: §7 (fonction désactivée si une variable manque, aucun repli), §9 (pas de PII dans les journaux : destinataires et contenu jamais journalisés)
+
+---
+
+## [2026-11-15] Budget LLM : réservation avant l'appel, colonnes autorisées pour les brouillons du modèle
+**Context**: Le plafond n'était vérifié qu'avant l'appel et le coût ajouté après : des appels simultanés pouvaient le dépasser. Un brouillon pouvait aussi exposer `momo.phone` ou inventer des colonnes.
+**Decision**: `INCRBY` du coût estimé (prompt + réponse maximale) avant l'appel, refus si la dépense d'avant l'appel atteint le plafond (réservation rendue), puis règlement par la différence avec le coût réel. La validation `RuleCreate` refuse les colonnes inconnues et les placeholders de données personnelles ; le brouillon est relancé avec l'erreur, et le prompt décrit la nouvelle syntaxe.
+**Alternatives rejected**: Verrou Redis autour de l'appel (sérialise les conversions, 20 s chacune) ; refuser quand la réservation dépasse le plafond (refus prématuré près du plafond, tests existants).
+**Consequences**: Une requête annulée garde sa réservation (dette, sans sous-estimation). Le protocole `SpendStore.add_spent_usd` renvoie le total.
+**AGENTS.md rule concerned**: §4 (budget plafonné), `steering/security.md` (budget, validation du schéma, pas de confiance dans le modèle)
+
+---
+
+## [2026-11-15] Scénario de données : chaque règle prédéfinie trouve une corrélation
+**Context**: Seules deux règles produisaient quelque chose sur les fichiers livrés, et la démonstration doit montrer les cinq.
+**Decision**: WhatsApp et MoMo scriptés (messages et paiements explicites, dont un paiement `SUCCESS` et un `PENDING` pour le même ciment), dates Excel et Access rapprochées (fenêtre de 3 jours de `r_stock_replenish`), deux écarts de prix de 13 % et 14 %, des stocks sous 15 pour des produits demandés, un message à deux produits. Les téléphones MoMo générés sont manifestement faux (`237000…`). `tests/test_scenario_data.py` exécute les cinq règles sur les vrais fichiers.
+**Alternatives rejected**: Garder les dates aléatoires (une règle sur deux ne trouve rien) ; données tirées de vraies transactions (interdit, 100 % synthétique).
+**Consequences**: Les fichiers `data/*` changent (régénération par `scripts/generate_*.py` et `generate_access_windows.vbs`, ce dernier seulement sous Windows avec Access). Tout test qui lit ces fichiers dépend du scénario.
+**AGENTS.md rule concerned**: `steering/security.md` (données 100 % synthétiques)
+
+---
+
 ## [2026-11-15] Interface P3 : fil de couture, i18n par contexte, flux lu par fetch, tests de composants
 **Context**: Les écrans P3 (tableau de bord, règles, composeur, corrélations, bac à sable) devaient suivre DESIGN.md sans ressembler à une interface générée, fonctionner en FR/EN avec thème sombre, et rester utilisables quand les endpoints du chantier backend manquent.
 **Decision**: Signature visuelle unique, le « fil de couture » (trait pointillé qui relie les sources d'un résultat, coupé quand une source est en panne), icônes SVG à la place des émojis, aucun halo ni dégradé de texte. `t()` reste pur ; `LocaleProvider` et `useI18n()` portent la langue (FR par défaut, choix dans `localStorage`), `tp()` choisit la forme plurielle avec `Intl.PluralRules`. Thème par `data-theme` sur `<html>`. Flux SSE lu avec `fetch` (l'en-tête Bearer ne passe pas par `EventSource`), chaque événement relit la liste, repli sur une relecture toutes les 15 s. Réponses de l'API validées par des gardes de type (`lib/parsers.ts`) qui gardent les champs inconnus, pour que le JSON d'un brouillon soit renvoyé tel quel. Tiroirs et confirmations en `<dialog>` natif. Tests de composants avec Testing Library et jsdom, Vitest passé en 3.x.
