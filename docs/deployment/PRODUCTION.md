@@ -39,13 +39,19 @@ $env:SMOKE_PASSWORD = '<mot de passe de démonstration>'
 ./scripts/ops/smoke-prod.ps1
 ```
 
-Depuis GitHub : Actions → **Production smoke** → Run workflow. Le workflow lit les secrets de dépôt `SMOKE_EMAIL` et `SMOKE_PASSWORD`. Pour les recréer : lire les deux valeurs dans Doppler (`doppler secrets get NEXT_PUBLIC_DEMO_LOGIN_EMAIL NEXT_PUBLIC_DEMO_LOGIN_PASSWORD --plain`) puis `gh secret set SMOKE_EMAIL` et `gh secret set SMOKE_PASSWORD`.
+Depuis GitHub : Actions → **Production smoke** → Run workflow (échoue tant que l'API n'est pas joignable depuis Internet, voir plus haut). Le workflow lit les secrets de dépôt `SMOKE_EMAIL` et `SMOKE_PASSWORD`. Pour les recréer : lire les deux valeurs dans Doppler (`doppler secrets get NEXT_PUBLIC_DEMO_LOGIN_EMAIL NEXT_PUBLIC_DEMO_LOGIN_PASSWORD --plain`) puis `gh secret set SMOKE_EMAIL` et `gh secret set SMOKE_PASSWORD`.
 
 L'exécution des corrélations remplace celles des règles actives : lancer le test de fumée est sans effet durable sur les données.
 
+## Accessibilité de l'API depuis Internet
+
+État constaté le 2026-11-15 : l'enregistrement DNS `api.chimeraflow.linguasolution.com` pointe vers l'adresse Tailscale du VPS (plage 100.64.0.0/10), et le pare-feu du VPS (chaîne `DOCKER-USER`) rejette le trafic public entrant de `eth0` vers les ports 80 et 443. L'API n'est donc joignable que depuis le réseau Tailscale. Les runners GitHub (surveillance, test de fumée depuis GitHub) n'y accèdent pas (délai de connexion dépassé, `curl` code 28), et un visiteur du frontend hors Tailscale ne peut pas non plus appeler l'API depuis son navigateur. Le test de fumée en local passe, car le poste d'administration est sur le réseau Tailscale.
+
+Pour ouvrir l'API au public, deux gestes du propriétaire : faire pointer l'enregistrement DNS vers l'adresse publique du VPS et retirer les règles `DROP` de `DOCKER-USER` pour 80 et 443 (Traefik doit répondre au défi HTTP-01 de Let's Encrypt). Ensuite, activer la surveillance planifiée : variable de dépôt `UPTIME_SCHEDULE_ENABLED` à `true` (Settings → Secrets and variables → Actions → Variables).
+
 ## Surveillance de disponibilité
 
-Le workflow `.github/workflows/uptime.yml` s'exécute toutes les 30 minutes (et à la demande) : `GET /health` de l'API (HTTP 200 et `status` égal à `ok`) et `GET /login` du frontend (HTTP 200), avec trois essais espacés de 10 secondes pour ignorer une coupure brève.
+Le workflow `.github/workflows/uptime.yml` s'exécute à la demande et, une fois `UPTIME_SCHEDULE_ENABLED` à `true`, toutes les 30 minutes : `GET /health` de l'API (HTTP 200 et `status` égal à `ok`) et `GET /login` du frontend (HTTP 200), avec trois essais espacés de 10 secondes pour ignorer une coupure brève.
 
 - En cas d'échec, un unique ticket GitHub « Production is down », étiqueté `uptime`, est ouvert. Tant que la panne dure, chaque exécution y ajoute un commentaire au lieu d'ouvrir un nouveau ticket.
 - Au retour à la normale, le ticket est commenté puis fermé.

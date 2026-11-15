@@ -18,6 +18,24 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-15] Serveurs MCP stdio, un processus par source (SDK `mcp` 2.3.0)
+**Context**: La sortie de P1 exige des connecteurs servis en MCP et utilisés par Kiro ; AGENTS.md §18 vise « 4 serveurs MCP dans un conteneur ». Le SDK officiel `mcp` est approuvé.
+**Decision**: Un module (`mcp_servers/mcp_app.py`) lancé quatre fois via `backend/mcp_main.py --source <nom>`, transport stdio, outils `fetch_records(limit 1..1000)` et `health_check()` en lecture seule, ressource de métadonnées. Réglages dans `mcp_servers/mcp_settings.py` (`DATA_DIR`, `ACCESS_READER` pour `access` seulement, sans repli) au lieu de `config.py`, qui exige tous les réglages de l'API. Appels au connecteur dans un thread de travail, 5 s, 2 tentatives, sérialisés par un verrou (compteur `parse_errors` partagé, premier import d'openpyxl non sûr entre threads). `access_connector.py` n'importe plus `config` au chargement : `ACCESS_READERS` y est dérivé de ses lecteurs et `ACCESS_READER` est lu à la demande quand aucun lecteur n'est passé.
+**Alternatives rejected**: Un seul serveur à outils préfixés par source (Kiro ne montrerait qu'une entrée, un échec d'une source gênerait les autres) ; HTTP streamable dans compose (port et surface d'attaque en plus, sans besoin avant la démo) ; importer `config.py` (impose base, Redis et secrets d'authentification à un serveur lancé par Kiro) ; recopier la logique des connecteurs (deux sources de vérité).
+**Consequences**: Dépendance `mcp==2.3.0` (version majeure récente, ses dépendances ne sont pas épinglées). Pas de service MCP dans les fichiers compose : « 4 serveurs dans un conteneur » reste une cible (lancement possible par `docker run -i ... python mcp_main.py --source <nom>`). `ACCESS_READERS` est défini à deux endroits (`config.py` et `access_connector.py`), à unifier.
+**AGENTS.md rule concerned**: §7 (aucun repli de configuration), §16 (dépendance `mcp` approuvée par l'utilisateur), §18 (4 serveurs MCP : stdio seulement)
+
+---
+
+## [2026-11-15] Surveillance planifiée désactivée tant que l'API est privée
+**Context**: Le premier essai de `uptime.yml` et de « Production smoke » sur GitHub a échoué (`curl` code 28 vers l'API) : le DNS de l'API pointe vers l'adresse Tailscale du VPS et le pare-feu rejette le trafic public sur 80/443.
+**Decision**: Les exécutions planifiées de `uptime.yml` sont conditionnées à la variable de dépôt `UPTIME_SCHEDULE_ENABLED` (absente = désactivées) ; le lancement manuel reste possible. Le ticket `uptime` ouvert par ce faux positif est fermé avec une explication. Rien n'est modifié côté DNS ni pare-feu.
+**Alternatives rejected**: Laisser tourner le moniteur (ticket permanent, bruit) ; ouvrir le pare-feu ou changer le DNS (décision de réseau du propriétaire, hors périmètre) ; Tailscale sur le runner (secret supplémentaire, accès au réseau privé depuis GitHub).
+**Consequences**: Pas de surveillance automatique tant que le propriétaire n'a pas rendu l'API publique ; la dette est suivie dans `TECH_DEBT.md`.
+**AGENTS.md rule concerned**: §4 (blocage externe documenté dans `TECH_DEBT.md`)
+
+---
+
 ## [2026-11-15] Durcissement CI et exploitation : jobs frontend et secrets, moniteur, test de fumée, Dokploy sur main
 **Context**: Le dépôt est public, les Actions sont gratuites et `main` devient la production ; la CI ne couvrait pas le frontend, aucun contrôle ne vérifiait la production et Dokploy suivait encore `dev`.
 **Decision**: (1) CI : job « Frontend lint, tests and build » (Node 22, `npm ci`, tsc, lint, vitest, build avec des `NEXT_PUBLIC_*` factices) et job « Secret scan » (binaire gitleaks 8.30.1 épinglé par somme SHA-256, historique complet) ; actions tierces épinglées par SHA de commit. (2) `uptime.yml` toutes les 30 min : `/health` et `/login`, un seul ticket `uptime` ouvert puis fermé au retour ; la permission `issues: write` n'est donnée qu'au job qui gère le ticket. (3) `scripts/ops/smoke-prod.{sh,ps1}` : identifiants lus dans `SMOKE_EMAIL` / `SMOKE_PASSWORD`, jamais dans le dépôt ; workflow manuel « Production smoke » avec deux secrets de dépôt copiés depuis Doppler (valeurs publiques par construction). (4) Compose Dokploy `chimeraflow-api` : branche `main` (via l'API Dokploy), sans redéploiement ; `autoDeploy` laissé désactivé. (5) `docs/deployment/PRODUCTION.md` décrit déploiement, rotation du jeton Doppler, retour arrière.

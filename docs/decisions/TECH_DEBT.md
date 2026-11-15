@@ -12,6 +12,11 @@ Required by AGENTS.md §15.
 ---
 
 ## Current Debt
+- [2026-11-15] L'API n'est pas joignable depuis Internet : le DNS `api.chimeraflow` pointe vers l'adresse Tailscale du VPS et `DOCKER-USER` rejette 80/443 sur `eth0` ; les runners GitHub (surveillance, test de fumée) et les visiteurs hors Tailscale échouent. La surveillance planifiée est désactivée jusqu'à la variable `UPTIME_SCHEDULE_ENABLED=true`. Décision du propriétaire (réseau) | High | Dokploy, DNS, pare-feu du VPS, .github/workflows/uptime.yml, .github/workflows/smoke-prod.yml
+- [2026-11-15] MCP : `.kiro/settings/mcp.json` n'a pas pu être écrit (règle de permission sur `.kiro/settings/`), le modèle est dans `backend/mcp_servers/kiro-mcp.json` ; à copier puis à vérifier dans le panneau MCP de Kiro (répertoire de travail supposé égal à la racine du dépôt, chemins relatifs, Python du venv Windows) | Med | .kiro/settings/mcp.json, backend/mcp_servers/kiro-mcp.json
+- [2026-11-15] MCP : transport stdio seulement, aucun service compose ni HTTP streamable : « 4 serveurs MCP dans un conteneur » (AGENTS.md §18) reste une cible | Low | docker-compose.yml, backend/mcp_servers/mcp_app.py
+- [2026-11-15] MCP : après un dépassement de 5 s le thread de lecture n'est pas interrompu (Python ne tue pas un thread), il se termine seul ; le verrou de sérialisation reste tenu par l'appel suivant seulement quand celui-ci attend | Low | backend/mcp_servers/mcp_app.py
+- [2026-11-15] MCP : `mcp` 2.3.0 est récent et ses dépendances (httpx2, pyjwt, cryptography, pywin32 sous Windows) ne sont pas épinglées ; `ACCESS_READERS` existe dans `config.py` et dans `access_connector.py` | Low | backend/requirements.txt, backend/config.py, backend/mcp_servers/access_connector.py
 - [2026-11-15] Dokploy utilise le jeton Doppler en écriture : à remplacer par un jeton de service en lecture seule pour `chimeraflow/prd` | High | docker-compose.yml, Dokploy
 - [2026-11-15] Branche de production Vercel encore `main` : les déploiements de `dev` sont manuels, à basculer | Med | Vercel
 - [2026-11-15] Résidus de revue non corrigés : corps de requête analysé avant l'authentification (422 avant 401), file d'attente du `CapacityLimiter` non bornée, scrypt par défaut sous la recommandation OWASP (N = 2^17) | Low | backend/api/auth.py, backend/auth/passwords.py
