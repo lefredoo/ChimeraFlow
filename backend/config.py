@@ -36,13 +36,16 @@ def require_env(name: str, description: str) -> str:
 def optional_env(name: str) -> Optional[str]:
     """Get an optional environment variable.
 
+    An empty value is unset: Doppler and compose pass declared-but-empty
+    variables, and an empty API key must disable a feature, not enable it.
+
     Args:
         name: Variable name.
 
     Returns:
-        Variable value or None if not set.
+        Variable value, or None if unset or empty.
     """
-    return os.getenv(name)
+    return os.getenv(name) or None
 
 
 def _optional_int(name: str) -> Optional[int]:

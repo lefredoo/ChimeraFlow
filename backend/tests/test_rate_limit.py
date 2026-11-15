@@ -247,3 +247,26 @@ class TestConfiguration:
         result = self._import_config(TRUSTED_PROXIES="10.0.0.1, 172.16.0.0/12")
 
         assert result.returncode == 0
+
+    def test_should_disable_nl_conversion_when_litellm_api_key_is_empty(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from engine.nl_to_rule import nl_settings_from_config; "
+                "print(nl_settings_from_config() is None)",
+            ],
+            cwd=BACKEND_DIR,
+            env={
+                **os.environ,
+                "LITELLM_API_KEY": "",
+                "LITELLM_BASE_URL": "http://litellm.test",
+                "LITELLM_MODEL": "openai/test-model",
+                "LITELLM_BUDGET_USD": "5",
+            },
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "True"
