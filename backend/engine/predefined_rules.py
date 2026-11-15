@@ -16,9 +16,8 @@ RULES_DIR = Path(DATA_DIR) / "rules"
 
 PREDEFINED_RULES: List[PredefinedRule] = load_rule_files(RULES_DIR)
 
-# Rules whose natural language promises more than the DSL can express today
-# (no trigger-side where, no computed gap, join on an entity field). Their file
-# says `"status": "inactive"` so that no correlation contradicts its description.
+# Rules whose file says `"status": "inactive"`: seeded but never executed. Empty
+# when every shipped rule is expressible in the DSL.
 INACTIVE_PREDEFINED_IDS = frozenset(
     rule.id for rule in PREDEFINED_RULES if rule.status == "inactive"
 )

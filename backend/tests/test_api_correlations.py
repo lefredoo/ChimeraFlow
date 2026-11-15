@@ -49,7 +49,7 @@ def test_should_seed_every_predefined_rule_when_application_starts(api_client):
     assert ids == sorted(rule.id for rule in get_predefined_rules())
 
 
-def test_should_seed_three_rules_inactive_when_application_starts(api_client):
+def test_should_seed_rules_with_the_status_of_their_file_when_application_starts(api_client):
     statuses = {rule["id"]: rule["status"] for rule in api_client.get(f"{RULES_URL}/predefined").json()}
 
     inactive = {rule_id for rule_id, status in statuses.items() if status == "inactive"}
@@ -65,11 +65,11 @@ def test_should_not_duplicate_rules_when_seeding_twice(api_client):
 
 def test_should_keep_status_when_seeding_an_existing_rule(api_client):
     with SessionLocal() as db:
-        db.get(Rule, "r_payment_received").status = RuleStatus.active
+        db.get(Rule, "r_payment_received").status = RuleStatus.inactive
         db.commit()
         seed_predefined_rules(db)
 
-    assert api_client.get(f"{RULES_URL}/r_payment_received").json()["status"] == "active"
+    assert api_client.get(f"{RULES_URL}/r_payment_received").json()["status"] == "inactive"
 
 
 def test_should_persist_correlations_when_executing_a_predefined_rule(api_client, fake_sources):
@@ -84,9 +84,10 @@ def test_should_persist_correlations_when_executing_a_predefined_rule(api_client
 
 def test_should_return_same_correlation_count_when_executing_twice(api_client, fake_sources):
     api_client.post(EXECUTE_URL)
+    first = len(api_client.get(CORRELATIONS_URL).json())
     api_client.post(EXECUTE_URL)
 
-    assert len(api_client.get(CORRELATIONS_URL).json()) == 1
+    assert len(api_client.get(CORRELATIONS_URL).json()) == first > 0
 
 
 def test_should_execute_only_active_rules_when_no_rule_ids_given(api_client, fake_sources):
@@ -97,6 +98,10 @@ def test_should_execute_only_active_rules_when_no_rule_ids_given(api_client, fak
 
 
 def test_should_report_no_rules_when_requested_rule_is_inactive(api_client, fake_sources):
+    with SessionLocal() as db:
+        db.get(Rule, "r_payment_received").status = RuleStatus.inactive
+        db.commit()
+
     body = api_client.post(EXECUTE_URL, params={"rule_ids": "r_payment_received"}).json()
 
     assert body["status"] == "no_rules"

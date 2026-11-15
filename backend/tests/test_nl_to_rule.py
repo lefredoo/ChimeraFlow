@@ -138,7 +138,7 @@ class TestConversion:
 
         assert response.status_code == 200
         assert response.json()["retries"] == 0
-        assert response.json()["rule"]["trigger"] == VALID_DRAFT["trigger"]
+        assert response.json()["rule"]["trigger"] == {**VALID_DRAFT["trigger"], "where": []}
 
     def test_should_set_a_generated_id_and_the_user_text_when_returning_the_draft(self, nl_client, llm):
         llm([_answer()])

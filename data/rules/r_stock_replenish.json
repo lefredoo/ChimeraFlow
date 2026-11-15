@@ -1,12 +1,16 @@
 {
   "id": "r_stock_replenish",
-  "status": "inactive",
+  "status": "active",
   "natural_language": "Recommander un réapprovisionnement quand le stock Access est < 15 et qu'il y a eu des commandes WhatsApp récentes.",
-  "trigger": {"source": "access", "entity": "product"},
+  "trigger": {
+    "source": "access",
+    "entity": "product",
+    "where": [{"field": "qty_stock", "op": "lt", "value": 15}]
+  },
   "joins": [
     {
       "source": "whatsapp",
-      "on": {"entity": "product", "field": "text"},
+      "on": {"entity": "product", "field": "entities"},
       "where": []
     },
     {

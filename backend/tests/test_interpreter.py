@@ -1,6 +1,9 @@
 """
 Tests for the rule interpreter using in-memory unified records
 """
+import pytest
+
+from schemas.rule import RuleCreate
 from engine.interpreter import RuleInterpreter, render_template
 from engine.predefined_rules import get_predefined_rule
 from mcp_servers.base import UnifiedRecord
@@ -180,3 +183,179 @@ def test_should_render_empty_text_when_placeholder_field_is_missing():
 
 def test_should_render_empty_text_when_placeholder_source_is_missing():
     assert render_template("prix [{excel.Prix_Unitaire}]", {"product": "x"}) == "prix []"
+
+
+# --- DSL extension: trigger conditions, computed gaps, entity joins, multi-entity, explanation ---
+
+def _record(source, record_id, timestamp, payload, entities=()):
+    return UnifiedRecord(
+        id=record_id,
+        source=source,
+        source_ref=f"{source}#{record_id}",
+        timestamp=timestamp,
+        lang="fr",
+        entities=[{"type": "product", "raw": raw, "norm": raw.lower()} for raw in entities],
+        payload=payload,
+    )
+
+
+def _momo(status, record_id="momo-1", reference="Ciment 50 kg"):
+    return _record(
+        "momo", record_id, "2026-11-03T10:00:00",
+        {"status": status, "amount": 7500, "currency": "XAF", "reference": reference},
+        entities=[reference],
+    )
+
+
+def _whatsapp(*products, record_id="wa-1", timestamp="2026-11-03T08:00:00"):
+    return _record("whatsapp", record_id, timestamp, {"author": "Client A", "text": "x"}, entities=products)
+
+
+def _run(rule_id, triggers, **sources):
+    rule = get_predefined_rule(rule_id)
+    all_records = {rec.source: [] for rec in triggers}
+    for name, records in sources.items():
+        all_records[name] = records
+    all_records.setdefault(rule.trigger.source, []).extend(triggers)
+    return RuleInterpreter().execute(rule, triggers, all_records)
+
+
+def test_should_correlate_only_successful_payments_when_trigger_has_a_status_condition():
+    triggers = [_momo("SUCCESS", "momo-1"), _momo("PENDING", "momo-2")]
+
+    correlations = _run("r_payment_received", triggers, whatsapp=[_whatsapp("ciment 50kg")])
+
+    assert [c["provenance"][0]["record_id"] for c in correlations] == ["momo-1"]
+
+
+def test_should_report_trigger_condition_values_when_a_payment_is_correlated():
+    correlation = _run("r_payment_received", [_momo("SUCCESS")], whatsapp=[_whatsapp("ciment 50kg")])[0]
+
+    where = correlation["explanation"]["trigger"]["where"]
+    assert where == [
+        {"field": "status", "op": "eq", "expected": "SUCCESS", "actual": "SUCCESS", "passed": True}
+    ]
+
+
+def test_should_match_the_entities_of_a_message_when_join_field_is_entities():
+    correlation = _run("r_payment_received", [_momo("SUCCESS")], whatsapp=[_whatsapp("perceuse 500W", "ciment 50kg")])[0]
+
+    join = correlation["explanation"]["joins"][0]
+    assert (join["candidate"]["raw"], join["method"]) == ("ciment 50kg", "exact")
+
+
+def _access(prix_achat, qty_stock=40, designation="Perceuse électrique 500W"):
+    return _record(
+        "access", "access-1", "2026-11-05T00:00:00",
+        {"designation": designation, "qty_stock": qty_stock, "prix_achat": prix_achat},
+        entities=[designation],
+    )
+
+
+def _excel(price, produit="Perceuse électrique 500W", record_id="excel-1"):
+    return _record(
+        "excel", record_id, "2026-11-04T00:00:00",
+        {"Produit": produit, "Prix_Unitaire": price}, entities=[produit],
+    )
+
+
+@pytest.mark.parametrize(
+    ("supplier_price", "expected"),
+    [(46000, 0), (49500, 0), (49501, 1), (40500, 0), (40499, 1), (60000, 1)],
+)
+def test_should_flag_price_gap_only_when_it_exceeds_ten_percent(supplier_price, expected):
+    correlations = _run(
+        "r_price_comparison", [_access(45000)], excel=[_excel(supplier_price)]
+    )
+
+    assert len(correlations) == expected
+
+
+def test_should_report_the_gap_when_price_comparison_matches():
+    correlation = _run("r_price_comparison", [_access(45000)], excel=[_excel(60000)])[0]
+
+    condition = correlation["explanation"]["joins"][0]["where"][0]
+    assert (condition["gap_pct"], condition["expected"], condition["actual"]) == (33.333333, 45000, 60000)
+
+
+def test_should_not_flag_a_gap_when_the_reference_price_is_zero():
+    assert _run("r_price_comparison", [_access(0)], excel=[_excel(60000)]) == []
+
+
+def test_should_not_flag_a_gap_when_the_reference_price_is_missing():
+    assert _run("r_price_comparison", [_access(None)], excel=[_excel(60000)]) == []
+
+
+def test_should_skip_a_candidate_whose_gap_is_small_when_another_one_exceeds_it():
+    excel = [_excel(45500, record_id="excel-1"), _excel(60000, record_id="excel-2")]
+
+    correlations = _run("r_price_comparison", [_access(45000)], excel=excel)
+
+    assert [p["record_id"] for p in correlations[0]["provenance"]] == ["access-1", "excel-2"]
+
+
+def test_should_recommend_replenishment_only_when_trigger_stock_is_below_threshold():
+    kwargs = {"whatsapp": [_whatsapp("perceuse 500W", timestamp="2026-11-04T08:00:00")], "excel": [_excel(45000)]}
+
+    low = _run("r_stock_replenish", [_access(45000, qty_stock=14)], **kwargs)
+    enough = _run("r_stock_replenish", [_access(45000, qty_stock=15)], **kwargs)
+
+    assert (len(low), len(enough)) == (1, 0)
+
+
+def test_should_render_trigger_payload_fields_when_template_names_the_trigger_source():
+    kwargs = {"whatsapp": [_whatsapp("perceuse 500W", timestamp="2026-11-04T08:00:00")], "excel": [_excel(45000)]}
+
+    message = _run("r_stock_replenish", [_access(45000, qty_stock=8)], **kwargs)[0]["message"]
+
+    assert message == "Réappro recommandé : Perceuse électrique 500W - stock actuel: 8, prix fournisseur: 45000 FCFA"
+
+
+def test_should_correlate_every_product_of_a_message_when_it_carries_several():
+    rule = get_predefined_rule("r_high_value_order")
+    message = _whatsapp("perceuse 500W", "ciment 50 kg", "marteau")
+    excel = [_excel(45000), _excel(7500, "Ciment 50 kg", "excel-2"), _excel(15000, "Marteau rivoir 500g", "excel-3")]
+
+    correlations = RuleInterpreter().execute(rule, [message], {"whatsapp": [message], "excel": excel})
+
+    assert [c["explanation"]["trigger"]["entity"]["raw"] for c in correlations] == ["perceuse 500W", "marteau"]
+
+
+def test_should_correlate_a_product_once_when_a_message_repeats_it_in_other_words():
+    message = _whatsapp("ciment 50kg", "Ciment 50 kg")
+
+    correlations = _run("r_high_value_order", [message], excel=[_excel(20000, "Ciment 50 kg")])
+
+    assert len(correlations) == 1
+
+
+def test_should_explain_each_join_when_a_correlation_is_emitted():
+    correlation = _run_low_stock(_access_record(qty_stock=5))[0]
+
+    explanation = correlation["explanation"]
+    assert explanation["trigger"]["entity"] == {"raw": "ciment 50kg", "norm": "ciment 50 kg"}
+    assert [(j["source"], j["method"], j["score"]) for j in explanation["joins"]] == [
+        ("access", "exact", 1.0),
+        ("excel", "exact", 1.0),
+    ]
+    assert explanation["joins"][0]["where"] == [
+        {"field": "qty_stock", "op": "lt", "expected": 10, "actual": 5, "passed": True}
+    ]
+
+
+def test_should_report_the_partial_method_when_a_name_is_contained_in_a_longer_one():
+    kwargs = {"excel": [_excel(45000)]}
+
+    correlation = _run("r_high_value_order", [_whatsapp("perceuse 500W")], **kwargs)[0]
+
+    join = correlation["explanation"]["joins"][0]
+    assert (join["method"], join["candidate"]["raw"]) == ("token", "Perceuse électrique 500W")
+    assert 0.85 <= join["score"] < 1.0
+
+
+def test_should_reject_a_reference_to_a_source_that_is_not_matched_yet():
+    broken = get_predefined_rule("r_price_comparison").model_dump(mode="json", exclude={"status"})
+    broken["joins"][0]["where"][0]["ref"] = "whatsapp.text"
+
+    with pytest.raises(ValueError, match="neither the trigger nor an earlier join"):
+        RuleCreate.model_validate(broken)
