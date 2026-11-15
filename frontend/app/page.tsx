@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { FeatureCard } from "../components/feature-card";
+import { RequireAuth } from "../components/require-auth";
+import { UserBar } from "../components/user-bar";
 import { t } from "../lib/i18n";
 import { fetchHealth, type HealthResult } from "../lib/services/health-service";
 
@@ -15,7 +17,7 @@ const STATUS_LABEL_KEYS = {
   unreachable: "status.unreachable",
 } as const;
 
-export default function Home() {
+function Dashboard() {
   const [health, setHealth] = useState<HealthState>({ state: "checking" });
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export default function Home() {
   return (
     <main className="page">
       <div className="page-content">
+        <UserBar />
         <header className="hero">
           <h1 className="hero-title font-display">{t("home.title")}</h1>
           <p className="hero-tagline">{t("home.tagline")}</p>
@@ -86,5 +89,13 @@ export default function Home() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <RequireAuth>
+      <Dashboard />
+    </RequireAuth>
   );
 }
