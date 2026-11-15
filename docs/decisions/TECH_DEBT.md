@@ -41,7 +41,6 @@ Required by AGENTS.md §15.
 - [2026-11-15] CI frontend : `npm audit` ne tourne pas en CI (avis connus de Next et de vitest listés plus haut, sans correctif non majeur) | Low | .github/workflows/ci.yml
 - [2026-11-14] `@import` Google Fonts dans globals.css : requête vers un tiers (confidentialité, CSP) ; migrer vers `next/font` (auto-hébergement des polices IBM Plex) | Low | frontend/app/globals.css
 - [2026-11-14] `npm audit` hors production : vitest 1.x (esbuild, tinypool) et minimatch (typescript-eslint) signalés, correctif de vitest seulement en 4.x (majeur) ; outils de dev uniquement, absents du build déployé | Low | frontend/package.json
-- [2026-11-14] CI GitHub Actions bloquée : jobs non démarrés pour cause de facturation du compte (paiement échoué ou plafond de dépenses), run 43569157569 | High | .github/workflows/ci.yml
 - [2026-11-14] `_record_spend` : un INCRBY en échec est seulement journalisé ; la dépense n'est pas comptée (sécurité assurée aujourd'hui par le 503 du limiteur) | Low | backend/engine/nl_to_rule.py
 - [2026-11-14] Caractères non URL-safe de REDIS_PASSWORD non vérifiés au démarrage | Low | docker-compose.yml, backend/config.py
 - [2026-11-15] Pas de service Redis dans la CI : aucun test d'intégration marqué Redis n'existe (le limiteur utilise la mémoire en `BACKEND_NODE_ENV=test`, le compteur de dépense un faux client) ; ajouter le service avec le premier test d'intégration Redis | Med | .github/workflows/ci.yml, backend/tests
