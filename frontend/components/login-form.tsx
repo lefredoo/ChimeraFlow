@@ -31,6 +31,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -40,6 +41,10 @@ export function LoginForm() {
   }, [state.status, router]);
 
   async function submit(emailValue: string, passwordValue: string) {
+    // aria-disabled keeps the button focusable, so the guard lives here
+    if (submitting) {
+      return;
+    }
     setSubmitting(true);
     setError("");
     const result = await signIn(emailValue, passwordValue);
@@ -63,6 +68,8 @@ export function LoginForm() {
   const emailId = `${ids}-email`;
   const passwordId = `${ids}-password`;
   const errorId = `${ids}-error`;
+  const credentialsId = `${ids}-credentials`;
+  const describedBy = error === "" ? undefined : errorId;
 
   return (
     <div className="login-stack">
@@ -71,24 +78,40 @@ export function LoginForm() {
           {t("login.demo.heading")}
         </h2>
         <p className="text-secondary">{t("login.demo.description")}</p>
-        <dl className="credentials">
-          <div className="credentials-row">
-            <dt className="status-label">{t("login.demo.email")}</dt>
-            <dd className="font-mono">{DEMO_LOGIN_EMAIL}</dd>
-          </div>
-          <div className="credentials-row">
-            <dt className="status-label">{t("login.demo.password")}</dt>
-            <dd className="font-mono">{DEMO_LOGIN_PASSWORD}</dd>
-          </div>
-        </dl>
-        <button
-          type="button"
-          className="button button-primary"
-          onClick={handleDemo}
-          disabled={submitting}
-        >
-          {t("login.demo.button")}
-        </button>
+        {/* Revealed on click only: the credentials are not in the prerendered HTML that bots scrape */}
+        <div id={credentialsId}>
+          {revealed ? (
+            <dl className="credentials">
+              <div className="credentials-row">
+                <dt className="status-label">{t("login.demo.email")}</dt>
+                <dd className="font-mono">{DEMO_LOGIN_EMAIL}</dd>
+              </div>
+              <div className="credentials-row">
+                <dt className="status-label">{t("login.demo.password")}</dt>
+                <dd className="font-mono">{DEMO_LOGIN_PASSWORD}</dd>
+              </div>
+            </dl>
+          ) : null}
+        </div>
+        <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => setRevealed((value) => !value)}
+            aria-expanded={revealed}
+            aria-controls={credentialsId}
+          >
+            {revealed ? t("login.demo.hide") : t("login.demo.reveal")}
+          </button>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={handleDemo}
+            aria-disabled={submitting}
+          >
+            {t("login.demo.button")}
+          </button>
+        </div>
       </section>
 
       <section className="glass-panel panel" aria-labelledby={`${ids}-form-heading`}>
@@ -110,7 +133,7 @@ export function LoginForm() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               aria-invalid={error !== ""}
-              aria-describedby={errorId}
+              aria-describedby={describedBy}
             />
           </div>
           <div className="form-field">
@@ -127,14 +150,14 @@ export function LoginForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               aria-invalid={error !== ""}
-              aria-describedby={errorId}
+              aria-describedby={describedBy}
             />
           </div>
           {/* Always mounted: a live region must exist before its text changes to be announced */}
-          <p id={errorId} className="form-error" role="alert" aria-live="assertive">
+          <p id={errorId} className="form-error" role="alert">
             {error}
           </p>
-          <button type="submit" className="button button-primary" disabled={submitting}>
+          <button type="submit" className="button button-primary" aria-disabled={submitting}>
             {submitting ? t("login.submitting") : t("login.submit")}
           </button>
         </form>
