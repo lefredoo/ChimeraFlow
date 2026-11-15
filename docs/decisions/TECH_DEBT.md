@@ -12,6 +12,14 @@ Required by AGENTS.md §15.
 ---
 
 ## Current Debt
+- [2026-11-16] Flux SSE et interface : course possible sur la réservation d'un emplacement de flux, plafond par IP absent (seulement 20 flux par processus), flux non suspendu dans un onglet masqué, reconnexion sans délai croissant, et l'interrogation toutes les 2 s garde la base Neon éveillée | Med | backend/api/correlation_stream.py, frontend/lib/hooks, frontend/components
+- [2026-11-16] La première mise en production incrémente `version` des 5 règles prédéfinies et applique le statut du fichier (une règle désactivée à la main peut être réactivée) | Low | backend/models/seed.py
+- [2026-11-16] Un nom d'un seul mot correspond à tout produit qui le contient (voir l'entrée du 2026-11-15, toujours ouverte) | Low | backend/engine/normalizer.py
+- [2026-11-16] `correlations_found` peut dépasser le nombre de lignes de corrélations stockées | Low | backend/api/correlations.py
+- [2026-11-16] Les règles personnalisées déjà stockées qui violent la nouvelle liste blanche de colonnes ou la règle « une seule jointure par source » échoueront à l'exécution (« Rule execution failed ») : à vérifier en production avant le déploiement | Med | backend/schemas/rule.py, backend/engine/interpreter.py
+- [2026-11-16] Tests manquants relevés par la revue du 2026-11-16 (détail dans le rapport de revue) | Low | backend/tests
+- [2026-11-16] Le compteur `parse_errors` des connecteurs est partagé entre les threads, et les lectures en thread des serveurs MCP n'utilisent pas `abandon_on_cancel` | Low | backend/mcp_servers/base.py, backend/mcp_servers
+- [2026-11-16] Un e-mail d'alerte tombé pendant le délai global est perdu (les corrélations ne sont « nouvelles » qu'une fois) et un échec d'envoi consomme aussi le délai | Low | backend/engine/alerts.py
 - [2026-11-15] L'alerte e-mail n'a jamais été envoyée à un vrai Resend (transport HTTP simulé : clé, domaine d'expédition et format de la réponse non vérifiés) | Med | backend/engine/alerts.py
 - [2026-11-15] Un nom d'un seul mot correspond à tout produit qui le contient (« ciment » : « Ciment 50 kg » et « Ciment 25 kg » à score égal, le départage par le temps choisit) ; « ciment colle 50 kg » (sans trait d'union) correspond à « ciment 50 kg ». Inclusion de mots volontaire, à resserrer (mot-clé seul exclu) si la démonstration montre de faux rapprochements | Low | backend/engine/normalizer.py
 - [2026-11-15] `POST /api/v1/demo/reset` est ouvert à tout compte authentifié (le compte de démonstration est public et partagé) : n'importe quel visiteur connecté peut effacer les corrélations et rétablir les règles | Low | backend/api/demo.py

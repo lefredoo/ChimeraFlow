@@ -18,6 +18,13 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-16] Délai global des e-mails d'alerte, obligatoire avec Resend
+**Context**: Chaque exécution qui trouve de nouvelles corrélations `warning`/`error` envoyait un e-mail : des exécutions répétées pouvaient inonder la boîte et épuiser le quota Resend.
+**Decision**: `ALERT_EMAIL_COOLDOWN_SECONDS` (entier ≥ 60) limite à un récapitulatif par fenêtre, clé Redis `chimeraflow:alerts:cooldown` posée avec `SET NX EX`. Obligatoire dès que les trois variables Resend sont définies ; sans Redis ou en cas de panne, rien n'est envoyé (échec fermé).
+**Alternatives rejected**: Valeur par défaut documentée (comme `RATE_LIMIT_NL_PER_IP`) : une configuration oubliée resterait silencieuse. Compteur en mémoire de processus : non partagé entre workers.
+**Consequences**: Les corrélations nouvelles pendant le délai ne sont pas envoyées plus tard (elles restent visibles dans l'interface). Le démarrage échoue si Resend est configuré sans la nouvelle variable.
+**AGENTS.md rule concerned**: §7 (aucune valeur de repli)
+
 ## [2026-11-15] Noms partiels : inclusion de mots plutôt que `token_set_ratio`
 **Context**: « perceuse 500W » et « tuyau PVC » ne correspondaient pas à « Perceuse électrique 500W » et « Tuyau PVC Ø 32mm (barre 6m) » (comparaison de chaîne entière, garde numérique stricte).
 **Decision**: Un nom contenu mot pour mot dans l'autre correspond (méthode `token`, score de 0.85 à 0.99, jamais devant l'exact). Ses nombres doivent figurer dans l'autre nom (un nom sans nombre peut donc correspondre à un nom chiffré). La faute de frappe (`fuzzy`) exige le même nombre de mots et des mots d'au moins 5 lettres. Le résultat porte la méthode (`exact`, `synonym`, `fuzzy`, `token`) pour l'explication.

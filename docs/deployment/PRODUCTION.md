@@ -18,7 +18,9 @@ Les noms `api.chimeraflow` et `chimeraflow` sont en DNS seul, sans proxy : le d�
 
 ## Branches et déploiement
 
-`main` est la production et n'accepte que des PR depuis `dev` (CI verte obligatoire : « Backend lint and tests », « Backend Docker test stage », « Alembic migrations on PostgreSQL »).
+`main` est la production et n'accepte que des PR depuis `dev` (CI verte obligatoire).
+
+La CI compte cinq jobs : « Backend lint and tests », « Backend Docker test stage », « Alembic migrations on PostgreSQL », « Frontend lint, tests and build » et « Secret scan ». Seuls les trois premiers sont des vérifications obligatoires de `main` (protection de branche) ; les deux autres doivent rester verts par règle de l'équipe (AGENTS.md §4), même si GitHub n'empêche pas la fusion.
 
 1. Fusionner la PR `dev` → `main` (squash).
 2. **Frontend** : Vercel déploie `main` en production (branche de production du projet). Vérifier dans Vercel, onglet Deployments, que le déploiement est « Ready ».
