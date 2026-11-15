@@ -32,17 +32,24 @@ jobs:
           failures=""
 
           # Three attempts so a single network blip does not open an issue
+          # Prints the HTTP status, or "000 (curl exit N: message)" when the request itself failed
           probe() {
-            local url="$1" attempt code
+            local url="$1" attempt code rc detail=""
             for attempt in 1 2 3; do
-              code=$(curl -s -o "$2" -w '%{http_code}' --max-time 15 "$url" || true)
-              if [ "$code" = "200" ]; then
+              rc=0
+              code=$(curl -sS -o "$2" -w '%{http_code}' --max-time 15 "$url" 2>curl.err) || rc=$?
+              if [ "$rc" -eq 0 ] && [ "$code" = "200" ]; then
                 echo 200
                 return 0
               fi
+              if [ "$rc" -ne 0 ]; then
+                detail=" (curl exit ${rc}: $(head -n 1 curl.err))"
+              else
+                detail=""
+              fi
               sleep 10
             done
-            echo "${code:-000}"
+            echo "${code:-000}${detail}"
             return 1
           }
 
