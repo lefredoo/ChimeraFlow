@@ -18,6 +18,110 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] API publique sur `chimeraflow-api.linguasolution.com` via le tunnel partagé
+**Context**: L'API n'était pas joignable depuis Internet (DNS vers l'adresse Tailscale, ports 80 et 443 fermés sur `eth0`), donc les runners GitHub et le frontend hors Tailscale échouaient. Le propriétaire a déjà un tunnel Cloudflare `hetzner-1-web` qui sert ses autres applications.
+**Decision**: Le nom public est `chimeraflow-api.linguasolution.com` (CNAME proxied vers le tunnel `hetzner-1-web`, ingress vers Traefik en `https://localhost:443`). Traefik délivre le certificat en DNS-01. Les ports 80 et 443 du VPS restent fermés. Vercel pointe déjà sur ce nom.
+**Alternatives rejected**: `api.chimeraflow.linguasolution.com` : deux niveaux de sous-domaine, non couverts par l'Universal SSL de Cloudflare. DNS vers l'IP publique avec ports 80 et 443 ouverts : annule le durcissement du VPS décidé par le propriétaire.
+**Consequences**: Derrière le tunnel, l'IP cliente visible par l'API est celle de la passerelle Docker : la limitation de débit est partagée entre visiteurs jusqu'au correctif de `TRUSTED_PROXIES` (TECH_DEBT, 2026-11-17). Le correctif touche la config Traefik partagée et demande l'accord du propriétaire.
+**AGENTS.md rule concerned**: aucune
+
+---
+
+## [2026-11-17] E-mails via Cloudflare Email Service et alias LiteLLM nu
+**Context**: Le propriétaire utilise Cloudflare (Mailflare) pour toutes ses adresses, sur un sous-domaine de `linguasolution.com` ; le proxy LiteLLM attend l'alias `deepseek-v4.1-flash-group`, sans préfixe.
+**Decision**: L'alerte e-mail appelle l'API REST Cloudflare Email Service (`CF_EMAIL_ACCOUNT_ID` de 32 caractères hexadécimaux, `CF_EMAIL_API_TOKEN`), succès = HTTP 2xx et `success: true`, seuls les codes d'erreur sont journalisés ; expéditeur `ChimeraFlow <notifications@notify.linguasolution.com>`. Le client LiteLLM envoie l'alias tel quel avec `custom_llm_provider="openai"` (un ancien `openai/` est retiré une fois).
+**Alternatives rejected**: Resend (hors de la norme du propriétaire, domaine d'envoi à part). Préfixe `openai/` dans `LITELLM_MODEL` : il ne sert qu'à choisir le fournisseur par le nom, ce que le paramètre explicite fait sans modifier l'alias.
+**Consequences**: Variables `RESEND_API_KEY` remplacées dans Doppler et `docker-compose.yml`. Aucun envoi ni appel réel vérifié (TECH_DEBT). Le client HTTP `httpx` journalise l'URL (qui contient l'identifiant de compte) : son niveau est relevé à WARNING.
+**AGENTS.md rule concerned**: §7 (aucune valeur de repli), §22
+
+## [2026-11-16] Délai global des e-mails d'alerte, obligatoire avec Resend
+**Context**: Chaque exécution qui trouve de nouvelles corrélations `warning`/`error` envoyait un e-mail : des exécutions répétées pouvaient inonder la boîte et épuiser le quota Resend.
+**Decision**: `ALERT_EMAIL_COOLDOWN_SECONDS` (entier ≥ 60) limite à un récapitulatif par fenêtre, clé Redis `chimeraflow:alerts:cooldown` posée avec `SET NX EX`. Obligatoire dès que les trois variables Resend sont définies ; sans Redis ou en cas de panne, rien n'est envoyé (échec fermé).
+**Alternatives rejected**: Valeur par défaut documentée (comme `RATE_LIMIT_NL_PER_IP`) : une configuration oubliée resterait silencieuse. Compteur en mémoire de processus : non partagé entre workers.
+**Consequences**: Les corrélations nouvelles pendant le délai ne sont pas envoyées plus tard (elles restent visibles dans l'interface). Le démarrage échoue si Resend est configuré sans la nouvelle variable.
+**AGENTS.md rule concerned**: §7 (aucune valeur de repli)
+
+## [2026-11-15] Noms partiels : inclusion de mots plutôt que `token_set_ratio`
+**Context**: « perceuse 500W » et « tuyau PVC » ne correspondaient pas à « Perceuse électrique 500W » et « Tuyau PVC Ø 32mm (barre 6m) » (comparaison de chaîne entière, garde numérique stricte).
+**Decision**: Un nom contenu mot pour mot dans l'autre correspond (méthode `token`, score de 0.85 à 0.99, jamais devant l'exact). Ses nombres doivent figurer dans l'autre nom (un nom sans nombre peut donc correspondre à un nom chiffré). La faute de frappe (`fuzzy`) exige le même nombre de mots et des mots d'au moins 5 lettres. Le résultat porte la méthode (`exact`, `synonym`, `fuzzy`, `token`) pour l'explication.
+**Alternatives rejected**: `token_set_ratio` seul : il vaut 100 pour une inclusion mais note 0.9 « tuyau pvc 32mm » et « tuyau ppr 32mm » (deux produits). Il reste utilisé sous forme de `fuzz.ratio` sur les mots triés, pour noter la couverture. Lever la garde numérique : « ciment 50 kg » et « ciment 40 kg » se confondraient.
+**Consequences**: Un nom d'un seul mot correspond à tout produit qui le contient (dette notée). Le test « tuyau PVC » contre « tuyau PVC 32mm » (rejeté avant) est inversé. Le faux positif préexistant PVC/PPR en chaîne entière est corrigé au passage.
+**AGENTS.md rule concerned**: aucune (le seuil flou 0.85 de `steering/connectors.md` est conservé)
+
+---
+
+## [2026-11-15] DSL étendu : conditions du déclencheur, écart calculé fermé, jointure sur `entities`
+**Context**: Trois règles prédéfinies étaient inactives car le DSL ne savait ni filtrer le record déclencheur, ni calculer un écart, ni joindre sur les entités d'un message.
+**Decision**: `trigger.where` (valeurs littérales), `ref` (`<source>.<colonne>` du déclencheur ou d'un join précédent) avec `tolerance_pct` (0 à 1000, opérateurs d'ordre), `on.field = "entities"`. Vocabulaire fermé et validé : colonnes connues par source (`schemas/sources.py`), bornes de taille, `momo.phone` et `momo.customer_name` interdits dans un template, clés inconnues refusées. Réactivation livrée par le seed : quand la définition d'une règle prédéfinie change, la version est incrémentée et le statut du fichier est appliqué ; une règle inchangée garde son statut. `POST /demo/reset` rétablit tout.
+**Alternatives rejected**: Expressions libres ou mini-langage (surface d'attaque, règle « pas d'exécution de code ») ; toujours écraser le statut au seed (efface un choix d'opérateur à chaque redémarrage) ; migration de données (une règle prédéfinie vient des fichiers, pas d'une migration).
+**Consequences**: Les règles stockées doivent respecter les nouvelles bornes (les cinq prédéfinies et les brouillons du modèle les respectent). La version de toutes les règles prédéfinies est incrémentée une fois. Aucun endpoint ne change le statut, donc rien n'est perdu.
+**AGENTS.md rule concerned**: §20 (schéma de règle étendu et mis à jour), §4 (JSON déclaratif, pas de code)
+
+---
+
+## [2026-11-15] Corrélations stables, explication stockée, flux lu avec fetch, alerte Resend
+**Context**: Il fallait expliquer chaque correspondance, offrir le temps réel et alerter par e-mail sans renvoyer les mêmes alertes à chaque exécution.
+**Decision**: `correlations.explanation` (JSON nullable, migration 0003). Une exécution garde la ligne, l'`id` et le `detected_at` d'une corrélation retrouvée (identité : message + records de la provenance) ; `since` et le flux ne voient que le nouveau. Flux SSE par interrogation de la base toutes les 2 s, lu avec `fetch` et l'en-tête Bearer (pas de jeton de flux). E-mail : un récapitulatif des nouvelles corrélations `warning` et `error`, tâche de fond, Resend via `httpx` (déjà présent), activé si les trois variables sont définies. `POST /normalize` sans limite par IP (sans état, borné, authentifié) pour noter pendant la frappe.
+**Alternatives rejected**: Remplacer toutes les lignes à chaque exécution (ids changeants, e-mail à chaque fois) ; jeton de flux signé en URL (jeton dans les journaux des proxys) ; Redis pub/sub ou mémoire de processus pour le flux (inutile avec plusieurs processus) ; SDK Resend (dépendance de plus).
+**Consequences**: Le flux coûte une lecture de base par flux toutes les 2 s (20 flux au plus). Les nouvelles variables sont facultatives et passées par `docker-compose.yml`. L'alerte n'a jamais été envoyée à un vrai Resend (dette).
+**AGENTS.md rule concerned**: §7 (fonction désactivée si une variable manque, aucun repli), §9 (pas de PII dans les journaux : destinataires et contenu jamais journalisés)
+
+---
+
+## [2026-11-15] Budget LLM : réservation avant l'appel, colonnes autorisées pour les brouillons du modèle
+**Context**: Le plafond n'était vérifié qu'avant l'appel et le coût ajouté après : des appels simultanés pouvaient le dépasser. Un brouillon pouvait aussi exposer `momo.phone` ou inventer des colonnes.
+**Decision**: `INCRBY` du coût estimé (prompt + réponse maximale) avant l'appel, refus si la dépense d'avant l'appel atteint le plafond (réservation rendue), puis règlement par la différence avec le coût réel. La validation `RuleCreate` refuse les colonnes inconnues et les placeholders de données personnelles ; le brouillon est relancé avec l'erreur, et le prompt décrit la nouvelle syntaxe.
+**Alternatives rejected**: Verrou Redis autour de l'appel (sérialise les conversions, 20 s chacune) ; refuser quand la réservation dépasse le plafond (refus prématuré près du plafond, tests existants).
+**Consequences**: Une requête annulée garde sa réservation (dette, sans sous-estimation). Le protocole `SpendStore.add_spent_usd` renvoie le total.
+**AGENTS.md rule concerned**: §4 (budget plafonné), `steering/security.md` (budget, validation du schéma, pas de confiance dans le modèle)
+
+---
+
+## [2026-11-15] Scénario de données : chaque règle prédéfinie trouve une corrélation
+**Context**: Seules deux règles produisaient quelque chose sur les fichiers livrés, et la démonstration doit montrer les cinq.
+**Decision**: WhatsApp et MoMo scriptés (messages et paiements explicites, dont un paiement `SUCCESS` et un `PENDING` pour le même ciment), dates Excel et Access rapprochées (fenêtre de 3 jours de `r_stock_replenish`), deux écarts de prix de 13 % et 14 %, des stocks sous 15 pour des produits demandés, un message à deux produits. Les téléphones MoMo générés sont manifestement faux (`237000…`). `tests/test_scenario_data.py` exécute les cinq règles sur les vrais fichiers.
+**Alternatives rejected**: Garder les dates aléatoires (une règle sur deux ne trouve rien) ; données tirées de vraies transactions (interdit, 100 % synthétique).
+**Consequences**: Les fichiers `data/*` changent (régénération par `scripts/generate_*.py` et `generate_access_windows.vbs`, ce dernier seulement sous Windows avec Access). Tout test qui lit ces fichiers dépend du scénario.
+**AGENTS.md rule concerned**: `steering/security.md` (données 100 % synthétiques)
+
+---
+
+## [2026-11-15] Interface P3 : fil de couture, i18n par contexte, flux lu par fetch, tests de composants
+**Context**: Les écrans P3 (tableau de bord, règles, composeur, corrélations, bac à sable) devaient suivre DESIGN.md sans ressembler à une interface générée, fonctionner en FR/EN avec thème sombre, et rester utilisables quand les endpoints du chantier backend manquent.
+**Decision**: Signature visuelle unique, le « fil de couture » (trait pointillé qui relie les sources d'un résultat, coupé quand une source est en panne), icônes SVG à la place des émojis, aucun halo ni dégradé de texte. `t()` reste pur ; `LocaleProvider` et `useI18n()` portent la langue (FR par défaut, choix dans `localStorage`), `tp()` choisit la forme plurielle avec `Intl.PluralRules`. Thème par `data-theme` sur `<html>`. Flux SSE lu avec `fetch` (l'en-tête Bearer ne passe pas par `EventSource`), chaque événement relit la liste, repli sur une relecture toutes les 15 s. Réponses de l'API validées par des gardes de type (`lib/parsers.ts`) qui gardent les champs inconnus, pour que le JSON d'un brouillon soit renvoyé tel quel. Tiroirs et confirmations en `<dialog>` natif. Tests de composants avec Testing Library et jsdom, Vitest passé en 3.x.
+**Alternatives rejected**: next-intl ou react-intl (dépendance pour une trentaine de clés par écran) ; `EventSource` avec jeton dans l'URL (jeton dans les journaux) ; bibliothèque de modales (le `<dialog>` piège le focus et gère Échap) ; Monaco pour le JSON (poids, et la modification passe par le composeur).
+**Consequences**: Nouvelles dépendances de développement : vitest 3.2.7, jsdom 26.1.0, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.10. Le thème explicite peut clignoter une fois au chargement (appliqué après l'hydratation). Le panneau « Pourquoi ça correspond » lit le format actuel de l'explication et retombe sur un affichage générique sinon.
+**AGENTS.md rule concerned**: §4 (aucun texte en dur : tout passe par `messages/*.json`), §6 (logique dans `lib/`, `fetch` dans `lib/services/`), §8 (pluriels et dates par `Intl`)
+
+---
+
+## [2026-11-15] Serveurs MCP stdio, un processus par source (SDK `mcp` 2.3.0)
+**Context**: La sortie de P1 exige des connecteurs servis en MCP et utilisés par Kiro ; AGENTS.md §18 vise « 4 serveurs MCP dans un conteneur ». Le SDK officiel `mcp` est approuvé.
+**Decision**: Un module (`mcp_servers/mcp_app.py`) lancé quatre fois via `backend/mcp_main.py --source <nom>`, transport stdio, outils `fetch_records(limit 1..1000)` et `health_check()` en lecture seule, ressource de métadonnées. Réglages dans `mcp_servers/mcp_settings.py` (`DATA_DIR`, `ACCESS_READER` pour `access` seulement, sans repli) au lieu de `config.py`, qui exige tous les réglages de l'API. Appels au connecteur dans un thread de travail, 5 s, 2 tentatives, sérialisés par un verrou (compteur `parse_errors` partagé, premier import d'openpyxl non sûr entre threads). `access_connector.py` n'importe plus `config` au chargement : `ACCESS_READERS` y est dérivé de ses lecteurs et `ACCESS_READER` est lu à la demande quand aucun lecteur n'est passé.
+**Alternatives rejected**: Un seul serveur à outils préfixés par source (Kiro ne montrerait qu'une entrée, un échec d'une source gênerait les autres) ; HTTP streamable dans compose (port et surface d'attaque en plus, sans besoin avant la démo) ; importer `config.py` (impose base, Redis et secrets d'authentification à un serveur lancé par Kiro) ; recopier la logique des connecteurs (deux sources de vérité).
+**Consequences**: Dépendance `mcp==2.3.0` (version majeure récente, ses dépendances ne sont pas épinglées). Pas de service MCP dans les fichiers compose : « 4 serveurs dans un conteneur » reste une cible (lancement possible par `docker run -i ... python mcp_main.py --source <nom>`). `ACCESS_READERS` est défini à deux endroits (`config.py` et `access_connector.py`), à unifier.
+**AGENTS.md rule concerned**: §7 (aucun repli de configuration), §16 (dépendance `mcp` approuvée par l'utilisateur), §18 (4 serveurs MCP : stdio seulement)
+
+---
+
+## [2026-11-15] Surveillance planifiée désactivée tant que l'API est privée
+**Context**: Le premier essai de `uptime.yml` et de « Production smoke » sur GitHub a échoué (`curl` code 28 vers l'API) : le DNS de l'API pointe vers l'adresse Tailscale du VPS et le pare-feu rejette le trafic public sur 80/443.
+**Decision**: Les exécutions planifiées de `uptime.yml` sont conditionnées à la variable de dépôt `UPTIME_SCHEDULE_ENABLED` (absente = désactivées) ; le lancement manuel reste possible. Le ticket `uptime` ouvert par ce faux positif est fermé avec une explication. Rien n'est modifié côté DNS ni pare-feu.
+**Alternatives rejected**: Laisser tourner le moniteur (ticket permanent, bruit) ; ouvrir le pare-feu ou changer le DNS (décision de réseau du propriétaire, hors périmètre) ; Tailscale sur le runner (secret supplémentaire, accès au réseau privé depuis GitHub).
+**Consequences**: Pas de surveillance automatique tant que le propriétaire n'a pas rendu l'API publique ; la dette est suivie dans `TECH_DEBT.md`.
+**AGENTS.md rule concerned**: §4 (blocage externe documenté dans `TECH_DEBT.md`)
+
+---
+
+## [2026-11-15] Durcissement CI et exploitation : jobs frontend et secrets, moniteur, test de fumée, Dokploy sur main
+**Context**: Le dépôt est public, les Actions sont gratuites et `main` devient la production ; la CI ne couvrait pas le frontend, aucun contrôle ne vérifiait la production et Dokploy suivait encore `dev`.
+**Decision**: (1) CI : job « Frontend lint, tests and build » (Node 22, `npm ci`, tsc, lint, vitest, build avec des `NEXT_PUBLIC_*` factices) et job « Secret scan » (binaire gitleaks 8.30.1 épinglé par somme SHA-256, historique complet) ; actions tierces épinglées par SHA de commit. (2) `uptime.yml` toutes les 30 min : `/health` et `/login`, un seul ticket `uptime` ouvert puis fermé au retour ; la permission `issues: write` n'est donnée qu'au job qui gère le ticket. (3) `scripts/ops/smoke-prod.{sh,ps1}` : identifiants lus dans `SMOKE_EMAIL` / `SMOKE_PASSWORD`, jamais dans le dépôt ; workflow manuel « Production smoke » avec deux secrets de dépôt copiés depuis Doppler (valeurs publiques par construction). (4) Compose Dokploy `chimeraflow-api` : branche `main` (via l'API Dokploy), sans redéploiement ; `autoDeploy` laissé désactivé. (5) `docs/deployment/PRODUCTION.md` décrit déploiement, rotation du jeton Doppler, retour arrière.
+**Alternatives rejected**: `gitleaks/gitleaks-action` (code tiers avec accès au dépôt, licence selon le type de compte) au profit du binaire vérifié par somme ; service Redis dans la CI (aucun test d'intégration Redis n'existe, il tournerait sans rien tester) ; `autoDeploy` sur `main` (une fusion déploierait sans contrôle d'une variable Doppler manquante, l'API s'arrêterait au démarrage) ; URLs de production en paramètre des scripts de fumée (repli de configuration, §7).
+**Consequences**: `main` exige maintenant aussi les nouveaux jobs si le propriétaire les ajoute aux contrôles requis ; les secrets de dépôt `SMOKE_*` suivent `NEXT_PUBLIC_DEMO_LOGIN_*` ; le ticket d'indisponibilité dépend des notifications GitHub du dépôt ; le compose Dokploy est sur `main` : le prochain déploiement attend la fusion de la PR `dev` → `main`.
+**AGENTS.md rule concerned**: §4 et §12 (dette corrigée dans le cycle), §7 (pas de repli de configuration)
+
+---
+
 ## [2026-11-15] Déploiement initial depuis dev
 **Context**: La démonstration doit être en ligne avant la fusion de la PR `dev` → `main`, sans quoi rien n'est testable en conditions réelles.
 **Decision**: Le compose Dokploy `chimeraflow-api` (VPS) et le projet Vercel `chimeraflow` se déploient depuis la branche `dev` jusqu'à la fusion de la PR. La branche de production Vercel reste `main` : les déploiements de `dev` sont donc lancés à la main, par référence git. Les noms `api.chimeraflow` et `chimeraflow` (zone `linguasolution.com`) sont en DNS seul (sans proxy) ; Traefik obtient les certificats Let's Encrypt par HTTP-01.

@@ -37,6 +37,7 @@ class WhatsAppConnector(BaseConnector):
         """
         records = []
         limit = min(limit, 1000)
+        self.parse_errors = 0  # counts the errors of this fetch only
 
         # Android format: [DD/MM/YYYY, HH:MM:SS] Author: Message
         pattern = r'\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\] ([^:]+): (.+)'

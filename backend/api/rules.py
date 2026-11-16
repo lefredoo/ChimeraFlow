@@ -3,6 +3,7 @@ Rule management API endpoints
 POST /rules, GET /rules, DELETE /rules/{id}
 """
 from fastapi import APIRouter, Depends, Request
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
@@ -61,7 +62,7 @@ def _predefined_responses(db: Session) -> List[RuleResponse]:
 
 
 @router.get("/predefined", response_model=List[RuleResponse])
-async def list_predefined_rules(db: Session = Depends(get_db)):
+def list_predefined_rules(db: Session = Depends(get_db)):
     """
     Get list of predefined rules
 
@@ -98,7 +99,8 @@ async def create_rule_from_text(
             raise NLFeatureDisabled()
         conversion = await service.convert(payload.text, payload.language)
     except NLError as error:
-        fallback = [rule.model_dump(mode="json") for rule in _predefined_responses(db)]
+        predefined = await run_in_threadpool(_predefined_responses, db)
+        fallback = [rule.model_dump(mode="json") for rule in predefined]
         raise api_error(
             error.status_code, error.code, error.message, fallback_rules=fallback
         ) from error
@@ -108,7 +110,7 @@ async def create_rule_from_text(
 
 @router.post("", response_model=RuleResponse, status_code=201)
 @limiter.limit(mutation_limit)
-async def create_rule(
+def create_rule(
     rule: RuleCreate,
     request: Request,
     db: Session = Depends(get_db)
@@ -148,7 +150,7 @@ async def create_rule(
 
 
 @router.get("", response_model=List[RuleResponse])
-async def list_rules(
+def list_rules(
     status: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
@@ -171,7 +173,7 @@ async def list_rules(
 
 
 @router.get("/{rule_id}", response_model=RuleResponse)
-async def get_rule(rule_id: str, db: Session = Depends(get_db)):
+def get_rule(rule_id: str, db: Session = Depends(get_db)):
     """Get a specific rule by ID"""
     rule = db.query(Rule).filter(Rule.id == rule_id).first()
 
@@ -183,7 +185,7 @@ async def get_rule(rule_id: str, db: Session = Depends(get_db)):
 
 @router.delete("/{rule_id}", status_code=204)
 @limiter.limit(mutation_limit)
-async def delete_rule(rule_id: str, request: Request, db: Session = Depends(get_db)):
+def delete_rule(rule_id: str, request: Request, db: Session = Depends(get_db)):
     """Delete a rule (rate limited per IP)"""
     rule = db.query(Rule).filter(Rule.id == rule_id).first()
 

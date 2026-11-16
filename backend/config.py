@@ -4,6 +4,7 @@ Follows AGENTS.md §7: No fallback values, fail fast on missing required vars
 """
 import math
 import os
+import re
 from ipaddress import IPv4Network, IPv6Network, ip_network
 from typing import Optional, Tuple, Union
 
@@ -317,3 +318,107 @@ LITELLM_BUDGET_USD = _optional_float("LITELLM_BUDGET_USD")
 # A cap that is NaN (every comparison false), infinite or not positive is no cap
 if LITELLM_BUDGET_USD is not None and not (math.isfinite(LITELLM_BUDGET_USD) and LITELLM_BUDGET_USD > 0):
     raise ValueError("Environment variable 'LITELLM_BUDGET_USD' must be a finite number greater than 0")
+
+
+# E-mail alert digest through Cloudflare Email Service (optional: disabled unless the
+# account id, the API token, the sender and at least one recipient are all set)
+MAX_ALERT_RECIPIENTS = 5
+_EMAIL_ADDRESS = re.compile(r"^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$")
+# "Name <address>" or a bare address, on one line
+_EMAIL_SENDER = re.compile(r"^(?:[^<>\r\n@]{1,100} )?<?[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+>?$")
+# Cloudflare account identifier: 32 hexadecimal characters
+_CF_ACCOUNT_ID = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _parse_alert_recipients(raw: Optional[str]) -> Tuple[str, ...]:
+    """Parse the comma-separated ALERT_EMAIL_TO list.
+
+    Args:
+        raw: Raw variable value, or None when unset.
+
+    Returns:
+        Recipient addresses (empty when unset).
+
+    Raises:
+        ValueError: If an entry is not an e-mail address or there are too many (never echoed).
+    """
+    if raw is None:
+        return ()
+    recipients = tuple(item.strip() for item in raw.split(",") if item.strip())
+    if len(recipients) > MAX_ALERT_RECIPIENTS:
+        raise ValueError(f"Environment variable 'ALERT_EMAIL_TO' accepts at most {MAX_ALERT_RECIPIENTS} addresses")
+    if not all(_EMAIL_ADDRESS.match(address) for address in recipients):
+        raise ValueError("Environment variable 'ALERT_EMAIL_TO' must hold comma-separated e-mail addresses")
+    return recipients
+
+
+def _optional_alert_sender() -> Optional[str]:
+    """Read ALERT_EMAIL_FROM (an address or "Name <address>").
+
+    Raises:
+        ValueError: If the value is not a one-line sender (never echoed).
+    """
+    value = optional_env("ALERT_EMAIL_FROM")
+    if value is None:
+        return None
+    if not _EMAIL_SENDER.match(value.strip()):
+        raise ValueError("Environment variable 'ALERT_EMAIL_FROM' must be an e-mail address")
+    return value.strip()
+
+
+MIN_ALERT_COOLDOWN_SECONDS = 60
+
+
+def _alert_cooldown(email_enabled: bool) -> Optional[int]:
+    """Read ALERT_EMAIL_COOLDOWN_SECONDS: at most one digest per window.
+
+    Required (no fallback) once the e-mail alert is enabled, so that a
+    misconfigured deployment stops at startup instead of flooding a mailbox.
+
+    Args:
+        email_enabled: True when the account id, the API token, the sender and a recipient are all set.
+
+    Returns:
+        The cooldown in seconds, or None when unset and the alert is disabled.
+
+    Raises:
+        ValueError: If the alert is enabled and the variable is unset, or if it is
+            not an integer of at least MIN_ALERT_COOLDOWN_SECONDS.
+    """
+    value = _optional_int("ALERT_EMAIL_COOLDOWN_SECONDS")
+    if value is None:
+        if email_enabled:
+            raise ValueError(
+                "Required environment variable 'ALERT_EMAIL_COOLDOWN_SECONDS' is not set.\n"
+                "Purpose: minimum delay in seconds between two alert e-mails (the e-mail alert is enabled)\n"
+                "Set it in .env file or via Doppler."
+            )
+        return None
+    if value < MIN_ALERT_COOLDOWN_SECONDS:
+        raise ValueError(
+            f"Environment variable 'ALERT_EMAIL_COOLDOWN_SECONDS' must be at least {MIN_ALERT_COOLDOWN_SECONDS}"
+        )
+    return value
+
+
+def _optional_cf_account_id() -> Optional[str]:
+    """Read CF_EMAIL_ACCOUNT_ID (the Cloudflare account identifier, 32 hex characters).
+
+    Raises:
+        ValueError: If the value is not 32 hexadecimal characters (never echoed).
+    """
+    value = optional_env("CF_EMAIL_ACCOUNT_ID")
+    if value is None:
+        return None
+    if not _CF_ACCOUNT_ID.match(value.strip()):
+        raise ValueError("Environment variable 'CF_EMAIL_ACCOUNT_ID' must be 32 hexadecimal characters")
+    return value.strip()
+
+
+CF_EMAIL_ACCOUNT_ID = _optional_cf_account_id()
+CF_EMAIL_API_TOKEN = optional_env("CF_EMAIL_API_TOKEN")
+ALERT_EMAIL_FROM = _optional_alert_sender()
+ALERT_EMAIL_TO = _parse_alert_recipients(optional_env("ALERT_EMAIL_TO"))
+ALERT_EMAIL_COOLDOWN_SECONDS = _alert_cooldown(
+    bool(CF_EMAIL_ACCOUNT_ID and CF_EMAIL_API_TOKEN and ALERT_EMAIL_FROM and ALERT_EMAIL_TO)
+)

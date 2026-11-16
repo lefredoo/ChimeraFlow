@@ -26,15 +26,19 @@ def _definition(rule: PredefinedRule) -> dict:
     }
 
 
-def seed_predefined_rules(db: Session) -> None:
+def seed_predefined_rules(db: Session, restore_status: bool = False) -> None:
     """Insert or update the predefined rules (idempotent).
 
     A missing rule is inserted with the status of its file.
-    An existing rule gets its definition refreshed and its version bumped when
-    it changed; its status is kept so an operator's choice survives a restart.
+    An existing rule whose shipped definition changed gets the new definition,
+    a bumped version and the status of its file: that is how a release
+    reactivates a rule it fixed. An unchanged rule keeps its stored status, so
+    an operator's choice survives a restart.
 
     Args:
         db: Open session. The caller owns the session; this function commits.
+        restore_status: Also put every rule back to the status of its file
+            (demo reset), whether or not its definition changed.
     """
     for rule in get_predefined_rules():
         definition = _definition(rule)
@@ -50,6 +54,9 @@ def seed_predefined_rules(db: Session) -> None:
             for column, value in definition.items():
                 setattr(existing, column, value)
             existing.version += 1
+            existing.status = RuleStatus[rule.status]
+        elif restore_status:
+            existing.status = RuleStatus[rule.status]
 
     db.commit()
     logger.info("Predefined rules seeded")

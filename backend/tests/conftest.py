@@ -39,6 +39,11 @@ for _name in (
     "LITELLM_MODEL",
     "LITELLM_BUDGET_USD",
     "TRUSTED_PROXIES",
+    "CF_EMAIL_ACCOUNT_ID",  # the e-mail alert is enabled per test
+    "CF_EMAIL_API_TOKEN",
+    "ALERT_EMAIL_FROM",
+    "ALERT_EMAIL_TO",
+    "ALERT_EMAIL_COOLDOWN_SECONDS",
     "RATE_LIMIT_NL_PER_IP",  # unset: the derived default is what test_rate_limit.py checks
     "RATE_LIMIT_LOGIN_PER_IP",  # unset: the derived default is what test_auth.py checks
 ):

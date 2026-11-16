@@ -25,6 +25,9 @@ from api.rate_limit import register_rate_limiting
 from api.sources import router as sources_router
 from api.rules import router as rules_router
 from api.correlations import router as correlations_router
+from api.correlation_stream import router as correlation_stream_router
+from api.normalize import router as normalize_router
+from api.demo import router as demo_router
 
 # Import database session
 from models.base import SessionLocal
@@ -114,6 +117,9 @@ app.include_router(auth_router)
 app.include_router(sources_router, dependencies=[Depends(require_auth)])
 app.include_router(rules_router, dependencies=[Depends(require_auth)])
 app.include_router(correlations_router, dependencies=[Depends(require_auth)])
+app.include_router(correlation_stream_router, dependencies=[Depends(require_auth)])
+app.include_router(normalize_router, dependencies=[Depends(require_auth)])
+app.include_router(demo_router, dependencies=[Depends(require_auth)])
 
 
 @app.get("/health")
@@ -138,7 +144,9 @@ async def root():
             "auth": "/api/v1/auth",
             "sources": "/api/v1/sources",
             "rules": "/api/v1/rules",
-            "correlations": "/api/v1/correlations"
+            "correlations": "/api/v1/correlations",
+            "normalize": "/api/v1/normalize",
+            "demo": "/api/v1/demo"
         }
     }
 

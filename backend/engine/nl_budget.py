@@ -4,6 +4,10 @@ LLM spend tracking for the NL->rule conversion.
 The hard budget cap (LITELLM_BUDGET_USD) is global: every conversion adds its
 cost to one counter kept in Redis, so that all workers share it and a restart
 does not reset it. The counter has no expiry; deleting the key resets the budget.
+
+A call is paid in two steps. The estimated cost is reserved (INCRBY) before the
+call, so that calls in flight at the same time are all counted, then corrected
+by the difference with the real cost once the answer is known.
 """
 import math
 from typing import Any, Protocol
@@ -24,8 +28,12 @@ class SpendStore(Protocol):
     async def get_spent_usd(self) -> float:
         """Return the total spent so far, in USD."""
 
-    async def add_spent_usd(self, amount_usd: float) -> None:
-        """Add an amount to the total spent, in USD."""
+    async def add_spent_usd(self, amount_usd: float) -> float:
+        """Add an amount to the total spent, in USD (negative to give back a reservation).
+
+        Returns:
+            The total spent after the addition, atomically with it.
+        """
 
 
 class RedisSpendStore:
@@ -54,13 +62,14 @@ class RedisSpendStore:
         except (RedisError, ValueError) as exc:
             raise SpendStoreError("Cannot read the LLM spend counter") from exc
 
-    async def add_spent_usd(self, amount_usd: float) -> None:
-        """Add an amount to the total spent (rounded up to a micro-dollar).
+    async def add_spent_usd(self, amount_usd: float) -> float:
+        """Add an amount to the total spent (rounded up to a micro-dollar) and return the new total.
 
         Raises:
             SpendStoreError: If Redis fails.
         """
         try:
-            await self._client.incrby(SPEND_KEY, math.ceil(amount_usd * MICROUSD_PER_USD))
-        except RedisError as exc:
+            total = await self._client.incrby(SPEND_KEY, math.ceil(amount_usd * MICROUSD_PER_USD))
+            return int(total) / MICROUSD_PER_USD
+        except (RedisError, ValueError, TypeError) as exc:
             raise SpendStoreError("Cannot update the LLM spend counter") from exc

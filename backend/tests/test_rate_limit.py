@@ -261,7 +261,7 @@ class TestConfiguration:
                 **os.environ,
                 "LITELLM_API_KEY": "",
                 "LITELLM_BASE_URL": "http://litellm.test",
-                "LITELLM_MODEL": "openai/test-model",
+                "LITELLM_MODEL": "test-model",
                 "LITELLM_BUDGET_USD": "5",
             },
             capture_output=True,

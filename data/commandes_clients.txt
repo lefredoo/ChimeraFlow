@@ -7,6 +7,7 @@
 [02/11/2026, 11:48:00] Client C: Marteau rivoir en stock?
 [03/11/2026, 08:48:00] Client B: Prix de la peinture blanche 1L?
 [03/11/2026, 09:22:00] ZOBO Quincaillerie: En stock. Passez nous voir
+[03/11/2026, 10:05:00] Mme Nguema: Bonjour, il me faut du ciment 50 kg et une perceuse 500W svp
 [03/11/2026, 13:38:00] Client C: Cadenas laiton 40mm, combien?
 [04/11/2026, 08:01:00] Client A: Je cherche des pointes 2.5" pour mon chantier
 [04/11/2026, 10:42:00] ZOBO Quincaillerie: Rupture de stock. Retour lundi

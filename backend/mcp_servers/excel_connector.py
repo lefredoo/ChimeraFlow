@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 
-from .base import BaseConnector, UnifiedRecord
+from .base import BaseConnector, UnifiedRecord, to_finite_float
 
 
 class ExcelConnector(BaseConnector):
@@ -35,6 +35,7 @@ class ExcelConnector(BaseConnector):
         """
         records: List[UnifiedRecord] = []
         limit = min(limit, 1000)  # Max 1000
+        self.parse_errors = 0  # counts the errors of this fetch only
 
         try:
             # Read Excel with openpyxl engine (handles merged cells better)
@@ -77,7 +78,7 @@ class ExcelConnector(BaseConnector):
                     }],
                     payload={
                         "Produit": product,
-                        "Prix_Unitaire": float(price_cell) if pd.notna(price_cell) else None,
+                        "Prix_Unitaire": to_finite_float(price_cell) if pd.notna(price_cell) else None,
                         "Fournisseur": "" if pd.isna(supplier_cell) else str(supplier_cell).strip(),
                         "Date_MAJ": updated_iso,
                         "row_index": int(idx)

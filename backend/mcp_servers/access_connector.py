@@ -10,11 +10,11 @@ from typing import Callable, Dict, List, Optional
 from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
+import math
 import subprocess
 import csv
 from io import StringIO
 
-from config import ACCESS_READER, ACCESS_READERS
 from .base import BaseConnector, UnifiedRecord
 
 # mdb-export default date format first, then ISO 8601
@@ -176,6 +176,10 @@ _TABLE_LISTERS: Dict[str, Callable[[Path], List[str]]] = {
     "access-parser": _list_tables_access_parser,
 }
 
+# Supported readers (config.ACCESS_READERS lists the same two; config is not
+# imported here so the standalone MCP servers do not need the API settings)
+ACCESS_READERS = tuple(_ROW_READERS)
+
 
 class AccessConnector(BaseConnector):
     """
@@ -201,7 +205,12 @@ class AccessConnector(BaseConnector):
         super().__init__("access")
         self.file_path = Path(file_path)
         self.table_name = table_name
-        self.reader = ACCESS_READER if reader is None else reader
+        if reader is None:
+            # Imported here: config requires every API setting at import time
+            from config import ACCESS_READER
+
+            reader = ACCESS_READER
+        self.reader = reader
         if self.reader not in ACCESS_READERS:
             raise ValueError(
                 f"Unknown Access reader '{self.reader}', expected one of: {', '.join(ACCESS_READERS)}"
@@ -219,6 +228,7 @@ class AccessConnector(BaseConnector):
         """
         records: List[UnifiedRecord] = []
         limit = min(limit, 1000)
+        self.parse_errors = 0  # counts the errors of this fetch only
 
         try:
             rows = _ROW_READERS[self.reader](self.file_path, self.table_name)
@@ -258,6 +268,11 @@ class AccessConnector(BaseConnector):
                 prix_achat: Optional[float] = float((row.get("prix_achat") or "").strip())
             except ValueError:
                 prix_achat = None
+
+            if prix_achat is not None and not math.isfinite(prix_achat):
+                self.logger.warning(f"Access row {idx}: non-finite prix_achat, skipped")
+                self.parse_errors += 1
+                continue
 
             records.append(UnifiedRecord(
                 id=f"access-{article_id or idx}",

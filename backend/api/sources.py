@@ -2,8 +2,10 @@
 Sources API - Expose MCP connectors via REST endpoints
 """
 from fastapi import APIRouter, Query
-from typing import Dict, Any
+from typing import Any, Awaitable, Callable, Dict, TypeVar
 from pathlib import Path
+import anyio
+import asyncio
 import logging
 
 from api.errors import SOURCE_FETCH_FAILED, SOURCE_NOT_FOUND, api_error
@@ -17,6 +19,14 @@ from mcp_servers.momo_connector import MobileMoneyConnector
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/sources", tags=["sources"])
+
+T = TypeVar("T")
+
+
+async def _off_loop(operation: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
+    """Run a connector coroutine in a worker thread: connector I/O (pandas, mdb-export) blocks."""
+    return await anyio.to_thread.run_sync(lambda: asyncio.run(operation(*args, **kwargs)))
+
 
 # Initialize connectors (singleton pattern)
 _connectors: Dict[str, Any] = {}
@@ -47,7 +57,7 @@ async def list_sources():
     sources = []
     
     for name, connector in connectors.items():
-        health = await connector.health_check()
+        health = await _off_loop(connector.health_check)
         sources.append({
             "name": name,
             "status": health["status"],
@@ -69,7 +79,7 @@ async def source_health(source: str):
         raise api_error(404, SOURCE_NOT_FOUND, "Source not found")
     
     connector = connectors[source]
-    health = await connector.health_check()
+    health = await _off_loop(connector.health_check)
     
     return health
 
@@ -89,7 +99,7 @@ async def fetch_all_records(
     
     for name, connector in connectors.items():
         try:
-            records = await connector.fetch_records(limit=limit_per_source)
+            records = await _off_loop(connector.fetch_records, limit=limit_per_source)
             all_records.extend([r.to_dict() for r in records])
         except CONNECTOR_ERRORS as e:
             logger.error(f"Failed to fetch records from {name}: {e}")
@@ -128,7 +138,7 @@ async def fetch_source_records(
     connector = connectors[source]
     
     try:
-        records = await connector.fetch_records(limit=limit)
+        records = await _off_loop(connector.fetch_records, limit=limit)
         return {
             "source": source,
             "count": len(records),

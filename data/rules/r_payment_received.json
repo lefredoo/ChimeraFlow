@@ -1,12 +1,16 @@
 {
   "id": "r_payment_received",
-  "status": "inactive",
-  "natural_language": "Quand un paiement Mobile Money est reçu, vérifier s'il correspond à une commande WhatsApp récente.",
-  "trigger": {"source": "momo", "entity": "product"},
+  "status": "active",
+  "natural_language": "Quand un paiement Mobile Money est reçu avec le statut SUCCESS, vérifier s'il correspond à une commande WhatsApp récente.",
+  "trigger": {
+    "source": "momo",
+    "entity": "product",
+    "where": [{"field": "status", "op": "eq", "value": "SUCCESS"}]
+  },
   "joins": [
     {
       "source": "whatsapp",
-      "on": {"entity": "product", "field": "text"},
+      "on": {"entity": "product", "field": "entities"},
       "where": []
     }
   ],

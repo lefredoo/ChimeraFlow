@@ -2,20 +2,22 @@
 Rule Interpreter
 Executes rules against unified records with proper operator whitelist
 """
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, timezone
 import logging
 import re
 
-from schemas.rule import RuleCreate, Operator
+from schemas.rule import PLACEHOLDER, RuleCreate, Operator, WhereCondition
+from schemas.sources import ENTITIES_FIELD
 from mcp_servers.base import UnifiedRecord
-from .normalizer import EntityNormalizer
+from .normalizer import EntityNormalizer, MatchResult
 
 
 logger = logging.getLogger(__name__)
 
-# {product} or {source.field}; anything else between braces is left untouched
-_PLACEHOLDER = re.compile(r"\{([a-z]+)(?:\.([a-zA-Z_0-9]+))?\}")
+# Gaps are compared rounded, so that float noise (10.000000000000002 %) never decides a rule
+_GAP_DECIMALS = 6
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -64,7 +66,18 @@ def render_template(template: str, values: Dict[str, Any]) -> str:
         field_value = value.get(field)
         return "" if field_value is None else str(field_value)
 
-    return _PLACEHOLDER.sub(replace, template)
+    return PLACEHOLDER.sub(replace, template)
+
+
+@dataclass(frozen=True)
+class JoinMatch:
+    """The record a join picked, and why it was picked."""
+
+    record: UnifiedRecord
+    candidate_raw: str  # the text compared with the trigger entity
+    result: MatchResult
+    where: List[Dict[str, Any]]  # outcome of each condition, in rule order
+    candidates: int  # in-window records whose name matched and whose conditions held
 
 
 class RuleInterpreter:
@@ -93,7 +106,8 @@ class RuleInterpreter:
             all_records: All available records by source {source: [records]}
             
         Returns:
-            List of correlations (each with provenance)
+            List of correlations (each with provenance and explanation), in
+            trigger record order, then entity order within a record
         """
         correlations = []
         
@@ -106,11 +120,9 @@ class RuleInterpreter:
         
         logger.info(f"Executing rule {rule.id} on {len(filtered_triggers)} trigger records")
         
-        # For each trigger record, attempt to correlate
+        # For each trigger record, attempt to correlate every entity it carries
         for trigger_record in filtered_triggers:
-            correlation = self._correlate_record(rule, trigger_record, all_records)
-            if correlation:
-                correlations.append(correlation)
+            correlations.extend(self._correlate_record(rule, trigger_record, all_records))
         
         return correlations
     
@@ -119,18 +131,46 @@ class RuleInterpreter:
         rule: RuleCreate,
         trigger_record: UnifiedRecord,
         all_records: Dict[str, List[UnifiedRecord]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Correlate a single trigger record with other sources
+
+        A record that satisfies the trigger conditions yields one correlation
+        per distinct entity of the rule's entity type (a message asking for two
+        products correlates both).
+
+        Returns:
+            Correlations found, possibly empty
+        """
+        passed, trigger_conditions = self._check_where_conditions(
+            trigger_record.payload, rule.trigger.where, {}
+        )
+        if not passed:
+            return []
+
+        correlations = []
+        for entity in self._extract_entities(trigger_record, rule.trigger.entity):
+            correlation = self._correlate_entity(
+                rule, trigger_record, entity, trigger_conditions, all_records
+            )
+            if correlation:
+                correlations.append(correlation)
+        return correlations
+
+    def _correlate_entity(
+        self,
+        rule: RuleCreate,
+        trigger_record: UnifiedRecord,
+        trigger_entity: Dict[str, str],
+        trigger_conditions: List[Dict[str, Any]],
+        all_records: Dict[str, List[UnifiedRecord]]
     ) -> Optional[Dict[str, Any]]:
         """
-        Attempt to correlate a single trigger record with other sources
-        
+        Attempt to correlate one entity of a trigger record with the joined sources
+
         Returns:
-            Correlation dict or None if no match
+            Correlation dict or None if a join found no record
         """
-        # Extract trigger entity
-        trigger_entity = self._extract_entity(trigger_record, rule.trigger.entity)
-        if not trigger_entity:
-            return None
-        
         # Apply time window: joined records must fall within window_seconds
         # before or after the trigger (reference data such as prices usually
         # predates the message that triggers the rule)
@@ -145,65 +185,103 @@ class RuleInterpreter:
             "record_id": trigger_record.id
         }]
         
-        # Template values: start with trigger entity
+        # Template values and condition references: the trigger record first,
+        # then each joined record (a join may refer to the ones before it)
         template_values: Dict[str, Any] = {
-            "product": trigger_entity["raw"]  # Use raw for display
+            "product": trigger_entity["raw"],  # Use raw for display
+            trigger_record.source: trigger_record.payload,
         }
-        
-        # Attempt each join
-        join_results = {}
+        context: Dict[str, Dict[str, Any]] = {trigger_record.source: trigger_record.payload}
+
+        trigger_explanation = {
+            "source": trigger_record.source,
+            "record_id": trigger_record.id,
+            "source_ref": trigger_record.source_ref,
+            "entity": {
+                "raw": trigger_entity["raw"],
+                "norm": self.normalizer.prepare(trigger_entity["raw"]).norm,
+            },
+            "where": trigger_conditions,
+        }
+        join_explanations = []
+
         for join in rule.joins:
-            source_records = all_records.get(join.source, [])
-            
-            # Find matching record
             match = self._find_join_match(
                 trigger_entity,
-                source_records,
+                all_records.get(join.source, []),
                 join,
                 trigger_time,
                 window_start,
-                window_end
+                window_end,
+                context,
             )
-            
-            if match:
-                # Add to provenance
-                provenance.append({
-                    "source": match.source,
-                    "source_ref": match.source_ref,
-                    "record_id": match.id
-                })
-                
-                # Add payload to template values
-                join_results[join.source] = match.payload
-                template_values[join.source] = match.payload
-        
-        # Check if all required joins matched
-        if len(join_results) < len(rule.joins):
-            logger.debug(f"Incomplete joins for {trigger_record.id}: {len(join_results)}/{len(rule.joins)}")
-            return None
-        
-        # Render message template
-        message = render_template(rule.emit.template, template_values)
+            if match is None:
+                logger.debug(f"No {join.source} record for {trigger_record.id} / {trigger_entity['raw']}")
+                return None
+
+            record = match.record
+            provenance.append({
+                "source": record.source,
+                "source_ref": record.source_ref,
+                "record_id": record.id
+            })
+            template_values[join.source] = record.payload
+            context[join.source] = record.payload
+            join_explanations.append({
+                "source": record.source,
+                "record_id": record.id,
+                "source_ref": record.source_ref,
+                "on": {"entity": join.on.entity, "field": join.on.field},
+                "candidate": {
+                    "raw": match.candidate_raw,
+                    "norm": self.normalizer.prepare(match.candidate_raw).norm,
+                },
+                "score": round(match.result.score, 4),
+                "method": match.result.method,
+                "candidates": match.candidates,
+                "where": match.where,
+            })
 
         # No detected_at here: engine output depends on its inputs only (P4);
         # the API layer stamps the detection time.
         return {
             "rule_id": rule.id,
             "severity": rule.emit.severity,
-            "message": message,
+            "message": render_template(rule.emit.template, template_values),
             "provenance": provenance,
+            "explanation": {"trigger": trigger_explanation, "joins": join_explanations},
             "window_start": window_start.isoformat(),
             "window_end": window_end.isoformat()
         }
     
-    def _extract_entity(self, record: UnifiedRecord, entity_type: str) -> Optional[Dict[str, str]]:
-        """Extract entity of given type from record"""
-        record_dict = record.to_dict()
-        for entity in record_dict.get("entities", []):
-            if entity["type"] == entity_type:
-                return entity
-        return None
+    def _extract_entities(self, record: UnifiedRecord, entity_type: str) -> List[Dict[str, str]]:
+        """Entities of a type carried by a record, in order, without duplicates.
+
+        Two mentions that normalize to the same product ("ciment 50 kg" and
+        "Ciment50kg" in one message) are one entity: the first one is kept.
+        """
+        entities: List[Dict[str, str]] = []
+        seen = set()
+        for entity in record.entities:
+            if entity["type"] != entity_type or not entity["raw"]:
+                continue
+            key = self.normalizer.prepare(entity["raw"]).canonical
+            if key in seen:
+                continue
+            seen.add(key)
+            entities.append(entity)
+        return entities
     
+    def _candidate_names(self, record: UnifiedRecord, join: Any) -> List[str]:
+        """Texts of a joined record that are compared with the trigger entity."""
+        if join.on.field == ENTITIES_FIELD:
+            return [
+                entity["raw"] for entity in record.entities
+                if entity["type"] == join.on.entity and entity["raw"]
+            ]
+        value = record.payload.get(join.on.field)
+        return [str(value)] if value else []
+
     def _find_join_match(
         self,
         trigger_entity: Dict[str, str],
@@ -211,8 +289,9 @@ class RuleInterpreter:
         join: Any,
         trigger_time: datetime,
         window_start: datetime,
-        window_end: datetime
-    ) -> Optional[UnifiedRecord]:
+        window_end: datetime,
+        context: Dict[str, Dict[str, Any]],
+    ) -> Optional[JoinMatch]:
         """
         Find the best matching record in a join source
 
@@ -231,13 +310,14 @@ class RuleInterpreter:
             trigger_time: Timestamp of the trigger record
             window_start: Time window start
             window_end: Time window end
+            context: Payloads of the trigger and earlier joins, by source (targets of `ref`)
 
         Returns:
-            Best matching UnifiedRecord or None
+            The winning JoinMatch, or None
         """
-        field_name = join.on.get("field")
         best_key: Optional[Tuple[float, int, float, int]] = None
-        best_record: Optional[UnifiedRecord] = None
+        best: Optional[JoinMatch] = None
+        candidates = 0
 
         for index, record in enumerate(source_records):
             # Check time window
@@ -245,61 +325,129 @@ class RuleInterpreter:
             if not (window_start <= record_time <= window_end):
                 continue
 
-            # Extract field value from payload
-            field_value = record.payload.get(field_name)
-            if not field_value:
+            # Best name of the record that matches the trigger entity
+            name_match: Optional[Tuple[str, MatchResult]] = None
+            for name in self._candidate_names(record, join):
+                result = self.normalizer.match_detail(trigger_entity["raw"], name)
+                if result.matches and (name_match is None or result.score > name_match[1].score):
+                    name_match = (name, result)
+            if name_match is None:
                 continue
 
-            # Check entity match
-            matches, confidence = self.normalizer.match(
-                trigger_entity["raw"],
-                str(field_value)
-            )
-            if not matches or not self._check_where_conditions(record.payload, join.where):
+            passed, conditions = self._check_where_conditions(record.payload, join.where, context)
+            if not passed:
                 continue
+            candidates += 1
 
             offset_seconds = (record_time - trigger_time).total_seconds()
             key = (
-                -round(confidence, 6),
+                -round(name_match[1].score, 6),
                 0 if offset_seconds <= 0 else 1,
                 abs(offset_seconds),
                 index,
             )
             if best_key is None or key < best_key:
                 best_key = key
-                best_record = record
+                best = JoinMatch(
+                    record=record,
+                    candidate_raw=name_match[0],
+                    result=name_match[1],
+                    where=conditions,
+                    candidates=0,
+                )
 
-        if best_record is not None:
-            logger.debug(f"Join match for {trigger_entity['raw']}: {best_record.id} (score {-best_key[0]:.2f})")
+        if best is None:
+            return None
+        logger.debug(f"Join match for {trigger_entity['raw']}: {best.record.id} (score {best.result.score:.2f})")
+        return JoinMatch(best.record, best.candidate_raw, best.result, best.where, candidates)
 
-        return best_record
-
-    def _check_where_conditions(self, payload: Dict[str, Any], conditions: List[Any]) -> bool:
+    def _check_where_conditions(
+        self,
+        payload: Dict[str, Any],
+        conditions: List[WhereCondition],
+        context: Dict[str, Dict[str, Any]],
+    ) -> Tuple[bool, List[Dict[str, Any]]]:
         """
         Check if payload satisfies WHERE conditions
 
         Security: Only whitelisted operators (Operator enum).
         A comparison between incompatible types (e.g. "abc" < 10) is a
         non-match for this record and never aborts the rule.
+
+        Returns:
+            (all conditions hold, one outcome per condition checked). The
+            outcomes stop at the first failing condition.
         """
+        outcomes: List[Dict[str, Any]] = []
         for condition in conditions:
-            actual = payload.get(condition.field)
-            if actual is None:
-                return False
+            outcome = self._evaluate_condition(condition, payload, context)
+            outcomes.append(outcome)
+            if not outcome["passed"]:
+                return False, outcomes
+        return True, outcomes
 
-            try:
-                satisfied = self._apply_operator(condition.op, actual, condition.value)
-            except TypeError:
-                logger.warning(
-                    f"Incompatible types for condition {condition.field} {condition.op.value}: "
-                    f"{type(actual).__name__} vs {type(condition.value).__name__}"
-                )
-                return False
+    def _evaluate_condition(
+        self,
+        condition: WhereCondition,
+        payload: Dict[str, Any],
+        context: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Evaluate one condition and report the values it was decided on.
 
-            if not satisfied:
-                return False
+        Returns:
+            {field, op, expected, actual, passed} plus `ref`, `tolerance_pct`
+            and `gap_pct` when the condition uses them. `expected` is the
+            literal value, or the value found through `ref`.
+        """
+        actual = payload.get(condition.field)
+        outcome: Dict[str, Any] = {"field": condition.field, "op": condition.op.value}
 
-        return True
+        expected: Any = condition.value
+        parts = condition.ref_parts()
+        if parts is not None:
+            ref_source, ref_field = parts
+            expected = context.get(ref_source, {}).get(ref_field)
+            outcome["ref"] = condition.ref
+        if condition.tolerance_pct is not None:
+            outcome["tolerance_pct"] = condition.tolerance_pct
+        outcome["expected"] = expected
+        outcome["actual"] = actual
+        outcome["passed"] = False
+
+        if actual is None or expected is None:
+            return outcome
+
+        try:
+            if condition.tolerance_pct is None:
+                outcome["passed"] = self._apply_operator(condition.op, actual, expected)
+                return outcome
+
+            gap = self._gap_pct(actual, expected)
+            if gap is None:
+                return outcome
+            outcome["gap_pct"] = gap
+            outcome["passed"] = self._apply_operator(condition.op, gap, condition.tolerance_pct)
+        except TypeError:
+            logger.warning(
+                f"Incompatible types for condition {condition.field} {condition.op.value}: "
+                f"{type(actual).__name__} vs {type(expected).__name__}"
+            )
+        return outcome
+
+    @staticmethod
+    def _gap_pct(actual: Any, reference: Any) -> Optional[float]:
+        """Relative gap |actual - reference| / |reference| in percent.
+
+        Returns:
+            The gap, or None when either side is not a number or the
+            reference is zero (the gap is undefined, so the condition fails).
+        """
+        for value in (actual, reference):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+        if reference == 0:
+            return None
+        return round(abs(actual - reference) / abs(reference) * 100, _GAP_DECIMALS)
 
     def _apply_operator(self, op: Operator, actual: Any, expected: Any) -> bool:
         """Apply one whitelisted operator.

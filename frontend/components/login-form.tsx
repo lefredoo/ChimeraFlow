@@ -4,13 +4,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { DEMO_LOGIN_EMAIL, DEMO_LOGIN_PASSWORD } from "../lib/demo-credentials";
-import { t, type MessageKey } from "../lib/i18n";
+import type { MessageKey } from "../lib/i18n";
 import type { LoginResult } from "../lib/services/auth-service";
 import { useAuth } from "./auth-provider";
+import { useI18n } from "./locale-provider";
 
 const HOME_PATH = "/";
 
-function errorMessage(result: Exclude<LoginResult, { state: "success" }>): string {
+function errorMessage(
+  result: Exclude<LoginResult, { state: "success" }>,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
   const keys: Record<Exclude<LoginResult["state"], "success" | "rate_limited">, MessageKey> = {
     invalid_credentials: "login.error.invalid",
     unreachable: "login.error.unreachable",
@@ -26,6 +30,7 @@ function errorMessage(result: Exclude<LoginResult, { state: "success" }>): strin
 
 export function LoginForm() {
   const { state, signIn } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const ids = useId();
   const [email, setEmail] = useState("");
@@ -50,7 +55,7 @@ export function LoginForm() {
     const result = await signIn(emailValue, passwordValue);
     setSubmitting(false);
     if (result.state !== "success") {
-      setError(errorMessage(result));
+      setError(errorMessage(result, t));
     }
   }
 

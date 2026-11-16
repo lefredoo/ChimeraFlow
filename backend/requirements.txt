@@ -29,3 +29,9 @@ access-parser==0.0.6  # pure Python reader, used for local Windows
 
 # NL -> rule conversion
 litellm==1.97.0
+
+# HTTP client of the e-mail alert (Cloudflare Email Service); also a dependency of litellm and mcp
+httpx==0.28.1
+
+# MCP servers (one stdio server per data source)
+mcp==2.3.0

@@ -5,6 +5,7 @@ Only the external boundaries are replaced: `litellm.acompletion` (the LLM), the
 spend counter (Redis, an in-memory store) and the settings (environment).
 Prompt building, parsing, validation, retries and budget logic run for real.
 """
+import asyncio
 import copy
 import json
 import logging
@@ -16,15 +17,18 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from api.nl_dependencies import get_nl_settings, get_spend_store
-from engine.llm_client import load_litellm
+from engine.llm_client import LlmReply, load_litellm, proxy_model_name
 from engine.nl_budget import SPEND_KEY, RedisSpendStore, SpendStoreError
 from engine.nl_to_rule import (
     DATA_END,
     DATA_START,
+    NLBudgetExceeded,
+    NLRuleService,
     NLSettings,
     build_messages,
     nl_settings_from_config,
 )
+from schemas.rule import RuleCreate
 
 import config
 
@@ -57,8 +61,9 @@ class MemorySpendStore:
     async def get_spent_usd(self) -> float:
         return self.spent_usd
 
-    async def add_spent_usd(self, amount_usd: float) -> None:
+    async def add_spent_usd(self, amount_usd: float) -> float:
         self.spent_usd += amount_usd
+        return self.spent_usd
 
 
 class BrokenSpendStore:
@@ -67,8 +72,11 @@ class BrokenSpendStore:
     async def get_spent_usd(self) -> float:
         raise SpendStoreError("down")
 
-    async def add_spent_usd(self, amount_usd: float) -> None:
+    async def add_spent_usd(self, amount_usd: float) -> float:
         raise SpendStoreError("down")
+
+
+PROXY_ALIAS = "deepseek-v4.1-flash-group"
 
 
 class ScriptedLlm:
@@ -93,7 +101,7 @@ class ScriptedLlm:
 
 
 def _settings(budget_usd: float = 5.0) -> NLSettings:
-    return NLSettings(api_key=SECRET_KEY, base_url="http://litellm.test", model="openai/test-model", budget_usd=budget_usd)
+    return NLSettings(api_key=SECRET_KEY, base_url="http://litellm.test", model=PROXY_ALIAS, budget_usd=budget_usd)
 
 
 @pytest.fixture
@@ -138,7 +146,7 @@ class TestConversion:
 
         assert response.status_code == 200
         assert response.json()["retries"] == 0
-        assert response.json()["rule"]["trigger"] == VALID_DRAFT["trigger"]
+        assert response.json()["rule"]["trigger"] == {**VALID_DRAFT["trigger"], "where": []}
 
     def test_should_set_a_generated_id_and_the_user_text_when_returning_the_draft(self, nl_client, llm):
         llm([_answer()])
@@ -269,10 +277,26 @@ class TestProviderCall:
 
         call = scripted.calls[0]
         assert (call["api_base"], call["model"], call["api_key"]) == (
-            "http://litellm.test", "openai/test-model", SECRET_KEY,
+            "http://litellm.test", PROXY_ALIAS, SECRET_KEY,
         )
+        assert call["custom_llm_provider"] == "openai"
         assert call["timeout"] > 0
         assert call["response_format"] == {"type": "json_object"}
+
+    def test_should_strip_one_legacy_openai_prefix_when_the_model_has_one(self, nl_client, llm):
+        scripted = llm([_answer()])
+        legacy = NLSettings(
+            api_key=SECRET_KEY, base_url="http://litellm.test", model=f"openai/{PROXY_ALIAS}", budget_usd=5.0
+        )
+        nl_client.app.dependency_overrides[get_nl_settings] = lambda: legacy
+
+        _post(nl_client)
+
+        assert scripted.calls[0]["model"] == PROXY_ALIAS
+
+    def test_should_strip_the_legacy_prefix_only_once_when_the_alias_starts_with_it(self):
+        assert proxy_model_name("openai/openai/gpt") == "openai/gpt"
+        assert proxy_model_name(PROXY_ALIAS) == PROXY_ALIAS
 
     def test_should_return_502_when_the_provider_fails(self, nl_client, llm):
         error = openai.APIConnectionError(request=httpx.Request("POST", "http://litellm.test"))
@@ -443,7 +467,7 @@ class TestFeatureDisabled:
         assert SECRET_KEY not in repr(_settings())
 
     @staticmethod
-    def _configure(monkeypatch, api_key=SECRET_KEY, base_url="http://litellm.test", model="openai/test-model", budget=2.5):
+    def _configure(monkeypatch, api_key=SECRET_KEY, base_url="http://litellm.test", model=PROXY_ALIAS, budget=2.5):
         monkeypatch.setattr(config, "LITELLM_API_KEY", api_key)
         monkeypatch.setattr(config, "LITELLM_BASE_URL", base_url)
         monkeypatch.setattr(config, "LITELLM_MODEL", model)
@@ -540,6 +564,7 @@ class TestRedisSpendStore:
             if self.failing:
                 raise RedisConnectionError("down")
             self.values[key] = int(self.values.get(key, 0)) + amount
+            return self.values[key]
 
     @pytest.mark.asyncio
     async def test_should_start_at_zero_when_the_counter_does_not_exist(self):
@@ -587,3 +612,99 @@ class TestRedisSpendStore:
 
         with pytest.raises(SpendStoreError):
             await RedisSpendStore(client).get_spent_usd()
+
+
+class TestBudgetReservation:
+    class GatedClient:
+        """LLM boundary that holds every call open until released, to overlap calls."""
+
+        def __init__(self) -> None:
+            self.release = asyncio.Event()
+            self.calls = 0
+
+        async def complete(self, messages):
+            self.calls += 1
+            await self.release.wait()
+            return LlmReply(content=json.dumps(VALID_DRAFT), cost_usd=0.01)
+
+    class RecordingStore(MemorySpendStore):
+        def __init__(self, spent_usd: float = 0.0) -> None:
+            super().__init__(spent_usd)
+            self.additions = []
+
+        async def add_spent_usd(self, amount_usd: float) -> float:
+            self.additions.append(amount_usd)
+            return await super().add_spent_usd(amount_usd)
+
+    @pytest.mark.asyncio
+    async def test_should_count_calls_in_flight_when_two_conversions_overlap_near_the_cap(self):
+        store = self.RecordingStore(spent_usd=4.98)
+        client = self.GatedClient()
+        service = NLRuleService(_settings(budget_usd=5.0), client, store)
+
+        first = asyncio.create_task(service.convert(TEXT, "fr"))
+        await asyncio.sleep(0)
+        second = asyncio.create_task(service.convert(TEXT, "fr"))
+        await asyncio.sleep(0)
+        client.release.set()
+        results = await asyncio.gather(first, second, return_exceptions=True)
+
+        assert client.calls == 1
+        assert isinstance(results[0].rule, RuleCreate)
+        assert isinstance(results[1], NLBudgetExceeded)
+
+    @pytest.mark.asyncio
+    async def test_should_reserve_more_than_the_real_cost_before_the_call_then_settle_on_the_real_cost(self):
+        store = self.RecordingStore()
+        client = self.GatedClient()
+        client.release.set()
+
+        await NLRuleService(_settings(), client, store).convert(TEXT, "fr")
+
+        assert store.additions[0] > 0.01
+        assert store.spent_usd == pytest.approx(0.01)
+
+    @pytest.mark.asyncio
+    async def test_should_give_the_reservation_back_when_the_budget_is_spent(self):
+        store = self.RecordingStore(spent_usd=5.0)
+        client = self.GatedClient()
+
+        with pytest.raises(NLBudgetExceeded):
+            await NLRuleService(_settings(budget_usd=5.0), client, store).convert(TEXT, "fr")
+
+        assert (client.calls, store.spent_usd) == (0, pytest.approx(5.0))
+
+    @pytest.mark.asyncio
+    async def test_should_not_let_an_exactly_spent_budget_through_when_amounts_have_float_noise(self):
+        store = self.RecordingStore(spent_usd=0.1 + 0.2)  # 0.30000000000000004
+        client = self.GatedClient()
+
+        with pytest.raises(NLBudgetExceeded):
+            await NLRuleService(_settings(budget_usd=0.3), client, store).convert(TEXT, "fr")
+
+        assert client.calls == 0
+
+
+class TestRuleDraftColumns:
+    def test_should_retry_when_the_template_exposes_a_personal_column(self, nl_client, llm):
+        personal = {
+            "trigger": {"source": "momo", "entity": "product"},
+            "joins": [{"source": "whatsapp", "on": {"entity": "product", "field": "entities"}}],
+            "emit": {"severity": "info", "template": "{momo.customer_name} a payé"},
+        }
+        scripted = llm([_answer(**personal), _answer()])
+
+        response = _post(nl_client)
+
+        assert response.status_code == 200
+        assert len(scripted.calls) == 2
+        assert "identifies a person" in scripted.calls[1]["messages"][-1]["content"]
+
+    def test_should_retry_when_the_draft_names_a_column_the_source_does_not_have(self, nl_client, llm):
+        invented = copy.deepcopy(VALID_DRAFT["joins"])
+        invented[0]["where"] = [{"field": "invented_column", "op": "lt", "value": 1}]
+        scripted = llm([_answer(joins=invented), _answer()])
+
+        _post(nl_client)
+
+        assert "unknown column 'invented_column'" in scripted.calls[1]["messages"][-1]["content"]

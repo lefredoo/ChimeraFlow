@@ -59,6 +59,17 @@ The application must not use static Tailwind color classes (`bg-blue-500`, `text
 `--success-text` (`#047857` light / `#34d399` dark), `--error-text` (`#b91c1c` / `#f87171`) and
 `--primary-text` (`#1d4ed8` / `#93c5fd`).
 
+### Theme switching
+The dark values apply when `<html data-theme="dark">` is set (stored choice, else the OS setting, written by `ThemeProvider`), and from `prefers-color-scheme: dark` while no `data-theme` is set. Component classes (screens) live in `frontend/app/components.css`; tokens stay in `globals.css`.
+
+### Status, severity and source colors (added with the P3 screens)
+- `--warning-text` (`#92400e` / `#fbbf24`) and `--info-text` (`#0369a1` / `#7dd3fc`): text-safe variants for warning and info.
+- `--error-solid` (`#b91c1c`) and `--error-solid-hover`: fill of the destructive button (white text, 4.5:1).
+- One token per data source, text-safe in both themes: `--source-excel` (green), `--source-access` (rose), `--source-whatsapp` (teal), `--source-momo` (amber). A source is always shown with its icon and its name too: color is never the only cue.
+
+### Signature: the seam
+Sources that belong to the same result are joined by a dashed thread (`.seam`, `.seam-thread`): correlation cards, the dashboard overview, the title underline (`.seam-line`). A source that is down gets a dotted red thread. No other decorative motif: no glow, no gradient text, no emoji icons (inline SVG line icons in `components/icons.tsx`).
+
 ### Glassmorphism Effects
 ```css
 .glass-panel {

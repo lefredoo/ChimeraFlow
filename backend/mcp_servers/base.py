@@ -6,13 +6,50 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
+import csv
 import logging
+import math
 import subprocess
+import zipfile
+
+from openpyxl.utils.exceptions import InvalidFileException
 
 logger = logging.getLogger(__name__)
 
-# Errors a connector may raise while reading its source
-CONNECTOR_ERRORS = (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError)
+
+def to_finite_float(value: Any) -> float:
+    """Convert a cell or CSV text to a float that is a real number.
+
+    `float()` accepts "nan" and "inf", which break comparisons and JSON output
+    downstream; a connector counts them as parse errors instead.
+
+    Args:
+        value: Text or number to convert.
+
+    Returns:
+        The finite float.
+
+    Raises:
+        ValueError: If the value is not a number, or is NaN or infinite.
+    """
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"Not a finite number: {value!r}")
+    return number
+
+# Errors a connector may raise while reading its source: I/O, bad values, and the
+# format errors of the readers (a truncated CSV, an .xlsx that is not a zip archive
+# or has the wrong extension)
+CONNECTOR_ERRORS = (
+    OSError,
+    ValueError,
+    KeyError,
+    RuntimeError,
+    subprocess.SubprocessError,
+    csv.Error,
+    zipfile.BadZipFile,
+    InvalidFileException,
+)
 
 
 @dataclass
