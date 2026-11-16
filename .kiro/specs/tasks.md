@@ -73,7 +73,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Cartes de corrélation avec badges par source et tiroir de provenance (R10)
 - [x] Assainissement des textes de source avant affichage (R12) : rendu en texte React seulement, jamais de HTML ; testé (`correlation-card.test.tsx`)
 - [x] État dégradé quand une source est absente (R8) : bandeau et fil coupé sur le tableau de bord
-- [~] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : conçue ainsi (éléments `<dialog>`, focus visible, lien d'évitement, couleurs par jetons), mais non mesurée dans un navigateur
+- [x] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : mesurée le 2026-11-17 dans Edge (axe-core, 0 violation, aucun débordement horizontal à 360 px, clavier et boîtes de dialogue vérifiés, thèmes clair et sombre) ; lecteur d'écran réel, Firefox, Safari et téléphone non couverts (voir `ui-spec.md` et TECH_DEBT)
 - [x] Bascule FR/EN mémorisée et thème sombre (système par défaut, choix mémorisé)
 - [x] Vue « pourquoi ça correspond » (affichée seulement quand la corrélation a une `explanation`), bac à sable de normalisation (`/sandbox`), corrélations en temps réel (flux SSE, sinon actualisation toutes les 15 s)
 - [ ] Connecteur n°4 généré par Crew en session enregistrée (`.kiro/agents/` absent)
