@@ -23,7 +23,7 @@ backend/
 │   ├── predefined_rules.py # charge les règles prédéfinies au démarrage (échec immédiat si invalide)
 │   ├── validate_rules.py   # CLI : python -m engine.validate_rules [dossier]
 │   ├── nl_to_rule.py       # conversion NL→règle (prompt structuré, relances, budget)
-│   ├── alerts.py           # e-mail récapitulatif des nouvelles corrélations (Resend)
+│   ├── alerts.py           # e-mail récapitulatif des nouvelles corrélations (Cloudflare Email Service)
 │   ├── nl_budget.py        # compteur de dépense LLM (Redis)
 │   └── llm_client.py       # frontière LiteLLM (import à la demande)
 ├── mcp_servers/            # connecteurs de sources (P1)
@@ -122,11 +122,12 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `RATE_LIMIT_LOGIN_PER_IP` | limite de `POST /auth/login` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 2` (au moins 3) |
 | `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
 | `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
-| `RESEND_API_KEY`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API HTTP Resend) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les trois** doivent être définies, sinon la fonction est désactivée. `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
-| `ALERT_EMAIL_COOLDOWN_SECONDS` | délai minimal, en secondes, entre deux e-mails d'alerte (entier ≥ 60). **Obligatoire** dès que les trois variables Resend sont définies, sinon le démarrage s'arrête. Sans les trois variables Resend, elle est ignorée |
+| `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API REST Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les quatre** doivent être définies, sinon la fonction est désactivée. `CF_EMAIL_ACCOUNT_ID` : identifiant du compte Cloudflare (32 caractères hexadécimaux). `CF_EMAIL_API_TOKEN` : jeton avec la seule permission « Email Sending: Edit ». `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` sur un domaine d'envoi déclaré dans Cloudflare (ex. `ChimeraFlow <notifications@notify.linguasolution.com>`) ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
+| `ALERT_EMAIL_COOLDOWN_SECONDS` | délai minimal, en secondes, entre deux e-mails d'alerte (entier ≥ 60). **Obligatoire** dès que les quatre variables d'e-mail ci-dessus sont définies, sinon le démarrage s'arrête. Sans elles, elle est ignorée |
 
-`LITELLM_MODEL` est une chaîne de modèle LiteLLM. Pour un proxy LiteLLM, utiliser
-`openai/<alias du modèle sur le proxy>` avec `LITELLM_BASE_URL` = URL du proxy.
+`LITELLM_MODEL` est l'alias du modèle défini sur le proxy LiteLLM (ex. `deepseek-v4.1-flash-group`), sans
+préfixe : le client l'envoie tel quel à `LITELLM_BASE_URL` avec `custom_llm_provider="openai"` (le proxy parle le
+protocole OpenAI). Un ancien préfixe `openai/` est encore accepté et retiré une seule fois.
 `LITELLM_BUDGET_USD` est le plafond **global** de dépense (en USD), suivi dans Redis. Il doit être un
 nombre fini strictement positif : `nan`, `inf`, `0` et les valeurs négatives arrêtent le démarrage.
 
@@ -250,7 +251,7 @@ POST /api/v1/demo/reset     # supprime corrélations et exécutions, rétablit l
 
 ### Alerte e-mail
 
-Quand `RESEND_API_KEY`, `ALERT_EMAIL_FROM` et `ALERT_EMAIL_TO` sont définies, une exécution qui produit de
+Quand `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM` et `ALERT_EMAIL_TO` sont définies, une exécution qui produit de
 **nouvelles** corrélations `warning` ou `error` envoie un seul e-mail récapitulatif, après la réponse (tâche de
 fond : un fournisseur lent ou en panne ne retarde ni ne fait échouer `execute`). Deux essais de 5 s. Un délai
 global (`ALERT_EMAIL_COOLDOWN_SECONDS`, clé Redis `chimeraflow:alerts:cooldown` posée avec `SET NX EX`) limite
@@ -258,7 +259,9 @@ l'envoi à un récapitulatif par fenêtre, quel que soit le nombre d'exécutions
 nouvelles corrélations ne sont pas envoyées plus tard (elles restent visibles dans l'interface). Sans Redis, ou si
 Redis est en panne, rien n'est envoyé (échec fermé, journalisé). Les messages
 viennent de textes de sources : caractères de contrôle retirés, 300 caractères au plus par ligne, HTML échappé.
-Ni destinataire, ni clé, ni contenu dans les journaux. Vérification réelle auprès de Resend : non faite (voir
+Un envoi réussi demande un statut HTTP 2xx et `success: true` dans la réponse ; un échec ne journalise que les
+codes d'erreur de Cloudflare. Ni destinataire, ni jeton, ni contenu dans les journaux. Vérification réelle auprès
+de Cloudflare Email Service : non faite (voir
 `docs/decisions/TECH_DEBT.md`).
 
 La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/api-spec.md`.

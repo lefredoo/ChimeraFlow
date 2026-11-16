@@ -18,6 +18,13 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] E-mails via Cloudflare Email Service et alias LiteLLM nu
+**Context**: Le propriétaire utilise Cloudflare (Mailflare) pour toutes ses adresses, sur un sous-domaine de `linguasolution.com` ; le proxy LiteLLM attend l'alias `deepseek-v4.1-flash-group`, sans préfixe.
+**Decision**: L'alerte e-mail appelle l'API REST Cloudflare Email Service (`CF_EMAIL_ACCOUNT_ID` de 32 caractères hexadécimaux, `CF_EMAIL_API_TOKEN`), succès = HTTP 2xx et `success: true`, seuls les codes d'erreur sont journalisés ; expéditeur `ChimeraFlow <notifications@notify.linguasolution.com>`. Le client LiteLLM envoie l'alias tel quel avec `custom_llm_provider="openai"` (un ancien `openai/` est retiré une fois).
+**Alternatives rejected**: Resend (hors de la norme du propriétaire, domaine d'envoi à part). Préfixe `openai/` dans `LITELLM_MODEL` : il ne sert qu'à choisir le fournisseur par le nom, ce que le paramètre explicite fait sans modifier l'alias.
+**Consequences**: Variables `RESEND_API_KEY` remplacées dans Doppler et `docker-compose.yml`. Aucun envoi ni appel réel vérifié (TECH_DEBT). Le client HTTP `httpx` journalise l'URL (qui contient l'identifiant de compte) : son niveau est relevé à WARNING.
+**AGENTS.md rule concerned**: §7 (aucune valeur de repli), §22
+
 ## [2026-11-16] Délai global des e-mails d'alerte, obligatoire avec Resend
 **Context**: Chaque exécution qui trouve de nouvelles corrélations `warning`/`error` envoyait un e-mail : des exécutions répétées pouvaient inonder la boîte et épuiser le quota Resend.
 **Decision**: `ALERT_EMAIL_COOLDOWN_SECONDS` (entier ≥ 60) limite à un récapitulatif par fenêtre, clé Redis `chimeraflow:alerts:cooldown` posée avec `SET NX EX`. Obligatoire dès que les trois variables Resend sont définies ; sans Redis ou en cas de panne, rien n'est envoyé (échec fermé).

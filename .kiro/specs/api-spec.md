@@ -240,7 +240,7 @@ Supprime la règle et ses corrélations (cascade). Une règle prédéfinie suppr
 ### POST /api/v1/correlations/execute
 Exécute les règles actives (ou celles demandées) sur les données courantes. Les corrélations d'une règle exécutée deviennent exactement celles qui viennent d'être trouvées : une corrélation retrouvée (même `message`, mêmes records) **garde sa ligne, son `id` et son `detected_at`**, une corrélation qui n'est plus trouvée est supprimée, une nouvelle est insérée.
 
-Quand l'alerte e-mail est configurée (`RESEND_API_KEY`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO`), les **nouvelles** corrélations `warning` et `error` sont envoyées dans un seul e-mail récapitulatif, après la réponse (tâche de fond). Un échec d'envoi n'affecte pas la réponse. Sans les trois variables, la fonction est désactivée.
+Quand l'alerte e-mail est configurée (`CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO`), les **nouvelles** corrélations `warning` et `error` sont envoyées dans un seul e-mail récapitulatif, après la réponse (tâche de fond). Un échec d'envoi n'affecte pas la réponse. Sans les quatre variables, la fonction est désactivée.
 
 - **Paramètre de requête** : `rule_ids` (répétable : `?rule_ids=a&rule_ids=b`), 20 au maximum. Sans paramètre : toutes les règles `active`. Les règles `inactive` ne sont jamais exécutées.
 - **Corps** : aucun.

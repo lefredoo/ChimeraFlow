@@ -184,7 +184,7 @@ version qui introduit `trigger.where` incrémente aussi la version des deux autr
 - Les corrélations stockées d'une règle exécutée deviennent exactement celles qui viennent d'être trouvées. L'identité d'une corrélation est `(message, ids des records de la provenance)` : une corrélation retrouvée garde sa ligne, son `id` et son `detected_at` (son explication et sa fenêtre sont rafraîchies), une corrélation disparue est supprimée, une nouvelle est insérée avec l'heure de la règle. Deux exécutions identiques donnent la même liste. Les clients (flux, `since`, e-mail) voient donc seulement le nouveau.
 - Chaque règle tourne dans son propre savepoint. Une règle en échec n'écrit rien, garde ses corrélations précédentes, et enregistre `Rule execution failed` (le détail part dans les journaux).
 - Chaque source lit au plus 1000 records. La lecture des connecteurs et le travail sur la base se font dans des threads (`anyio.to_thread`, `run_in_threadpool`) : ils ne bloquent pas la boucle d'événements. Les handlers de lecture et d'écriture de `rules.py` sont des fonctions synchrones (FastAPI les exécute dans son pool).
-- Alerte e-mail (`engine/alerts.py`) : les nouvelles corrélations `warning` et `error` d'une exécution partent dans **un** e-mail récapitulatif (Resend, API HTTP via `httpx`), envoyé après la réponse (`BackgroundTasks`). Fonction active seulement si `RESEND_API_KEY`, `ALERT_EMAIL_FROM` et `ALERT_EMAIL_TO` (1 à 5 adresses, séparées par des virgules) sont définies. 2 essais, 5 s chacun, nouvel essai sur 5xx et 429 seulement. Ni destinataire, ni clé, ni contenu dans les journaux. Les messages (texte de sources non fiable) perdent leurs caractères de contrôle, sont bornés à 300 caractères (50 lignes au plus) et la partie HTML est échappée. Un échec d'envoi n'affecte jamais la réponse.
+- Alerte e-mail (`engine/alerts.py`) : les nouvelles corrélations `warning` et `error` d'une exécution partent dans **un** e-mail récapitulatif (Cloudflare Email Service, API REST via `httpx` ; succès = HTTP 2xx et `success: true`), envoyé après la réponse (`BackgroundTasks`). Fonction active seulement si `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM` et `ALERT_EMAIL_TO` (1 à 5 adresses, séparées par des virgules) sont définies. 2 essais, 5 s chacun, nouvel essai sur 5xx et 429 seulement. Ni destinataire, ni jeton, ni contenu dans les journaux (seuls les codes d'erreur de Cloudflare). Les messages (texte de sources non fiable) perdent leurs caractères de contrôle, sont bornés à 300 caractères (50 lignes au plus) et la partie HTML est échappée. Un échec d'envoi n'affecte jamais la réponse.
 
 ### 6.5 Flux temps réel, bac à sable et réinitialisation
 
@@ -224,7 +224,7 @@ Pipeline de `POST /api/v1/rules/from-text` :
 
 Erreurs : `nl_feature_disabled` (503), `nl_budget_exceeded` (503), `nl_budget_unavailable` (503), `nl_provider_error` (502), `nl_conversion_failed` (422). Les erreurs `nl_*` contiennent `fallback_rules` : les règles prédéfinies.
 
-**État réel** : le pipeline est testé avec `litellm.acompletion` simulé. Aucun appel à un vrai proxy LiteLLM n'a été fait (clé, URL et nom de modèle non configurés). Le format `openai/<alias>` et `completion_cost` ne sont donc pas vérifiés en réel (TECH_DEBT).
+**État réel** : le pipeline est testé avec `litellm.acompletion` simulé. Aucun appel à un vrai proxy LiteLLM n'a été fait (clé, URL et nom de modèle non configurés). L'alias nu (`LITELLM_MODEL`, envoyé avec `custom_llm_provider="openai"`) et `completion_cost` ne sont donc pas vérifiés en réel (TECH_DEBT).
 
 ---
 
@@ -350,4 +350,4 @@ Propriétés du comparateur de noms (`test_normalizer.py`, Hypothesis) : symétr
 Détail et priorités dans `docs/decisions/TECH_DEBT.md`. Principaux : pas de service Redis
 ni de vrai proxy LiteLLM en CI ; fenêtre symétrique (une note WhatsApp peut corréler un prix
 postérieur) ; un nom d'un seul mot correspond à tout produit qui le contient ; alerte e-mail
-jamais envoyée à un vrai Resend ; propriétés P3 et P6 incomplètes.
+jamais envoyée à un vrai Cloudflare Email Service ; propriétés P3 et P6 incomplètes.

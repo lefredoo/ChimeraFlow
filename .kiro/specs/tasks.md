@@ -49,7 +49,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Cinq règles prédéfinies dans `data/rules/*.json`, validées au démarrage et par `python -m engine.validate_rules`
 - [x] Les cinq règles prédéfinies sont actives et chacune produit au moins une corrélation sur les données livrées (`test_scenario_data.py`)
 - [x] Flux temps réel `GET /correlations/stream` (SSE, Bearer), paramètre `since`, bac à sable `POST /normalize`, `POST /demo/reset`
-- [x] Alerte e-mail Resend (nouvelles corrélations `warning` et `error`, un récapitulatif par exécution, testée avec le transport HTTP simulé ; jamais envoyée à un vrai Resend)
+- [x] Alerte e-mail Cloudflare Email Service (nouvelles corrélations `warning` et `error`, un récapitulatif par exécution, testée avec le transport HTTP simulé ; jamais envoyée à un vrai Cloudflare Email Service)
 - [x] API règles et corrélations, idempotence de l'exécution (`backend/api/`)
 - [x] Migrations Alembic `0001` à `0003`, vérification modèles/migrations (`test_migrations.py`)
 - [x] Limitation par IP (slowapi, Redis) sur les mutations, `429` et `Retry-After`
