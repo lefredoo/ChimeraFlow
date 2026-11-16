@@ -1,0 +1,10 @@
+[Unit]
+Description=Contrôle de la config statique de Traefik toutes les 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Vérifie la config statique de Traefik (trustedIPs, api.insecure) et la corrige si besoin
+Documentation=https://github.com/lefredoo/ChimeraFlow/blob/dev/ops/vps/README.md
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/check-traefik-config.sh
+SyslogIdentifier=check-traefik-config
+Nice=10
+TimeoutStartSec=180

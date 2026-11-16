@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Traefik : garde-fou systemd contre la perte des réglages
+**Context**: Les réglages `trustedIPs` et `api.insecure: false` sont dans un fichier partagé que Dokploy gère. Il fallait savoir si un rechargement depuis l'interface les efface.
+**Decision**: Lecture du code Dokploy v0.31.0 : Reload = `docker restart` seul, `traefik.yml` n'est recréé que s'il est absent, et Dokploy ne le stocke pas en base (rien à synchroniser par `settings.updateTraefikConfig`). Ajout de `check-traefik-config.timer` (5 min, root) : script `/usr/local/sbin/check-traefik-config.sh`, copie de référence `traefik.yml.chimeraflow-reference`, correction des deux clés seulement puis `docker restart`, rien si aucune dérive. Copies dans `ops/vps/`. Essais : sans dérive, copies à dérive, conteneur factice, un Reload Dokploy réel (fichier inchangé).
+**Alternatives rejected**: Remplacer le fichier entier par la référence (écraserait les changements des autres applications). Recréer automatiquement le conteneur s'il perd le secret DNS-01 (invasif sur une infra partagée) : le script journalise l'erreur seulement. `chattr +i` sur le fichier (bloquerait aussi les écritures légitimes de Dokploy).
+**Consequences**: Les commentaires du YAML sont perdus lors d'une correction. Une recréation du conteneur par Dokploy (toggle dashboard, ports, variables, version) garde le fichier mais perd le montage du secret DNS-01 et change la version de Traefik (TECH_DEBT). Retrait : voir `ops/vps/README.md`.
+**AGENTS.md rule concerned**: §4 (ne laisser aucun problème non résolu), §9
+
+---
+
 ## [2026-11-17] Traefik : IP visiteur de confiance et tableau de bord fermé
 **Context**: Derrière le tunnel, Traefik remplaçait `X-Forwarded-For` par la passerelle Docker `172.18.0.1` (cloudflared, en réseau hôte, atteint Traefik par `[::1]:443` puis docker-proxy), donc tous les visiteurs partageaient une clé de limitation. `api.insecure: true` publiait en plus l'API et le tableau de bord de Traefik sur `:8080` sans authentification, joignable depuis tout conteneur du réseau `dokploy-network`.
 **Decision**: Dans `/etc/dokploy/traefik/traefik.yml` (accord du propriétaire) : `forwardedHeaders.trustedIPs: ["172.18.0.1/32"]` sur `websecure` seulement, et `api.insecure: false` (aucun routeur `api@internal`, le tableau de bord n'est plus exposé). Sauvegarde : `/etc/dokploy/traefik/traefik.yml.bak-chimeraflow-20261116200929`. Puis `docker restart dokploy-traefik`. `TRUSTED_PROXIES=10.0.1.0/24,172.18.0.1/32` posé dans Doppler par le propriétaire.
