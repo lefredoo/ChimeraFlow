@@ -284,9 +284,16 @@ Statuts : **couverte** (test automatisé du comportement énoncé), **partielle*
 
 **Énoncé** : `parse(export(messages)) == messages` pour les formats Android et iOS, FR et EN.
 
-**Tests** : `backend/tests/test_properties.py::TestRoundTrip::test_whatsapp_parse_lossless` ne vérifie que la présence non vide de `author` et `text`. Aucune fonction d'export n'existe. Le format iOS n'est pas lu (il est compté comme erreur).
+**Mise en œuvre** : `export_messages(messages, format)` (`backend/mcp_servers/whatsapp_parser.py`) écrit cinq formats (`android_fr`, `android_nobracket_fr`, `ios_fr`, `ios_en`, `android_en`) ; `parse_export` les relit. Deux formats n'ont pas de secondes : l'export refuse alors un message dont la seconde n'est pas nulle. Les formats EN sont mois d'abord : l'aller-retour se fait avec `default_date_order="mdy"` (règle de l'ordre jour/mois dans `backend/README.md`). Messages générés : texte sur 1 à 3 lignes (lignes vides et caractères Unicode quelconques compris, sauf contrôles, séparateurs de ligne et marques invisibles), auteur sans `:`, espaces réservés de pièces jointes FR et EN, dates de 2000 à 2099.
 
-**Statut : non couverte.** Le test porte un autre nom que la propriété. À corriger si P3 est retenue.
+**Tests** (Hypothesis, `backend/tests/test_properties.py::TestParserRoundTrip`) :
+- `test_should_parse_back_the_exported_messages_when_exporting_in_any_format` : `parse_export(export_messages(m, f)) == m` (horodatage, auteur, texte, drapeau de pièce jointe), sans erreur ni message système.
+- `test_should_number_each_message_by_its_first_line_when_exporting_in_any_format` : le numéro de ligne de chaque message est celui de sa première ligne.
+- `test_should_return_the_exported_messages_when_the_connector_reads_the_file` : même propriété à travers un fichier et `WhatsAppConnector.fetch_records` (payload `author`, `text`, `attachment`).
+- Cas d'exemple dans `backend/tests/test_whatsapp_parser.py` (formats, ordre des dates, multi-lignes, pièces jointes, messages système, erreurs).
+- `test_whatsapp_parse_lossless` (même classe `TestRoundTrip`) reste un test de lecture des données livrées, il ne porte pas la propriété.
+
+**Statut : couverte.** Limite : le round-trip ne génère que des messages dont aucune ligne de suite ne ressemble à un en-tête (sinon la ligne serait un nouveau message, par construction du format), et les messages système ne sont pas exportés.
 
 ### P4 : déterminisme
 
@@ -336,7 +343,7 @@ Statuts : **couverte** (test automatisé du comportement énoncé), **partielle*
 |-----------|--------|------------------|
 | P1 Provenance | couverte (interpréteur) | `test_interpreter_properties.py`, `test_interpreter.py`, `test_properties.py::TestProvenance` |
 | P2 Idempotence | couverte | `test_properties.py`, `test_normalizer.py` (Hypothesis) |
-| P3 Aller-retour | non couverte | `test_properties.py::TestRoundTrip` (ne teste pas la propriété) |
+| P3 Aller-retour | couverte | `test_properties.py::TestParserRoundTrip` (Hypothesis), `test_whatsapp_parser.py` |
 | P4 Déterminisme | couverte | `test_interpreter_properties.py`, `test_interpreter.py`, `test_api_correlations.py` |
 | P5 Monotonie | couverte | `test_interpreter_properties.py` (Hypothesis) |
 | P6 Pas de fabrication | partielle | `test_interpreter_properties.py`, `test_properties.py::TestNoFabrication`, `test_interpreter.py` |
@@ -350,4 +357,4 @@ Propriétés du comparateur de noms (`test_normalizer.py`, Hypothesis) : symétr
 Détail et priorités dans `docs/decisions/TECH_DEBT.md`. Principaux : pas de service Redis
 ni de vrai proxy LiteLLM en CI ; fenêtre symétrique (une note WhatsApp peut corréler un prix
 postérieur) ; un nom d'un seul mot correspond à tout produit qui le contient ; alerte e-mail
-jamais envoyée à un vrai Cloudflare Email Service ; propriétés P3 et P6 incomplètes.
+jamais envoyée à un vrai Cloudflare Email Service ; propriété P6 incomplète.

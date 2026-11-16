@@ -12,6 +12,8 @@ Required by AGENTS.md §15.
 ---
 
 ## Current Debt
+- [2026-11-17] Parseur WhatsApp : (1) un export dont toutes les dates sont ambiguës (champs ≤ 12) est lu avec `default_date_order` (`dmy`), un export EN doit être déclaré `mdy` à la construction du connecteur, sans réglage par variable d'environnement ; (2) un message système est reconnu par l'absence d'auteur, donc un message système contenant « : » (ex. un nom de groupe) est lu comme un message ; (3) une ligne de suite qui ressemble à un en-tête (`12/11/2026 10:00 - …`) démarre un message ; (4) le fichier entier est lu à chaque appel ; (5) `attachment` n'est pas une colonne utilisable dans une règle (absente de `schemas/sources.py`) | Low | backend/mcp_servers/whatsapp_parser.py, backend/mcp_servers/whatsapp_connector.py
+- [2026-11-17] `python-dateutil` repassé à 2.9.0.post0 (`< 3`) : `litellm >= 1.100.4` (correctif des alertes Dependabot 1 et 22) exige `boto3`, dont `botocore` borne `python-dateutil < 3`. Remonter la version quand botocore lèvera la borne ; `boto3`, `botocore`, `s3transfer` alourdissent l'image | Low | backend/requirements.txt
 - [2026-11-17] Dans Dokploy v0.31.0, le toggle du tableau de bord, le changement de ports ou de variables et la mise à jour de version de Traefik recréent le conteneur `dokploy-traefik` : `traefik.yml` est conservé (et rétabli par `check-traefik-config.timer` en cas de dérive), mais le montage du secret DNS-01 `/run/secrets/cf_dns_api_token` est perdu et l'image passe à `traefik:v3.7.16` (`TRAEFIK_VERSION` n'est pas posée sur le service `dokploy`). Le garde-fou signale le montage manquant sans recréer le conteneur ; à ne pas utiliser, sinon recréer avec `.cloudflare-backup\r6-traefik-recreate.sh` du propriétaire | Low | ops/vps/check-traefik-config.sh
 - [2026-11-16] Flux SSE et interface : course possible sur la réservation d'un emplacement de flux, plafond par IP absent (seulement 20 flux par processus), flux non suspendu dans un onglet masqué, reconnexion sans délai croissant, et l'interrogation toutes les 2 s garde la base Neon éveillée | Med | backend/api/correlation_stream.py, frontend/lib/hooks, frontend/components
 - [2026-11-16] La première mise en production incrémente `version` des 5 règles prédéfinies et applique le statut du fichier (une règle désactivée à la main peut être réactivée) | Low | backend/models/seed.py
@@ -102,11 +104,11 @@ Required by AGENTS.md §15.
 
 ### [2026-11-13] WhatsApp parser limits | Low | backend/mcp_servers/whatsapp_connector.py
 
-**Problem**: Product extraction uses a hardcoded keyword list (ciment, pointe, vis, tuyau, ...). Multi-line messages and non-Android export formats are counted as parse errors (R6 of connectors-spec.md asks for both).
+**Problem**: Product extraction uses a hardcoded keyword list (ciment, pointe, vis, tuyau, ...). (Multi-line messages and the iOS format are handled since 2026-11-17, see `whatsapp_parser.py`.)
 
 **Impact**: Low - sufficient for the demo data, does not generalize.
 
-**Solution**: Handle continuation lines and the iOS format; LLM-assisted extraction once LiteLLM is available.
+**Solution**: LLM-assisted extraction once LiteLLM is available.
 
 ---
 

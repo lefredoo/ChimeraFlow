@@ -31,8 +31,8 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Tests de contrat R1 à R4 (`backend/tests/test_connectors.py`)
 - [x] Hook `parser-test` (`.kiro/hooks/parser-test.json`)
 - [x] Hook `spec-update-reminder` (`.kiro/hooks/spec-update-reminder.json`)
-- [~] Propriétés de parseur (PBT) : P2 couverte ; P1 et P6 partielles ; P3 non couverte (`design.md` §12)
-- [~] Parseur WhatsApp : format Android seulement ; le format iOS et les messages sur plusieurs lignes sont comptés comme erreurs (`TECH_DEBT.md`)
+- [~] Propriétés de parseur (PBT) : P2 et P3 couvertes ; P1 et P6 partielles (`design.md` §12)
+- [x] Parseur WhatsApp : Android et iOS, dates FR et EN (ordre jour/mois décidé par fichier), messages sur plusieurs lignes, pièces jointes signalées, messages système comptés à part (`backend/mcp_servers/whatsapp_parser.py`, `backend/tests/test_whatsapp_parser.py`)
 - [x] Les quatre connecteurs servis en serveurs MCP stdio (`backend/mcp_servers/mcp_app.py`, lanceur `backend/mcp_main.py`, tests `backend/tests/test_mcp_servers.py`)
 - [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` (copie du modèle `backend/mcp_servers/kiro-mcp.json`, testé) ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
 - [ ] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18, cible d'architecture) : l'image runtime contient le lanceur, mais aucun service compose ne le démarre (stdio uniquement)

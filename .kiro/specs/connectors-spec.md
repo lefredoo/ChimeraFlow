@@ -44,6 +44,19 @@ Each connector SHALL implement:
 - Handle multi-line messages
 - Extract entities: product names
 
+Implémentation (`backend/mcp_servers/whatsapp_parser.py`, détail dans `backend/README.md`, « Parseur WhatsApp ») :
+- Formats lus : `[JJ/MM/AAAA, HH:MM:SS] Auteur: texte` (Android), `[JJ/MM/AAAA HH:MM:SS] …` (iOS),
+  `JJ/MM/AAAA HH:MM - Auteur: texte` (Android sans crochets), horloge 12 h `AM`/`PM` (`[M/J/AA, h:mm:ss AM] …`).
+- Ordre jour/mois, décidé **par fichier** : un premier champ > 12 donne `dmy`, sinon un second champ > 12 donne
+  `mdy`, sinon l'argument `default_date_order` du connecteur (`dmy` par défaut). Le choix est exposé
+  (`date_order`, `date_order_source`) et journalisé quand c'est le défaut.
+- Message sur plusieurs lignes : les lignes qui ne sont pas des en-têtes prolongent le message précédent
+  (jointes par `\n`) ; ce ne sont pas des erreurs. `source_ref` et `id` portent la première ligne.
+- Pièce jointe (`<Media omitted>`, `<Médias omis>`, `image omitted`, `<attached: …>`) : record gardé,
+  `payload["attachment"] = true` (`false` sinon).
+- Message système (sans auteur : chiffrement, arrivées) : ignoré et compté dans `system_skipped`, jamais dans
+  `parse_errors`. Les autres lignes illisibles restent des erreurs (R4).
+
 ### R7: Mobile Money Connector
 - CSV format
 - Fields: transaction_id, phone, amount, status, timestamp

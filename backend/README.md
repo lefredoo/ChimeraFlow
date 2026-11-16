@@ -30,7 +30,8 @@ backend/
 │   ├── base.py             # BaseConnector et schéma UnifiedRecord
 │   ├── excel_connector.py  # lecture Excel (pandas + openpyxl)
 │   ├── access_connector.py # lecture Access (CLI mdbtools ou access-parser, selon ACCESS_READER)
-│   ├── whatsapp_connector.py # parseur WhatsApp (expression régulière, format Android)
+│   ├── whatsapp_connector.py # connecteur WhatsApp (records unifiés, produits)
+│   ├── whatsapp_parser.py  # parseur pur (Android, iOS, FR/EN, multi-lignes) et export inverse
 │   ├── momo_connector.py   # lecture du CSV Mobile Money
 │   ├── mcp_app.py          # serveur MCP stdio d'une source (outils fetch_records, health_check)
 │   ├── mcp_settings.py     # réglages des serveurs MCP (DATA_DIR, ACCESS_READER), sans config.py
@@ -62,6 +63,7 @@ backend/
 │   ├── test_alerts.py      # e-mail récapitulatif (transport HTTP simulé)
 │   ├── test_scenario_data.py # chaque règle prédéfinie trouve une corrélation sur les données livrées
 │   ├── test_connector_errors.py # erreurs de format, compteur d'erreurs par lecture
+│   ├── test_whatsapp_parser.py # formats, ordre des dates, multi-lignes, pièces jointes, messages système
 │   ├── test_schemas.py     # validation du schéma de règle
 │   ├── test_rule_files.py  # chargement de data/rules/*.json, CLI de validation
 │   ├── test_rate_limit.py  # 429, Retry-After, IP client, variables requises
@@ -400,15 +402,53 @@ que l'utilisateur voit dans son fichier.
 |--------|-------------------|----------------------|---------|
 | `excel` | `Produit`, `Prix_Unitaire`, `Fournisseur`, `Date_MAJ` | `Date_MAJ` | `product` |
 | `access` | `id`, `designation`, `unite`, `qty_stock`, `prix_achat`, `date_modif` | `date_modif` | `product` |
-| `whatsapp` | `author`, `text` | date du message | `product` (mot-clé + quantité, par exemple `ciment 50kg`) |
+| `whatsapp` | `author`, `text`, `attachment` | date du message | `product` (mot-clé + quantité, par exemple `ciment 50kg`) |
 | `momo` | `transaction_id`, `timestamp`, `phone`, `customer_name`, `operator`, `amount`, `currency`, `status`, `reference`, `quantity` | `timestamp` | `payment`, `product` (tiré de `reference`) |
 
 Les lignes qui ne peuvent pas être lues (produit absent, date invalide, quantité ou montant invalide) sont
 sautées, journalisées et comptées dans `parse_errors` du connecteur. Aucune valeur n'est inventée : les mêmes
 fichiers donnent toujours les mêmes records (P4).
 
-Le parseur WhatsApp ne lit que le format Android `[JJ/MM/AAAA, HH:MM:SS] Auteur: Message`. Le format iOS et
-les messages sur plusieurs lignes sont comptés comme erreurs (voir `TECH_DEBT.md`).
+### Parseur WhatsApp (`whatsapp_parser.py`)
+
+Fonctions pures (aucune E/S), utilisées par `WhatsAppConnector`. Formats lus, ligne par ligne :
+
+| Forme | Exemple |
+|-------|---------|
+| Android, crochets | `[01/11/2026, 09:24:00] Client A: texte` |
+| Android, sans crochets (secondes facultatives) | `01/11/2026 09:24 - Client A: texte` |
+| iOS | `[01/11/2026 09:24:00] Client A: texte` |
+| iOS ou Android EN (horloge 12 h, `AM`/`PM`, espace fine U+202F acceptée) | `[11/1/26, 9:24:00 AM] Client A: texte`, `11/1/26, 9:24 AM - Client A: texte` |
+
+Les séparateurs `/` et `.` sont acceptés, l'année fait 2 ou 4 chiffres (`26` = 2026). Les marques invisibles
+de début de ligne (U+200E, BOM) sont ignorées.
+
+**Ordre jour/mois, décidé une fois par fichier** (aucun repli silencieux) :
+1. un premier champ supérieur à 12 dans un en-tête : jour d'abord (`dmy`) ;
+2. sinon un second champ supérieur à 12 : mois d'abord (`mdy`) ;
+3. sinon toutes les dates sont ambiguës : l'argument `default_date_order` du connecteur décide (`dmy` par
+   défaut, `WhatsAppConnector(chemin, default_date_order="mdy")` pour un export EN). Le connecteur expose
+   `date_order` et `date_order_source` (`detected` ou `default`) et journalise le cas par défaut.
+
+Si un fichier contient les deux preuves, le jour d'abord l'emporte et les en-têtes incompatibles sont comptés
+comme erreurs. Les données livrées (`data/commandes_clients.txt`) sont ambiguës : elles se lisent en `dmy`.
+
+| Ligne | Traitement | Compteur |
+|-------|------------|----------|
+| En-tête avec `Auteur: texte` | message ; les lignes suivantes qui ne sont pas des en-têtes le prolongent (jointes par `\n`, texte final sans espaces de bord) | |
+| En-tête sans auteur (notice de chiffrement, « X a rejoint ») et ses lignes de suite | ignoré | `system_skipped` |
+| En-tête à date ou heure impossible, ou `Auteur:` sans texte | ignoré (les lignes de suite d'une date impossible aussi) | `parse_errors` |
+| Ligne non vide avant le premier en-tête | ignoré | `parse_errors` |
+
+Le numéro de ligne de `source_ref` et de l'`id` (`wa-<n>`) est celui de la **première ligne** du message. Un
+message dont la première ligne est un espace réservé de média (`<Media omitted>`, `<Médias omis>`, `image omitted`,
+`<attached: …>`, `… (file attached)`) est gardé avec `payload["attachment"] = true` ; les autres ont `false`.
+`attachment` n'est pas une colonne de règle (absent de `schemas/sources.py`). Les produits sont extraits ligne par
+ligne. Le fichier entier est lu à chaque appel (pour fixer l'ordre des dates) ; `parse_errors` et `system_skipped`
+portent sur tout le fichier, même quand `limit` coupe la liste des records.
+
+`export_messages(messages, format)` fait le chemin inverse (formats `android_fr`, `android_nobracket_fr`, `ios_fr`,
+`ios_en`, `android_en`). Il n'est utilisé que par les tests de la propriété P3 (aller-retour).
 
 ## Serveurs MCP
 

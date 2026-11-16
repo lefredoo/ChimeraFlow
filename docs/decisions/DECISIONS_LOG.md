@@ -18,6 +18,24 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Parseur WhatsApp : formats, ordre des dates et aller-retour (R3, P3)
+**Context**: Le parseur ne lisait que `[JJ/MM/AAAA, HH:MM:SS]` ; iOS, dates EN et messages multi-lignes étaient des erreurs. P3 n'avait ni fonction d'export ni test.
+**Decision**: Parseur pur dans `whatsapp_parser.py` (formats Android avec ou sans crochets, iOS, horloge 12 h). Ordre jour/mois décidé par fichier : premier champ > 12 donne `dmy`, sinon second champ > 12 donne `mdy`, sinon `default_date_order` (`dmy`), exposé et journalisé. Lignes de suite ajoutées au message précédent ; messages système (sans auteur) comptés dans `system_skipped` ; pièces jointes gardées avec `payload["attachment"]`. `export_messages` et trois tests Hypothesis couvrent P3. Deux messages ajoutés en fin de `data/commandes_clients.txt` (multi-lignes, média) sans décaler les numéros de ligne existants.
+**Alternatives rejected**: Heuristique « AM/PM donc mois d'abord » (faux au Royaume-Uni ou en Australie). Variable d'environnement pour l'ordre par défaut (hors périmètre, demanderait AGENTS.md §22). Lecture en flux avec arrêt à `limit` (l'ordre des dates exige tout le fichier).
+**Consequences**: `parse_errors` et `system_skipped` portent sur tout le fichier ; une ligne vide avant le premier en-tête n'est plus une erreur ; `attachment` s'ajoute au payload sans être une colonne de règle. Limites dans TECH_DEBT (2026-11-17). Les hooks `parser-test` et `spec-update-reminder` avaient un `matcher` jamais vrai (`\\.py` au lieu de `\.py` après échappement JSON) et `cd backend && …` échoue sous PowerShell 5.1 : corrigés.
+**AGENTS.md rule concerned**: §4 (corriger dans le cycle), §7 (pas de repli de configuration : l'ordre par défaut est un argument documenté)
+
+---
+
+## [2026-11-17] Dépendances Python : litellm 1.100.4 et python-dateutil 2.9.0.post0
+**Context**: Alertes Dependabot 1 et 22 (litellm, sévérité haute, correctif 1.100.4).
+**Decision**: `litellm==1.100.4` (version corrigée la plus basse). Il tire `boto3`, qui borne `python-dateutil < 3` : `python-dateutil` passe de 4.0.0 à 2.9.0.post0 (aucun import direct, dépendance de pandas).
+**Alternatives rejected**: Une version de litellm plus récente (plus de changements sans besoin). Garder `python-dateutil` 4.0.0 (résolution impossible).
+**Consequences**: Trois paquets de plus (`boto3`, `botocore`, `s3transfer`). Voir TECH_DEBT (2026-11-17).
+**AGENTS.md rule concerned**: §16 (dépendance ajoutée de façon transitive, imposée par le correctif de sécurité)
+
+---
+
 ## [2026-11-17] Traefik : garde-fou systemd contre la perte des réglages
 **Context**: Les réglages `trustedIPs` et `api.insecure: false` sont dans un fichier partagé que Dokploy gère. Il fallait savoir si un rechargement depuis l'interface les efface.
 **Decision**: Lecture du code Dokploy v0.31.0 : Reload = `docker restart` seul, `traefik.yml` n'est recréé que s'il est absent, et Dokploy ne le stocke pas en base (rien à synchroniser par `settings.updateTraefikConfig`). Ajout de `check-traefik-config.timer` (5 min, root) : script `/usr/local/sbin/check-traefik-config.sh`, copie de référence `traefik.yml.chimeraflow-reference`, correction des deux clés seulement puis `docker restart`, rien si aucune dérive. Copies dans `ops/vps/`. Essais : sans dérive, copies à dérive, conteneur factice, un Reload Dokploy réel (fichier inchangé).
