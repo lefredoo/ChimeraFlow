@@ -4,11 +4,11 @@
     {
       "name": "Run Parser Tests on Save",
       "trigger": "PostFileSave",
-      "description": "When a connector or parser file is saved, run contract tests and PBT",
-      "matcher": "backend[/\\\\]mcp_servers[/\\\\].*\\\\.py$",
+      "description": "When a connector, a parser or the normalizer is saved, run contract tests and PBT (runs from the repo root, Windows PowerShell safe: no cd, no chaining)",
+      "matcher": "backend[/\\\\]mcp_servers[/\\\\][^/\\\\]+\\.py$|backend[/\\\\]engine[/\\\\]normalizer\\.py$",
       "action": {
         "type": "command",
-        "command": "cd backend && python -m pytest tests/test_connectors.py tests/test_properties.py -v --tb=short",
+        "command": "backend/.venv/Scripts/python.exe -m pytest -c backend/pytest.ini backend/tests/test_connectors.py backend/tests/test_properties.py backend/tests/test_whatsapp_parser.py -q --tb=short",
         "timeout": 120
       }
     }
