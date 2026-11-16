@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  API_URL: https://api.chimeraflow.linguasolution.com
+  API_URL: https://chimeraflow-api.linguasolution.com
   WEB_URL: https://chimeraflow.linguasolution.com
 
 jobs:

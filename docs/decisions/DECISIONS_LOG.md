@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] API publique sur `chimeraflow-api.linguasolution.com` via le tunnel partagé
+**Context**: L'API n'était pas joignable depuis Internet (DNS vers l'adresse Tailscale, ports 80 et 443 fermés sur `eth0`), donc les runners GitHub et le frontend hors Tailscale échouaient. Le propriétaire a déjà un tunnel Cloudflare `hetzner-1-web` qui sert ses autres applications.
+**Decision**: Le nom public est `chimeraflow-api.linguasolution.com` (CNAME proxied vers le tunnel `hetzner-1-web`, ingress vers Traefik en `https://localhost:443`). Traefik délivre le certificat en DNS-01. Les ports 80 et 443 du VPS restent fermés. Vercel pointe déjà sur ce nom.
+**Alternatives rejected**: `api.chimeraflow.linguasolution.com` : deux niveaux de sous-domaine, non couverts par l'Universal SSL de Cloudflare. DNS vers l'IP publique avec ports 80 et 443 ouverts : annule le durcissement du VPS décidé par le propriétaire.
+**Consequences**: Derrière le tunnel, l'IP cliente visible par l'API est celle de la passerelle Docker : la limitation de débit est partagée entre visiteurs jusqu'au correctif de `TRUSTED_PROXIES` (TECH_DEBT, 2026-11-17). Le correctif touche la config Traefik partagée et demande l'accord du propriétaire.
+**AGENTS.md rule concerned**: aucune
+
+---
+
 ## [2026-11-17] E-mails via Cloudflare Email Service et alias LiteLLM nu
 **Context**: Le propriétaire utilise Cloudflare (Mailflare) pour toutes ses adresses, sur un sous-domaine de `linguasolution.com` ; le proxy LiteLLM attend l'alias `deepseek-v4.1-flash-group`, sans préfixe.
 **Decision**: L'alerte e-mail appelle l'API REST Cloudflare Email Service (`CF_EMAIL_ACCOUNT_ID` de 32 caractères hexadécimaux, `CF_EMAIL_API_TOKEN`), succès = HTTP 2xx et `success: true`, seuls les codes d'erreur sont journalisés ; expéditeur `ChimeraFlow <notifications@notify.linguasolution.com>`. Le client LiteLLM envoie l'alias tel quel avec `custom_llm_provider="openai"` (un ancien `openai/` est retiré une fois).

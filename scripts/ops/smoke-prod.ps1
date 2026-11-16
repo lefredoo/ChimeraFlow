@@ -15,7 +15,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-$ApiUrl = 'https://api.chimeraflow.linguasolution.com'
+$ApiUrl = 'https://chimeraflow-api.linguasolution.com'
 $WebOrigin = 'https://chimeraflow.linguasolution.com'
 $ExpectedPredefinedRules = 5
 

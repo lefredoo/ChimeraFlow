@@ -9,7 +9,7 @@
 
 set -u
 
-API_URL="https://api.chimeraflow.linguasolution.com"
+API_URL="https://chimeraflow-api.linguasolution.com"
 WEB_ORIGIN="https://chimeraflow.linguasolution.com"
 EXPECTED_PREDEFINED_RULES=5
 

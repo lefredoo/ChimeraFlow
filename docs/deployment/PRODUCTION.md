@@ -7,14 +7,14 @@ Ce document décrit la production de ChimeraFlow et les gestes d'exploitation co
 | Élément | Rôle | Où |
 |---------|------|----|
 | Frontend Next.js | `https://chimeraflow.linguasolution.com` | Vercel, projet `chimeraflow` (aucun secret, seules les variables `NEXT_PUBLIC_*` sont fournies au build) |
-| API FastAPI | `https://api.chimeraflow.linguasolution.com` | VPS Hetzner, compose Dokploy `chimeraflow-api` (`docker-compose.prod.yml`), TLS Let's Encrypt par Traefik |
+| API FastAPI | `https://chimeraflow-api.linguasolution.com` | VPS Hetzner, compose Dokploy `chimeraflow-api` (`docker-compose.prod.yml`), exposée par le tunnel Cloudflare partagé `hetzner-1-web`, TLS Let's Encrypt par Traefik (DNS-01) |
 | Redis | Limitation de débit et compteur de dépense LLM | Même compose, réseau privé `internal`, volume `redis-data` |
 | PostgreSQL | Règles, corrélations, exécutions | Neon (`DATABASE_URL`) |
 | Configuration et secrets | Toutes les variables de l'API | Doppler, projet `chimeraflow`, config `prd` |
 
 Le conteneur de l'API ne reçoit qu'une variable, `DOPPLER_TOKEN` (jeton de service en lecture seule). Au démarrage, `docker-entrypoint.sh` lance `doppler run`, applique les migrations (`alembic upgrade head`) puis démarre uvicorn. Si Doppler est injoignable ou le jeton invalide, le conteneur s'arrête au lieu de démarrer avec une configuration partielle.
 
-Les noms `api.chimeraflow` et `chimeraflow` sont en DNS seul, sans proxy : le défi HTTP-01 de Let's Encrypt et l'adresse IP cliente de la limitation de débit en dépendent.
+Le nom `chimeraflow-api.linguasolution.com` passe par le tunnel Cloudflare, pas par l'IP publique du VPS (voir « Accessibilité de l'API depuis Internet »). Le certificat est délivré par Traefik en DNS-01, donc aucun port 80 n'est nécessaire. Derrière le tunnel, `X-Forwarded-For` ne porte pas l'IP du visiteur (dette technique à lire avant de modifier la limitation de débit).
 
 ## Branches et déploiement
 
@@ -41,15 +41,21 @@ $env:SMOKE_PASSWORD = '<mot de passe de démonstration>'
 ./scripts/ops/smoke-prod.ps1
 ```
 
-Depuis GitHub : Actions → **Production smoke** → Run workflow (échoue tant que l'API n'est pas joignable depuis Internet, voir plus haut). Le workflow lit les secrets de dépôt `SMOKE_EMAIL` et `SMOKE_PASSWORD`. Pour les recréer : lire les deux valeurs dans Doppler (`doppler secrets get NEXT_PUBLIC_DEMO_LOGIN_EMAIL NEXT_PUBLIC_DEMO_LOGIN_PASSWORD --plain`) puis `gh secret set SMOKE_EMAIL` et `gh secret set SMOKE_PASSWORD`.
+Depuis GitHub : Actions → **Production smoke** → Run workflow. Le workflow lit les secrets de dépôt `SMOKE_EMAIL` et `SMOKE_PASSWORD`. Pour les recréer : lire les deux valeurs dans Doppler (`doppler secrets get NEXT_PUBLIC_DEMO_LOGIN_EMAIL NEXT_PUBLIC_DEMO_LOGIN_PASSWORD --plain`) puis `gh secret set SMOKE_EMAIL` et `gh secret set SMOKE_PASSWORD`.
 
 L'exécution des corrélations remplace celles des règles actives : lancer le test de fumée est sans effet durable sur les données.
 
 ## Accessibilité de l'API depuis Internet
 
-État constaté le 2026-11-15 : l'enregistrement DNS `api.chimeraflow.linguasolution.com` pointe vers l'adresse Tailscale du VPS (plage 100.64.0.0/10), et le pare-feu du VPS (chaîne `DOCKER-USER`) rejette le trafic public entrant de `eth0` vers les ports 80 et 443. L'API n'est donc joignable que depuis le réseau Tailscale. Les runners GitHub (surveillance, test de fumée depuis GitHub) n'y accèdent pas (délai de connexion dépassé, `curl` code 28), et un visiteur du frontend hors Tailscale ne peut pas non plus appeler l'API depuis son navigateur. Le test de fumée en local passe, car le poste d'administration est sur le réseau Tailscale.
+L'API est publiée par le tunnel Cloudflare `hetzner-1-web`, qui sert déjà les autres applications du propriétaire :
 
-Pour ouvrir l'API au public, deux gestes du propriétaire : faire pointer l'enregistrement DNS vers l'adresse publique du VPS et retirer les règles `DROP` de `DOCKER-USER` pour 80 et 443 (Traefik doit répondre au défi HTTP-01 de Let's Encrypt). Ensuite, activer la surveillance planifiée : variable de dépôt `UPTIME_SCHEDULE_ENABLED` à `true` (Settings → Secrets and variables → Actions → Variables).
+- Enregistrement DNS `chimeraflow-api` (proxied, CNAME) vers le tunnel `hetzner-1-web`.
+- Route du tunnel (ingress) vers `https://localhost:443` (Traefik sur le VPS, `noTLSVerify`).
+- Domaine Dokploy du service `api` sur le port 8000, certificat Let's Encrypt délivré par Traefik en DNS-01.
+
+Les ports 80 et 443 de l'interface publique du VPS restent fermés. Ne pas pointer le DNS vers l'IP publique du VPS et ne pas ouvrir 80 ou 443 : cela annule le durcissement du VPS. Le nom `api.chimeraflow.linguasolution.com` n'existe plus : le certificat Universal SSL ne couvre qu'un niveau de sous-domaine.
+
+Le frontend (Vercel) pointe déjà sur cette adresse via `NEXT_PUBLIC_API_URL`. Pour activer la surveillance planifiée : variable de dépôt `UPTIME_SCHEDULE_ENABLED` à `true` (Settings → Secrets and variables → Actions → Variables).
 
 ## Surveillance de disponibilité
 
