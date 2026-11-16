@@ -40,8 +40,8 @@ def fake_sources(monkeypatch):
     return records
 
 
-class Resend:
-    """Scripted Resend provider on a mock transport."""
+class CloudflareEmail:
+    """Scripted Cloudflare Email Service on a mock transport."""
 
     def __init__(self, status=200):
         self.status = status
@@ -49,15 +49,16 @@ class Resend:
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.bodies.append(json.loads(request.content))
-        return httpx.Response(self.status, json={})
+        return httpx.Response(self.status, json={"success": self.status < 300, "errors": []})
 
 
 @pytest.fixture
-def resend(monkeypatch) -> Resend:
-    provider = Resend()
+def cloudflare_email(monkeypatch) -> CloudflareEmail:
+    provider = CloudflareEmail()
     monkeypatch.setattr(alerts, "_TRANSPORT", httpx.MockTransport(provider.handler))
     monkeypatch.setattr(alerts, "RETRY_DELAY_SECONDS", 0)
-    monkeypatch.setattr(config, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(config, "CF_EMAIL_ACCOUNT_ID", "0123456789abcdef0123456789abcdef")
+    monkeypatch.setattr(config, "CF_EMAIL_API_TOKEN", "cf_test_token")
     monkeypatch.setattr(config, "ALERT_EMAIL_FROM", "alerts@example.test")
     monkeypatch.setattr(config, "ALERT_EMAIL_TO", ("ops@example.test",))
     monkeypatch.setattr(config, "ALERT_EMAIL_COOLDOWN_SECONDS", 300)
@@ -138,30 +139,30 @@ def test_should_reject_since_when_it_is_not_a_date(api_client):
 # --- alert e-mail -----------------------------------------------------------------------------
 
 
-def test_should_send_one_digest_when_an_execution_finds_new_warnings(api_client, fake_sources, resend):
+def test_should_send_one_digest_when_an_execution_finds_new_warnings(api_client, fake_sources, cloudflare_email):
     _execute(api_client)
 
-    assert len(resend.bodies) == 1
-    assert "Stock bas" in resend.bodies[0]["text"]
+    assert len(cloudflare_email.bodies) == 1
+    assert "Stock bas" in cloudflare_email.bodies[0]["text"]
 
 
-def test_should_not_send_again_when_the_next_execution_finds_nothing_new(api_client, fake_sources, resend):
+def test_should_not_send_again_when_the_next_execution_finds_nothing_new(api_client, fake_sources, cloudflare_email):
     _execute(api_client)
     _execute(api_client)
 
-    assert len(resend.bodies) == 1
+    assert len(cloudflare_email.bodies) == 1
 
 
-def test_should_not_send_when_only_info_correlations_are_found(api_client, fake_sources, resend):
+def test_should_not_send_when_only_info_correlations_are_found(api_client, fake_sources, cloudflare_email):
     fake_sources["excel"][:] = [make_excel_record(20000)]
 
     found = _execute(api_client, rule_ids="r_high_value_order").json()["correlations_found"]
 
-    assert (found, resend.bodies) == (1, [])
+    assert (found, cloudflare_email.bodies) == (1, [])
 
 
 def test_should_not_send_when_the_feature_is_not_configured(api_client, fake_sources, monkeypatch):
-    monkeypatch.setattr(config, "RESEND_API_KEY", None)
+    monkeypatch.setattr(config, "CF_EMAIL_API_TOKEN", None)
     calls = []
     monkeypatch.setattr(alerts, "_TRANSPORT", httpx.MockTransport(lambda r: calls.append(r) or httpx.Response(200)))
 
@@ -170,8 +171,8 @@ def test_should_not_send_when_the_feature_is_not_configured(api_client, fake_sou
     assert calls == []
 
 
-def test_should_answer_the_request_when_the_provider_fails(api_client, fake_sources, resend):
-    resend.status = 500
+def test_should_answer_the_request_when_the_provider_fails(api_client, fake_sources, cloudflare_email):
+    cloudflare_email.status = 500
 
     response = _execute(api_client)
 

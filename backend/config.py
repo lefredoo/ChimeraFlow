@@ -320,12 +320,14 @@ if LITELLM_BUDGET_USD is not None and not (math.isfinite(LITELLM_BUDGET_USD) and
     raise ValueError("Environment variable 'LITELLM_BUDGET_USD' must be a finite number greater than 0")
 
 
-# E-mail alert digest through Resend (optional: disabled unless the API key, the
-# sender and at least one recipient are all set)
+# E-mail alert digest through Cloudflare Email Service (optional: disabled unless the
+# account id, the API token, the sender and at least one recipient are all set)
 MAX_ALERT_RECIPIENTS = 5
 _EMAIL_ADDRESS = re.compile(r"^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$")
 # "Name <address>" or a bare address, on one line
 _EMAIL_SENDER = re.compile(r"^(?:[^<>\r\n@]{1,100} )?<?[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+>?$")
+# Cloudflare account identifier: 32 hexadecimal characters
+_CF_ACCOUNT_ID = re.compile(r"^[0-9a-f]{32}$")
 
 
 def _parse_alert_recipients(raw: Optional[str]) -> Tuple[str, ...]:
@@ -374,7 +376,7 @@ def _alert_cooldown(email_enabled: bool) -> Optional[int]:
     misconfigured deployment stops at startup instead of flooding a mailbox.
 
     Args:
-        email_enabled: True when the API key, the sender and a recipient are all set.
+        email_enabled: True when the account id, the API token, the sender and a recipient are all set.
 
     Returns:
         The cooldown in seconds, or None when unset and the alert is disabled.
@@ -399,7 +401,24 @@ def _alert_cooldown(email_enabled: bool) -> Optional[int]:
     return value
 
 
-RESEND_API_KEY = optional_env("RESEND_API_KEY")
+def _optional_cf_account_id() -> Optional[str]:
+    """Read CF_EMAIL_ACCOUNT_ID (the Cloudflare account identifier, 32 hex characters).
+
+    Raises:
+        ValueError: If the value is not 32 hexadecimal characters (never echoed).
+    """
+    value = optional_env("CF_EMAIL_ACCOUNT_ID")
+    if value is None:
+        return None
+    if not _CF_ACCOUNT_ID.match(value.strip()):
+        raise ValueError("Environment variable 'CF_EMAIL_ACCOUNT_ID' must be 32 hexadecimal characters")
+    return value.strip()
+
+
+CF_EMAIL_ACCOUNT_ID = _optional_cf_account_id()
+CF_EMAIL_API_TOKEN = optional_env("CF_EMAIL_API_TOKEN")
 ALERT_EMAIL_FROM = _optional_alert_sender()
 ALERT_EMAIL_TO = _parse_alert_recipients(optional_env("ALERT_EMAIL_TO"))
-ALERT_EMAIL_COOLDOWN_SECONDS = _alert_cooldown(bool(RESEND_API_KEY and ALERT_EMAIL_FROM and ALERT_EMAIL_TO))
+ALERT_EMAIL_COOLDOWN_SECONDS = _alert_cooldown(
+    bool(CF_EMAIL_ACCOUNT_ID and CF_EMAIL_API_TOKEN and ALERT_EMAIL_FROM and ALERT_EMAIL_TO)
+)

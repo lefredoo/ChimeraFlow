@@ -39,7 +39,8 @@ for _name in (
     "LITELLM_MODEL",
     "LITELLM_BUDGET_USD",
     "TRUSTED_PROXIES",
-    "RESEND_API_KEY",  # the e-mail alert is enabled per test
+    "CF_EMAIL_ACCOUNT_ID",  # the e-mail alert is enabled per test
+    "CF_EMAIL_API_TOKEN",
     "ALERT_EMAIL_FROM",
     "ALERT_EMAIL_TO",
     "ALERT_EMAIL_COOLDOWN_SECONDS",

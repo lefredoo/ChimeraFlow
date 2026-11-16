@@ -16,8 +16,10 @@ from engine import alerts
 from engine.alerts import AlertItem, AlertSettings, CooldownStoreError, RedisCooldownStore
 from tests.cooldown_store import MemoryCooldownStore
 
+ACCOUNT_ID = "0123456789abcdef0123456789abcdef"
 SETTINGS = AlertSettings(
-    api_key="re_test_key",
+    account_id=ACCOUNT_ID,
+    api_token="cf_test_token",
     sender="alerts@example.test",
     recipients=("ops@example.test",),
     cooldown_seconds=300,
@@ -29,15 +31,21 @@ ITEMS = [
 
 
 class Provider:
-    """Scripted Resend: answers with the given statuses in order, records the requests."""
+    """Scripted Cloudflare Email Service: answers with the given statuses in order, records the requests."""
 
     def __init__(self, *statuses):
         self.statuses = list(statuses)
         self.requests = []
+        self.override_body = None
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        return httpx.Response(self.statuses.pop(0), json={"id": "x"})
+        status = self.statuses.pop(0)
+        if self.override_body is not None:
+            return httpx.Response(status, json=self.override_body)
+        if status < 300:
+            return httpx.Response(status, json={"success": True, "errors": [], "result": {}})
+        return httpx.Response(status, json={"success": False, "errors": [{"code": 10001, "message": "bad"}]})
 
 
 @pytest.fixture
@@ -49,7 +57,8 @@ def provider(monkeypatch) -> Provider:
 
 
 def _enable(monkeypatch):
-    monkeypatch.setattr(config, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(config, "CF_EMAIL_ACCOUNT_ID", ACCOUNT_ID)
+    monkeypatch.setattr(config, "CF_EMAIL_API_TOKEN", "cf_test_token")
     monkeypatch.setattr(config, "ALERT_EMAIL_FROM", "alerts@example.test")
     monkeypatch.setattr(config, "ALERT_EMAIL_TO", ("ops@example.test",))
     monkeypatch.setattr(config, "ALERT_EMAIL_COOLDOWN_SECONDS", 300)
@@ -74,15 +83,64 @@ class FakeRedis:
         return None if self.existing else True
 
 
-def test_should_post_one_digest_to_resend_when_items_are_given(provider):
+def test_should_post_one_digest_to_cloudflare_when_items_are_given(provider):
     sent = asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
 
-    body = json.loads(provider.requests[0].content)
+    request = provider.requests[0]
+    body = json.loads(request.content)
     assert sent is True
     assert len(provider.requests) == 1
-    assert provider.requests[0].headers["Authorization"] == "Bearer re_test_key"
+    assert request.method == "POST"
+    assert str(request.url) == f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/email/sending/send"
+    assert request.headers["Authorization"] == "Bearer cf_test_token"
+    assert request.headers["Content-Type"] == "application/json"
     assert (body["from"], body["to"]) == ("alerts@example.test", ["ops@example.test"])
     assert body["subject"] == "ChimeraFlow : 2 nouvelles alertes"
+    assert set(body) == {"to", "from", "subject", "text", "html"}
+
+
+def test_should_report_failure_when_the_answer_is_2xx_without_success_true(provider):
+    provider.override_body = {"success": False, "errors": [{"code": 10001, "message": "bad"}]}
+
+    sent = asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
+
+    assert (sent, len(provider.requests)) == (False, 1)
+
+
+def test_should_log_only_the_error_codes_when_the_provider_rejects_the_request(provider, caplog):
+    provider.statuses = [400]
+    caplog.set_level(logging.DEBUG)
+
+    asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
+
+    assert "codes=10001" in caplog.text
+    assert "bad" not in caplog.text
+
+
+def test_should_report_failure_when_the_answer_is_not_json(monkeypatch):
+    monkeypatch.setattr(alerts, "_TRANSPORT", httpx.MockTransport(lambda _r: httpx.Response(200, text="ok")))
+
+    assert asyncio.run(alerts.send_digest(SETTINGS, ITEMS)) is False
+
+
+def test_should_accept_a_display_name_sender_when_reading_the_setting(monkeypatch):
+    monkeypatch.setenv("ALERT_EMAIL_FROM", "ChimeraFlow <notifications@notify.linguasolution.com>")
+
+    assert config._optional_alert_sender() == "ChimeraFlow <notifications@notify.linguasolution.com>"
+
+
+@pytest.mark.parametrize("raw", ["abc", "0123456789ABCDEF0123456789abcdeg", "0123456789abcdef"])
+def test_should_reject_a_malformed_account_id_when_reading_the_setting(monkeypatch, raw):
+    monkeypatch.setenv("CF_EMAIL_ACCOUNT_ID", raw)
+
+    with pytest.raises(ValueError, match="CF_EMAIL_ACCOUNT_ID"):
+        config._optional_cf_account_id()
+
+
+def test_should_read_the_account_id_when_it_is_32_hex_characters(monkeypatch):
+    monkeypatch.setenv("CF_EMAIL_ACCOUNT_ID", ACCOUNT_ID)
+
+    assert config._optional_cf_account_id() == ACCOUNT_ID
 
 
 def test_should_send_nothing_when_there_are_no_items(provider):
@@ -156,7 +214,8 @@ def test_should_not_log_recipients_or_content_when_sending(provider, caplog):
     asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
 
     assert "ops@example.test" not in caplog.text
-    assert "re_test_key" not in caplog.text
+    assert "cf_test_token" not in caplog.text
+    assert ACCOUNT_ID not in caplog.text
     assert "Stock bas" not in caplog.text
 
 
@@ -174,7 +233,8 @@ def test_should_read_the_settings_when_all_three_are_set(monkeypatch):
 
 
 def test_should_not_expose_the_secrets_when_settings_are_printed():
-    assert "re_test_key" not in repr(SETTINGS)
+    assert "cf_test_token" not in repr(SETTINGS)
+    assert ACCOUNT_ID not in repr(SETTINGS)
     assert "ops@example.test" not in repr(SETTINGS)
 
 

@@ -1,12 +1,13 @@
 """
-E-mail alert digest for new warning and error correlations (Resend HTTP API).
+E-mail alert digest for new warning and error correlations (Cloudflare Email
+Service REST API).
 
-Enabled only when RESEND_API_KEY, ALERT_EMAIL_FROM and ALERT_EMAIL_TO are all
-set. One digest is sent per execution, from a background task: a slow or
+Enabled only when CF_EMAIL_ACCOUNT_ID, CF_EMAIL_API_TOKEN, ALERT_EMAIL_FROM and
+ALERT_EMAIL_TO are all set. One digest is sent per execution, from a background task: a slow or
 failing provider never delays or fails the request. A global cooldown
 (ALERT_EMAIL_COOLDOWN_SECONDS, enforced in Redis with SET NX EX) allows at most
 one digest per window, whatever the number of executions or workers; when Redis
-is unavailable nothing is sent (fail closed). Recipients, the API key
+is unavailable nothing is sent (fail closed). Recipients, the API token
 and the message bodies are never logged. Correlation messages come from source
 text (untrusted): control characters are stripped, the length is bounded, and
 the HTML part is escaped.
@@ -25,8 +26,10 @@ from redis.exceptions import RedisError
 import config
 
 logger = logging.getLogger(__name__)
+# httpx logs every request URL at INFO, and the URL carries the Cloudflare account id
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
-RESEND_URL = "https://api.resend.com/emails"
+CLOUDFLARE_EMAIL_URL = "https://api.cloudflare.com/client/v4/accounts/{account_id}/email/sending/send"
 SEND_TIMEOUT_SECONDS = 5.0
 SEND_ATTEMPTS = 2
 RETRY_DELAY_SECONDS = 0.5
@@ -65,9 +68,10 @@ _TRANSPORT: Optional[httpx.AsyncBaseTransport] = None
 
 @dataclass(frozen=True)
 class AlertSettings:
-    """Resend connection and addressing."""
+    """Cloudflare Email Service connection and addressing."""
 
-    api_key: str = field(repr=False)
+    account_id: str = field(repr=False)
+    api_token: str = field(repr=False)
     sender: str = field(repr=False)
     recipients: Tuple[str, ...] = field(repr=False)
     cooldown_seconds: int
@@ -86,13 +90,20 @@ def alert_settings_from_config() -> Optional[AlertSettings]:
     """Settings of the alert e-mail, or None when the feature is disabled.
 
     Returns:
-        The settings when the API key, the sender, a recipient and the cooldown are all set.
+        The settings when the account id, the API token, the sender, a recipient and the cooldown are all set.
     """
     cooldown = config.ALERT_EMAIL_COOLDOWN_SECONDS
-    if not config.RESEND_API_KEY or not config.ALERT_EMAIL_FROM or not config.ALERT_EMAIL_TO or cooldown is None:
+    if (
+        not config.CF_EMAIL_ACCOUNT_ID
+        or not config.CF_EMAIL_API_TOKEN
+        or not config.ALERT_EMAIL_FROM
+        or not config.ALERT_EMAIL_TO
+        or cooldown is None
+    ):
         return None
     return AlertSettings(
-        api_key=config.RESEND_API_KEY,
+        account_id=config.CF_EMAIL_ACCOUNT_ID,
+        api_token=config.CF_EMAIL_API_TOKEN,
         sender=config.ALERT_EMAIL_FROM,
         recipients=tuple(config.ALERT_EMAIL_TO),
         cooldown_seconds=cooldown,
@@ -205,38 +216,70 @@ def build_digest(items: Sequence[AlertItem], language: str = DEFAULT_LANGUAGE) -
     return subject, text, body
 
 
+def _json_body(response: httpx.Response) -> Optional[dict]:
+    """The JSON object of a response, or None when the body is not one."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _body_reports_success(response: httpx.Response) -> bool:
+    """True when the API answered `success: true` (an HTTP 2xx alone is not enough)."""
+    body = _json_body(response)
+    return body is not None and body.get("success") is True
+
+
+def _error_codes(response: httpx.Response) -> str:
+    """Error codes of a Cloudflare answer, comma-separated (never the messages, which may echo input)."""
+    body = _json_body(response)
+    errors = body.get("errors") if body is not None else None
+    if not isinstance(errors, list):
+        return "none"
+    codes = [str(error["code"]) for error in errors if isinstance(error, dict) and isinstance(error.get("code"), int)]
+    return ",".join(codes[:5]) or "none"
+
+
 async def send_digest(settings: AlertSettings, items: Sequence[AlertItem], language: str = DEFAULT_LANGUAGE) -> bool:
-    """Send one digest through Resend (2 attempts, 5 s each).
+    """Send one digest through Cloudflare Email Service (2 attempts, 5 s each).
 
     Args:
-        settings: Resend connection and addressing.
+        settings: Cloudflare Email Service connection and addressing.
         items: Correlations to report; nothing is sent when empty.
         language: "fr" or "en".
 
     Returns:
-        True if the provider accepted the e-mail. Failures are logged without
+        True if the provider accepted the e-mail (HTTP 2xx and `success: true`).
+        Failures are logged with the provider error codes only, never with
         recipients or content, and never raised.
     """
     if not items:
         return False
     subject, text, body = build_digest(items, language)
     payload = {
-        "from": settings.sender,
         "to": list(settings.recipients),
+        "from": settings.sender,
         "subject": subject,
         "text": text,
         "html": body,
     }
-    headers = {"Authorization": f"Bearer {settings.api_key}"}
+    url = CLOUDFLARE_EMAIL_URL.format(account_id=settings.account_id)
+    headers = {"Authorization": f"Bearer {settings.api_token}", "Content-Type": "application/json"}
 
     for attempt in range(SEND_ATTEMPTS):
         try:
             async with httpx.AsyncClient(timeout=SEND_TIMEOUT_SECONDS, transport=_TRANSPORT) as client:
-                response = await client.post(RESEND_URL, json=payload, headers=headers)
-            if response.is_success:
+                response = await client.post(url, json=payload, headers=headers)
+            if response.is_success and _body_reports_success(response):
                 logger.info("alert_email outcome=sent items=%d", len(items))
                 return True
-            logger.warning("alert_email outcome=rejected status=%d attempt=%d", response.status_code, attempt + 1)
+            logger.warning(
+                "alert_email outcome=rejected status=%d codes=%s attempt=%d",
+                response.status_code,
+                _error_codes(response),
+                attempt + 1,
+            )
             if response.status_code < 500 and response.status_code != 429:
                 return False
         except httpx.HTTPError as error:
