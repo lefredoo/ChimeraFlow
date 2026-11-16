@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Traefik : IP visiteur de confiance et tableau de bord fermé
+**Context**: Derrière le tunnel, Traefik remplaçait `X-Forwarded-For` par la passerelle Docker `172.18.0.1` (cloudflared, en réseau hôte, atteint Traefik par `[::1]:443` puis docker-proxy), donc tous les visiteurs partageaient une clé de limitation. `api.insecure: true` publiait en plus l'API et le tableau de bord de Traefik sur `:8080` sans authentification, joignable depuis tout conteneur du réseau `dokploy-network`.
+**Decision**: Dans `/etc/dokploy/traefik/traefik.yml` (accord du propriétaire) : `forwardedHeaders.trustedIPs: ["172.18.0.1/32"]` sur `websecure` seulement, et `api.insecure: false` (aucun routeur `api@internal`, le tableau de bord n'est plus exposé). Sauvegarde : `/etc/dokploy/traefik/traefik.yml.bak-chimeraflow-20261116200929`. Puis `docker restart dokploy-traefik`. `TRUSTED_PROXIES=10.0.1.0/24,172.18.0.1/32` posé dans Doppler par le propriétaire.
+**Alternatives rejected**: Faire confiance aux plages publiques de Cloudflare : inutile, seul le pair `172.18.0.1` parle à Traefik. Élargir à `172.18.0.0/16` : tout conteneur du pont pourrait forger l'IP cliente. Ajouter `web` : cloudflared n'utilise que `https://localhost:443`.
+**Consequences**: Mesuré sur l'API : `X-Forwarded-For: <IP visiteur>, 172.18.0.1`. Limite de connexion (5 par minute) : 429 à la 6e tentative depuis un poste, le test de fumée GitHub (autre IP) passe. Le port 8080 n'était pas publié sur l'hôte et reste fermé dans le réseau Docker. Un rechargement de Traefik par Dokploy peut réécrire le fichier (TECH_DEBT, 2026-11-17). Retour arrière : copier la sauvegarde sur `traefik.yml` puis `docker restart dokploy-traefik`.
+**AGENTS.md rule concerned**: §9 (limitation de débit sur les points d'entrée publics)
+
+---
+
 ## [2026-11-17] API publique sur `chimeraflow-api.linguasolution.com` via le tunnel partagé
 **Context**: L'API n'était pas joignable depuis Internet (DNS vers l'adresse Tailscale, ports 80 et 443 fermés sur `eth0`), donc les runners GitHub et le frontend hors Tailscale échouaient. Le propriétaire a déjà un tunnel Cloudflare `hetzner-1-web` qui sert ses autres applications.
 **Decision**: Le nom public est `chimeraflow-api.linguasolution.com` (CNAME proxied vers le tunnel `hetzner-1-web`, ingress vers Traefik en `https://localhost:443`). Traefik délivre le certificat en DNS-01. Les ports 80 et 443 du VPS restent fermés. Vercel pointe déjà sur ce nom.

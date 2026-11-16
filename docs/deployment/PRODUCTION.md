@@ -14,7 +14,7 @@ Ce document décrit la production de ChimeraFlow et les gestes d'exploitation co
 
 Le conteneur de l'API ne reçoit qu'une variable, `DOPPLER_TOKEN` (jeton de service en lecture seule). Au démarrage, `docker-entrypoint.sh` lance `doppler run`, applique les migrations (`alembic upgrade head`) puis démarre uvicorn. Si Doppler est injoignable ou le jeton invalide, le conteneur s'arrête au lieu de démarrer avec une configuration partielle.
 
-Le nom `chimeraflow-api.linguasolution.com` passe par le tunnel Cloudflare, pas par l'IP publique du VPS (voir « Accessibilité de l'API depuis Internet »). Le certificat est délivré par Traefik en DNS-01, donc aucun port 80 n'est nécessaire. Derrière le tunnel, `X-Forwarded-For` ne porte pas l'IP du visiteur (dette technique à lire avant de modifier la limitation de débit).
+Le nom `chimeraflow-api.linguasolution.com` passe par le tunnel Cloudflare, pas par l'IP publique du VPS (voir « Accessibilité de l'API depuis Internet »). Le certificat est délivré par Traefik en DNS-01, donc aucun port 80 n'est nécessaire. Derrière le tunnel, `X-Forwarded-For` porte l'IP du visiteur suivie de `172.18.0.1` (voir « Réseau et IP cliente »).
 
 ## Branches et déploiement
 
@@ -56,6 +56,16 @@ L'API est publiée par le tunnel Cloudflare `hetzner-1-web`, qui sert déjà les
 Les ports 80 et 443 de l'interface publique du VPS restent fermés. Ne pas pointer le DNS vers l'IP publique du VPS et ne pas ouvrir 80 ou 443 : cela annule le durcissement du VPS. Le nom `api.chimeraflow.linguasolution.com` n'existe plus : le certificat Universal SSL ne couvre qu'un niveau de sous-domaine.
 
 Le frontend (Vercel) pointe déjà sur cette adresse via `NEXT_PUBLIC_API_URL`. Pour activer la surveillance planifiée : variable de dépôt `UPTIME_SCHEDULE_ENABLED` à `true` (Settings → Secrets and variables → Actions → Variables).
+
+### Réseau et IP cliente
+
+Chemin d'une requête : Cloudflare → cloudflared (réseau hôte) → `[::1]:443` → docker-proxy → Traefik (`dokploy-traefik`) → API. Traefik voit le pair `172.18.0.1` (passerelle Docker).
+
+- `/etc/dokploy/traefik/traefik.yml`, entrypoint `websecure` : `forwardedHeaders.trustedIPs: ["172.18.0.1/32"]`. Traefik conserve alors le `X-Forwarded-For` reçu de Cloudflare et y ajoute `172.18.0.1` : l'API reçoit `<IP visiteur>, 172.18.0.1`.
+- Doppler (`prd`) : `TRUSTED_PROXIES=10.0.1.0/24,172.18.0.1/32`. L'API lit `X-Forwarded-For` de droite à gauche en sautant ces réseaux, et retient la première adresse non fiable.
+- `api.insecure: false` : le tableau de bord et l'API de Traefik ne sont plus servis sur `:8080` (le port n'était pas publié sur l'hôte, mais tout conteneur de `dokploy-network` y accédait).
+- Fichier partagé avec les autres applications du propriétaire. Sauvegarde de l'état d'avant : `/etc/dokploy/traefik/traefik.yml.bak-chimeraflow-20261116200929`. Un changement de config statique demande `docker restart dokploy-traefik`.
+- Vérification après toute opération Traefik (reload Dokploy, recréation du conteneur) : `curl -s -o /dev/null https://chimeraflow-api.linguasolution.com/health`, puis en capture de paquets dans le conteneur de l'API, l'en-tête `X-Forwarded-For` doit commencer par l'IP du visiteur ; six connexions échouées en une minute doivent renvoyer 429 à la sixième.
 
 ## Surveillance de disponibilité
 
