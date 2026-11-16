@@ -17,7 +17,7 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from api.nl_dependencies import get_nl_settings, get_spend_store
-from engine.llm_client import LlmReply, load_litellm
+from engine.llm_client import LlmReply, load_litellm, proxy_model_name
 from engine.nl_budget import SPEND_KEY, RedisSpendStore, SpendStoreError
 from engine.nl_to_rule import (
     DATA_END,
@@ -76,6 +76,9 @@ class BrokenSpendStore:
         raise SpendStoreError("down")
 
 
+PROXY_ALIAS = "deepseek-v4.1-flash-group"
+
+
 class ScriptedLlm:
     """Replaces `litellm.acompletion`: returns the scripted answers in order."""
 
@@ -98,7 +101,7 @@ class ScriptedLlm:
 
 
 def _settings(budget_usd: float = 5.0) -> NLSettings:
-    return NLSettings(api_key=SECRET_KEY, base_url="http://litellm.test", model="openai/test-model", budget_usd=budget_usd)
+    return NLSettings(api_key=SECRET_KEY, base_url="http://litellm.test", model=PROXY_ALIAS, budget_usd=budget_usd)
 
 
 @pytest.fixture
@@ -274,10 +277,26 @@ class TestProviderCall:
 
         call = scripted.calls[0]
         assert (call["api_base"], call["model"], call["api_key"]) == (
-            "http://litellm.test", "openai/test-model", SECRET_KEY,
+            "http://litellm.test", PROXY_ALIAS, SECRET_KEY,
         )
+        assert call["custom_llm_provider"] == "openai"
         assert call["timeout"] > 0
         assert call["response_format"] == {"type": "json_object"}
+
+    def test_should_strip_one_legacy_openai_prefix_when_the_model_has_one(self, nl_client, llm):
+        scripted = llm([_answer()])
+        legacy = NLSettings(
+            api_key=SECRET_KEY, base_url="http://litellm.test", model=f"openai/{PROXY_ALIAS}", budget_usd=5.0
+        )
+        nl_client.app.dependency_overrides[get_nl_settings] = lambda: legacy
+
+        _post(nl_client)
+
+        assert scripted.calls[0]["model"] == PROXY_ALIAS
+
+    def test_should_strip_the_legacy_prefix_only_once_when_the_alias_starts_with_it(self):
+        assert proxy_model_name("openai/openai/gpt") == "openai/gpt"
+        assert proxy_model_name(PROXY_ALIAS) == PROXY_ALIAS
 
     def test_should_return_502_when_the_provider_fails(self, nl_client, llm):
         error = openai.APIConnectionError(request=httpx.Request("POST", "http://litellm.test"))
@@ -448,7 +467,7 @@ class TestFeatureDisabled:
         assert SECRET_KEY not in repr(_settings())
 
     @staticmethod
-    def _configure(monkeypatch, api_key=SECRET_KEY, base_url="http://litellm.test", model="openai/test-model", budget=2.5):
+    def _configure(monkeypatch, api_key=SECRET_KEY, base_url="http://litellm.test", model=PROXY_ALIAS, budget=2.5):
         monkeypatch.setattr(config, "LITELLM_API_KEY", api_key)
         monkeypatch.setattr(config, "LITELLM_BASE_URL", base_url)
         monkeypatch.setattr(config, "LITELLM_MODEL", model)

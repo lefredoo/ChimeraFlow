@@ -25,6 +25,13 @@ CHARS_PER_TOKEN = 4
 
 LITELLM_LOGGERS = ("LiteLLM", "LiteLLM Router", "LiteLLM Proxy")
 
+# The proxy speaks the OpenAI protocol: litellm is told so explicitly, so the model
+# name is the bare alias of the proxy and needs no provider prefix.
+PROXY_PROVIDER = "openai"
+# Older deployments set LITELLM_MODEL to "openai/<alias>" (litellm's way of choosing
+# the provider through the name); that one leading prefix is still accepted.
+LEGACY_MODEL_PREFIX = "openai/"
+
 Message = Dict[str, str]
 
 
@@ -54,6 +61,20 @@ class LlmClient(Protocol):
 
     async def complete(self, messages: List[Message]) -> LlmReply:
         """Return the model answer to the conversation."""
+
+
+def proxy_model_name(model: str) -> str:
+    """The model name to send to the proxy: its alias, without a legacy `openai/` prefix.
+
+    Only one leading prefix is removed, so `openai/openai/x` becomes `openai/x`.
+
+    Args:
+        model: Value of LITELLM_MODEL.
+
+    Returns:
+        The alias the proxy receives.
+    """
+    return model.removeprefix(LEGACY_MODEL_PREFIX)
 
 
 @cache
@@ -146,7 +167,7 @@ class LiteLLMClient:
         """Create the client.
 
         Args:
-            settings: Proxy URL, API key and model (a LiteLLM model string).
+            settings: Proxy URL, API key and model (the alias defined on the proxy).
         """
         self._settings = settings
 
@@ -168,7 +189,8 @@ class LiteLLMClient:
         try:
             response = await asyncio.wait_for(
                 litellm.acompletion(
-                    model=self._settings.model,
+                    model=proxy_model_name(self._settings.model),
+                    custom_llm_provider=PROXY_PROVIDER,
                     messages=messages,
                     api_key=self._settings.api_key,
                     api_base=self._settings.base_url,
