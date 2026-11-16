@@ -5,22 +5,28 @@ The user text is untrusted. It reaches the model only as a JSON string inside
 a delimited data section of the user message; the instructions live in the
 system message. The model answer is parsed as JSON and validated against
 `RuleCreate` (never executed, never trusted). A rejected answer is sent back
-with the validation errors, up to MAX_RETRIES times. The result is a draft:
+with the validation errors, up to MAX_RETRIES times. A transient provider
+failure (5xx, connection, timeout) is retried up to MAX_PROVIDER_RETRIES times
+with a short backoff, the last retry on the fallback model when one is
+configured, all within REQUEST_DEADLINE_SECONDS. The result is a draft:
 nothing is stored here.
 """
+import asyncio
 import json
 import logging
 import math
+import random
 import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Awaitable, Callable, List, Optional
 
 from pydantic import ValidationError
 
 import config
 from engine.llm_client import (
+    LLM_TIMEOUT_SECONDS,
     LlmClient,
     LlmError,
     LlmSettings,
@@ -35,6 +41,15 @@ from schemas.rule import RuleCreate
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 2
+
+# Retries after a transient provider error, shared by the whole conversion
+MAX_PROVIDER_RETRIES = 2
+# Base delays before each provider retry, scaled by a jitter factor in [0.75, 1.25)
+PROVIDER_BACKOFF_SECONDS = (0.5, 1.5)
+# Wall time of a whole conversion: the HTTP request must end well before ~50 s
+REQUEST_DEADLINE_SECONDS = 45.0
+# A call with less time left than this is not worth sending
+MIN_CALL_SECONDS = 3.0
 
 DATA_START = "<<<USER_DATA"
 DATA_END = "USER_DATA>>>"
@@ -93,6 +108,8 @@ class NLError(Exception):
     status_code = 500
     code = "nl_error"
     message = "Conversion failed"
+    # Provider retries spent before this failure, set by the service
+    provider_retries = 0
 
 
 class NLFeatureDisabled(NLError):
@@ -147,6 +164,8 @@ class NLSettings:
     base_url: str
     model: str
     budget_usd: float
+    # Proxy alias used by the last provider retry; None disables the fallback
+    fallback_model: Optional[str] = None
 
     @property
     def llm(self) -> LlmSettings:
@@ -156,10 +175,11 @@ class NLSettings:
 
 @dataclass(frozen=True)
 class NLConversion:
-    """A valid draft rule and the number of retries it took."""
+    """A valid draft rule with the validation retries and provider retries it took."""
 
     rule: RuleCreate
     retries: int
+    provider_retries: int = 0
 
 
 def nl_settings_from_config() -> Optional[NLSettings]:
@@ -168,6 +188,7 @@ def nl_settings_from_config() -> Optional[NLSettings]:
     Returns:
         The settings, or None when any of LITELLM_API_KEY, LITELLM_BASE_URL,
         LITELLM_MODEL, LITELLM_BUDGET_USD is unset (feature disabled).
+        LITELLM_FALLBACK_MODEL is optional.
     """
     if (
         config.LITELLM_API_KEY is None
@@ -181,6 +202,7 @@ def nl_settings_from_config() -> Optional[NLSettings]:
         base_url=config.LITELLM_BASE_URL,
         model=config.LITELLM_MODEL,
         budget_usd=config.LITELLM_BUDGET_USD,
+        fallback_model=config.LITELLM_FALLBACK_MODEL,
     )
 
 
@@ -260,6 +282,19 @@ def _new_rule_id() -> str:
     return f"r_nl_{uuid.uuid4().hex[:12]}"
 
 
+async def _sleep(seconds: float) -> None:
+    """Wait before a provider retry (module level so tests can replace it)."""
+    await asyncio.sleep(seconds)
+
+
+@dataclass
+class _Progress:
+    """What one conversion has used so far, kept to report it on failure too."""
+
+    provider_retries: int = 0
+    spent_usd: float = 0.0
+
+
 class NLRuleService:
     """Converts a description into a validated draft rule within the budget."""
 
@@ -269,19 +304,28 @@ class NLRuleService:
         client: LlmClient,
         spend_store: Optional[SpendStore],
         new_rule_id: Callable[[], str] = _new_rule_id,
+        sleep: Optional[Callable[[float], Awaitable[None]]] = None,
+        clock: Callable[[], float] = time.monotonic,
+        jitter: Callable[[], float] = random.random,
     ) -> None:
         """Create the service.
 
         Args:
-            settings: Feature settings (budget cap).
+            settings: Feature settings (budget cap, fallback model).
             client: LLM boundary.
             spend_store: Cumulative spend counter, None when none is available.
             new_rule_id: Id generator for draft rules.
+            sleep: Waits before a provider retry (injected in tests, no real sleeping).
+            clock: Monotonic clock in seconds, for the request deadline.
+            jitter: Random factor in [0, 1) applied to the backoff delays.
         """
         self._settings = settings
         self._client = client
         self._spend_store = spend_store
         self._new_rule_id = new_rule_id
+        self._sleep = sleep
+        self._clock = clock
+        self._jitter = jitter
 
     async def _reserve_budget(self, reservation_usd: float) -> None:
         """Reserve the estimated cost of a call, or refuse when the budget is spent.
@@ -321,44 +365,85 @@ class NLRuleService:
     async def convert(self, text: str, language: str) -> NLConversion:
         """Convert a description into a draft rule.
 
+        Every model call reserves its estimated cost first, so a provider retry
+        is budgeted like any other call. The whole conversion stays within
+        REQUEST_DEADLINE_SECONDS: each call gets the time left (at most
+        LLM_TIMEOUT_SECONDS) and no call starts with less than MIN_CALL_SECONDS.
+
         Args:
             text: Untrusted user description of the rule.
             language: "fr" or "en".
 
         Returns:
-            The validated draft and the number of retries used.
+            The validated draft and the retries used.
 
         Raises:
             NLBudgetExceeded: The budget is spent (checked before every model call).
             NLBudgetUnavailable: The budget cannot be checked.
-            NLProviderError: The provider failed.
+            NLProviderError: The provider kept failing (transient errors after
+                MAX_PROVIDER_RETRIES retries, or a failure not worth retrying).
             NLConversionFailed: No valid rule after MAX_RETRIES retries.
         """
-        started = time.monotonic()
+        started = self._clock()
+        progress = _Progress()
+        try:
+            return await self._convert(text, language, started, progress)
+        except NLError as exc:
+            exc.provider_retries = progress.provider_retries
+            raise
+
+    async def _convert(self, text: str, language: str, started: float, progress: _Progress) -> NLConversion:
+        """Run the conversion loop of `convert`."""
+        deadline = started + REQUEST_DEADLINE_SECONDS
         rule_id = self._new_rule_id()
         messages = build_messages(text, language)
-        spent_here = 0.0
         last_error = ""
+        attempt = 0
 
-        for attempt in range(MAX_RETRIES + 1):
+        while attempt <= MAX_RETRIES:
+            remaining = deadline - self._clock()
+            if remaining < MIN_CALL_SECONDS:
+                break
+            # The last provider retry, and what follows it, goes to the fallback model when there is one
+            use_fallback = (
+                self._settings.fallback_model is not None and progress.provider_retries >= MAX_PROVIDER_RETRIES
+            )
+            model = self._settings.fallback_model if use_fallback else None
+            model_alias = model or self._settings.model
+
             reservation = estimate_reservation_usd(messages)
             await self._reserve_budget(reservation)
             try:
-                reply = await self._client.complete(messages)
+                reply = await self._client.complete(
+                    messages, model=model, timeout=min(LLM_TIMEOUT_SECONDS, remaining)
+                )
             except LlmError as exc:
                 # The prompt was sent: the provider may have billed it even without an answer
                 unanswered_cost = estimate_input_cost_usd(messages)
-                spent_here += unanswered_cost
+                progress.spent_usd += unanswered_cost
                 await self._record_spend(unanswered_cost - reservation)
-                self._log("provider_error", attempt, spent_here, started)
+                if exc.transient and progress.provider_retries < MAX_PROVIDER_RETRIES:
+                    delay = self._backoff_seconds(progress.provider_retries)
+                    if deadline - self._clock() - delay >= MIN_CALL_SECONDS:
+                        progress.provider_retries += 1
+                        logger.info(
+                            "nl_provider_retry error_class=%s retry=%d delay_ms=%d",
+                            exc.error_class,
+                            progress.provider_retries,
+                            int(delay * 1000),
+                        )
+                        await (self._sleep or _sleep)(delay)
+                        continue
+                self._log("provider_error", attempt, progress, model_alias, started)
                 raise NLProviderError() from exc
-            spent_here += reply.cost_usd
+            progress.spent_usd += reply.cost_usd
             await self._record_spend(reply.cost_usd - reservation)
 
             try:
                 rule = parse_rule(reply.content, text, rule_id)
             except RuleDraftError as exc:
                 last_error = str(exc)
+                attempt += 1
                 messages = messages + [
                     {"role": "assistant", "content": reply.content[:MAX_ECHOED_ANSWER_CHARS]},
                     {
@@ -369,19 +454,25 @@ class NLRuleService:
                 ]
                 continue
 
-            self._log("success", attempt, spent_here, started)
-            return NLConversion(rule=rule, retries=attempt)
+            self._log("success", attempt, progress, model_alias, started)
+            return NLConversion(rule=rule, retries=attempt, provider_retries=progress.provider_retries)
 
-        self._log("invalid_answer", MAX_RETRIES, spent_here, started)
+        self._log("invalid_answer", min(attempt, MAX_RETRIES), progress, self._settings.model, started)
         raise NLConversionFailed()
 
-    @staticmethod
-    def _log(outcome: str, retries: int, cost_usd: float, started: float) -> None:
+    def _backoff_seconds(self, provider_retries: int) -> float:
+        """Delay before the next provider retry: the base delay with +-25 % jitter."""
+        base = PROVIDER_BACKOFF_SECONDS[min(provider_retries, len(PROVIDER_BACKOFF_SECONDS) - 1)]
+        return base * (0.75 + 0.5 * self._jitter())
+
+    def _log(self, outcome: str, retries: int, progress: _Progress, model: str, started: float) -> None:
         """Log one conversion without the user text or the model answer."""
         logger.info(
-            "nl_conversion outcome=%s retries=%d cost_usd=%.6f duration_ms=%d",
+            "nl_conversion outcome=%s retries=%d provider_retries=%d model=%s cost_usd=%.6f duration_ms=%d",
             outcome,
             retries,
-            cost_usd,
-            int((time.monotonic() - started) * 1000),
+            progress.provider_retries,
+            model,
+            progress.spent_usd,
+            int((self._clock() - started) * 1000),
         )

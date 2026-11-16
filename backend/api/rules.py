@@ -102,10 +102,16 @@ async def create_rule_from_text(
         predefined = await run_in_threadpool(_predefined_responses, db)
         fallback = [rule.model_dump(mode="json") for rule in predefined]
         raise api_error(
-            error.status_code, error.code, error.message, fallback_rules=fallback
+            error.status_code,
+            error.code,
+            error.message,
+            fallback_rules=fallback,
+            provider_retries=error.provider_retries,
         ) from error
 
-    return NaturalLanguageToRuleResponse(rule=conversion.rule, retries=conversion.retries)
+    return NaturalLanguageToRuleResponse(
+        rule=conversion.rule, retries=conversion.retries, provider_retries=conversion.provider_retries
+    )
 
 
 @router.post("", response_model=RuleResponse, status_code=201)

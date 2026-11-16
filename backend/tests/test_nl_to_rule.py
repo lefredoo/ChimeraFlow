@@ -17,12 +17,15 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from api.nl_dependencies import get_nl_settings, get_spend_store
-from engine.llm_client import LlmReply, load_litellm, proxy_model_name
+from engine import nl_to_rule as nl_to_rule_module
+from engine.llm_client import LiteLLMClient, LlmReply, is_transient_error, load_litellm, proxy_model_name
 from engine.nl_budget import SPEND_KEY, RedisSpendStore, SpendStoreError
 from engine.nl_to_rule import (
     DATA_END,
     DATA_START,
+    MAX_PROVIDER_RETRIES,
     NLBudgetExceeded,
+    NLProviderError,
     NLRuleService,
     NLSettings,
     build_messages,
@@ -77,6 +80,7 @@ class BrokenSpendStore:
 
 
 PROXY_ALIAS = "deepseek-v4.1-flash-group"
+FALLBACK_ALIAS = "glm-4.7-flash-bedrock"
 
 
 class ScriptedLlm:
@@ -100,8 +104,26 @@ class ScriptedLlm:
         )
 
 
-def _settings(budget_usd: float = 5.0) -> NLSettings:
-    return NLSettings(api_key=SECRET_KEY, base_url="http://litellm.test", model=PROXY_ALIAS, budget_usd=budget_usd)
+def _settings(budget_usd: float = 5.0, fallback_model=None) -> NLSettings:
+    return NLSettings(
+        api_key=SECRET_KEY,
+        base_url="http://litellm.test",
+        model=PROXY_ALIAS,
+        budget_usd=budget_usd,
+        fallback_model=fallback_model,
+    )
+
+
+@pytest.fixture(autouse=True)
+def backoff_sleeps(monkeypatch):
+    """Replace the wait before a provider retry: no test sleeps for real. Returns the recorded delays."""
+    delays = []
+
+    async def record(seconds):
+        delays.append(seconds)
+
+    monkeypatch.setattr(nl_to_rule_module, "_sleep", record)
+    return delays
 
 
 @pytest.fixture
@@ -298,9 +320,9 @@ class TestProviderCall:
         assert proxy_model_name("openai/openai/gpt") == "openai/gpt"
         assert proxy_model_name(PROXY_ALIAS) == PROXY_ALIAS
 
-    def test_should_return_502_when_the_provider_fails(self, nl_client, llm):
+    def test_should_return_502_when_the_provider_keeps_failing(self, nl_client, llm):
         error = openai.APIConnectionError(request=httpx.Request("POST", "http://litellm.test"))
-        llm([error])
+        llm([error, error, error])
 
         response = _post(nl_client)
 
@@ -337,7 +359,7 @@ class TestProviderCall:
         assert logging.getLogger("LiteLLM").getEffectiveLevel() >= logging.WARNING
 
     def test_should_record_a_pessimistic_input_cost_when_the_provider_fails(self, nl_client, llm, store):
-        llm([openai.APIConnectionError(request=httpx.Request("POST", "http://litellm.test"))])
+        llm([RuntimeError("boom")])
         input_characters = sum(len(message["content"]) for message in build_messages(TEXT, "fr"))
 
         _post(nl_client)
@@ -353,6 +375,295 @@ class TestProviderCall:
         assert "ciment" not in caplog.text
         assert SECRET_KEY not in caplog.text
 
+
+def _request() -> httpx.Request:
+    return httpx.Request("POST", "http://litellm.test")
+
+
+def _status_error(error_class, status_code: int):
+    return error_class("provider said no", response=httpx.Response(status_code, request=_request()), body=None)
+
+
+def _transient_error():
+    return _status_error(openai.InternalServerError, 500)
+
+
+class FakeClock:
+    """Monotonic clock moved only by the code under test (sleeps and slow calls)."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    async def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class TestProviderRetries:
+    def test_should_succeed_with_one_provider_retry_when_a_transient_error_is_followed_by_an_answer(
+        self, nl_client, llm, backoff_sleeps
+    ):
+        scripted = llm([_transient_error(), _answer()])
+
+        response = _post(nl_client)
+
+        assert response.status_code == 200
+        assert response.json()["provider_retries"] == 1
+        assert response.json()["retries"] == 0
+        assert len(scripted.calls) == 2
+        assert len(backoff_sleeps) == 1
+
+    def test_should_report_no_provider_retry_when_the_first_call_succeeds(self, nl_client, llm):
+        llm([_answer()])
+
+        assert _post(nl_client).json()["provider_retries"] == 0
+
+    def test_should_count_provider_and_validation_retries_separately_when_both_happen(self, nl_client, llm):
+        llm([_transient_error(), "not json", _answer()])
+
+        body = _post(nl_client).json()
+
+        assert (body["retries"], body["provider_retries"]) == (1, 1)
+
+    def test_should_return_502_with_the_predefined_rules_when_three_calls_fail_transiently(
+        self, nl_client, llm, backoff_sleeps
+    ):
+        scripted = llm([_transient_error(), _transient_error(), _transient_error()])
+
+        response = _post(nl_client)
+
+        detail = response.json()["detail"]
+        assert response.status_code == 502
+        assert detail["code"] == "nl_provider_error"
+        assert detail["provider_retries"] == MAX_PROVIDER_RETRIES
+        assert len(detail["fallback_rules"]) == 5
+        assert len(scripted.calls) == 3
+        assert len(backoff_sleeps) == 2
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            _transient_error(),
+            _status_error(openai.InternalServerError, 503),
+            openai.APIConnectionError(request=_request()),
+            openai.APITimeoutError(request=_request()),
+            TimeoutError(),
+            load_litellm().ServiceUnavailableError("down", "openai", PROXY_ALIAS),
+            load_litellm().Timeout("slow", PROXY_ALIAS, "openai"),
+        ],
+        ids=lambda error: type(error).__name__,
+    )
+    def test_should_retry_when_the_provider_error_is_transient(self, error, nl_client, llm):
+        scripted = llm([error, _answer()])
+
+        response = _post(nl_client)
+
+        assert response.status_code == 200
+        assert len(scripted.calls) == 2
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            _status_error(openai.AuthenticationError, 401),
+            _status_error(openai.BadRequestError, 400),
+            _status_error(openai.RateLimitError, 429),
+            load_litellm().exceptions.BudgetExceededError(current_cost=2.0, max_budget=1.0),
+            RuntimeError("boom"),
+        ],
+        ids=lambda error: type(error).__name__,
+    )
+    def test_should_not_retry_when_the_provider_error_is_not_transient(
+        self, error, nl_client, llm, backoff_sleeps
+    ):
+        scripted = llm([error, _answer()])
+
+        response = _post(nl_client)
+
+        assert response.status_code == 502
+        assert response.json()["detail"]["provider_retries"] == 0
+        assert len(scripted.calls) == 1
+        assert backoff_sleeps == []
+
+    def test_should_classify_the_error_without_reading_its_message(self):
+        assert is_transient_error(_transient_error()) is True
+        assert is_transient_error(_status_error(openai.AuthenticationError, 401)) is False
+
+    def test_should_use_the_fallback_model_on_the_last_retry_when_one_is_configured(self, nl_client, llm):
+        nl_client.app.dependency_overrides[get_nl_settings] = lambda: _settings(fallback_model=FALLBACK_ALIAS)
+        scripted = llm([_transient_error(), _transient_error(), _answer()])
+
+        response = _post(nl_client)
+
+        assert response.status_code == 200
+        assert response.json()["provider_retries"] == 2
+        assert [call["model"] for call in scripted.calls] == [PROXY_ALIAS, PROXY_ALIAS, FALLBACK_ALIAS]
+
+    def test_should_keep_the_configured_model_on_every_call_when_no_fallback_is_configured(self, nl_client, llm):
+        scripted = llm([_transient_error(), _transient_error(), _answer()])
+
+        _post(nl_client)
+
+        assert [call["model"] for call in scripted.calls] == [PROXY_ALIAS] * 3
+
+    def test_should_strip_the_legacy_prefix_from_the_fallback_model_when_it_has_one(self, nl_client, llm):
+        nl_client.app.dependency_overrides[get_nl_settings] = lambda: _settings(
+            fallback_model=f"openai/{FALLBACK_ALIAS}"
+        )
+        scripted = llm([_transient_error(), _transient_error(), _answer()])
+
+        _post(nl_client)
+
+        assert scripted.calls[2]["model"] == FALLBACK_ALIAS
+
+    def test_should_reserve_the_budget_before_every_attempt_when_retrying(self, nl_client, llm, store):
+        additions = []
+        original = store.add_spent_usd
+
+        async def record(amount_usd: float) -> float:
+            additions.append(amount_usd)
+            return await original(amount_usd)
+
+        store.add_spent_usd = record
+        llm([_transient_error(), _transient_error(), _answer()], total_tokens=1000)
+        input_cost = math.ceil(sum(len(m["content"]) for m in build_messages(TEXT, "fr")) / 4) * 15.0 / 1_000_000
+
+        _post(nl_client)
+
+        reservations = additions[0::2]
+        settlements = additions[1::2]
+        assert len(reservations) == 3
+        assert all(amount > 0.02 for amount in reservations)
+        assert settlements[0] == pytest.approx(input_cost - reservations[0])
+        assert store.spent_usd == pytest.approx(2 * input_cost + 0.015)
+
+    def test_should_refuse_the_retry_when_the_failed_attempt_uses_up_the_budget(self, nl_client, llm, store):
+        scripted = llm([_transient_error(), _answer()])
+        input_cost = math.ceil(sum(len(m["content"]) for m in build_messages(TEXT, "fr")) / 4) * 15.0 / 1_000_000
+        store.spent_usd = 5.0 - input_cost / 2  # the first attempt is admitted, its billed prompt reaches the cap
+
+        response = _post(nl_client)
+
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "nl_budget_exceeded"
+        assert response.json()["detail"]["provider_retries"] == 1
+        assert len(scripted.calls) == 1
+    def test_should_log_the_error_class_and_the_model_but_not_the_text_when_retrying(
+        self, nl_client, llm, caplog
+    ):
+        nl_client.app.dependency_overrides[get_nl_settings] = lambda: _settings(fallback_model=FALLBACK_ALIAS)
+        llm([_transient_error(), _transient_error(), _answer()])
+
+        with caplog.at_level(logging.DEBUG):
+            _post(nl_client)
+
+        assert "InternalServerError" in caplog.text
+        assert f"model={FALLBACK_ALIAS}" in caplog.text
+        assert "provider_retries=2" in caplog.text
+        assert "ciment" not in caplog.text
+        assert "provider said no" not in caplog.text
+        assert SECRET_KEY not in caplog.text
+
+    def test_should_return_the_fallback_model_in_settings_when_it_is_configured(self, monkeypatch):
+        TestFeatureDisabled._configure(monkeypatch)
+        monkeypatch.setattr(config, "LITELLM_FALLBACK_MODEL", FALLBACK_ALIAS)
+
+        assert nl_settings_from_config() == _settings(budget_usd=2.5, fallback_model=FALLBACK_ALIAS)
+
+    def test_should_not_require_a_fallback_model_when_the_feature_is_configured(self, monkeypatch):
+        TestFeatureDisabled._configure(monkeypatch)
+
+        assert nl_settings_from_config().fallback_model is None
+
+
+class TestProviderRetryTiming:
+    """Service driven with a fake clock and sleep: the timing rules run without waiting."""
+
+    @staticmethod
+    def _service(clock: FakeClock, jitter: float = 0.5, fallback_model=None) -> NLRuleService:
+        settings = _settings(fallback_model=fallback_model)
+        return NLRuleService(
+            settings,
+            LiteLLMClient(settings.llm),
+            MemorySpendStore(),
+            sleep=clock.sleep,
+            clock=clock,
+            jitter=lambda: jitter,
+        )
+
+    @staticmethod
+    def _slow_failures(monkeypatch, clock: FakeClock, durations):
+        """acompletion that fails transiently after the given durations (cut at its timeout), then answers."""
+        calls = []
+
+        async def acompletion(**kwargs):
+            calls.append(kwargs)
+            if len(calls) <= len(durations):
+                # A real call is cut off by its own timeout
+                clock.now += min(durations[len(calls) - 1], kwargs["timeout"])
+                raise _transient_error()
+            return load_litellm().ModelResponse(
+                choices=[{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": _answer()}}],
+                usage={"prompt_tokens": 60, "completion_tokens": 40, "total_tokens": 100},
+                model="test-model",
+            )
+
+        monkeypatch.setattr(load_litellm(), "acompletion", acompletion)
+        return calls
+
+    @pytest.mark.asyncio
+    async def test_should_wait_the_base_delays_when_the_jitter_is_in_the_middle(self, monkeypatch):
+        clock = FakeClock()
+        self._slow_failures(monkeypatch, clock, [0, 0])
+
+        await self._service(clock).convert(TEXT, "fr")
+
+        assert clock.now - 1000.0 == pytest.approx(0.5 + 1.5)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("jitter", [0.0, 0.999999])
+    async def test_should_keep_the_total_backoff_under_two_and_a_half_seconds_when_the_jitter_is_extreme(
+        self, monkeypatch, jitter
+    ):
+        clock = FakeClock()
+        self._slow_failures(monkeypatch, clock, [0, 0])
+
+        await self._service(clock, jitter=jitter).convert(TEXT, "fr")
+
+        assert 1.5 <= clock.now - 1000.0 <= 2.5
+
+    @pytest.mark.asyncio
+    async def test_should_give_the_last_call_only_the_time_left_when_the_first_calls_were_slow(self, monkeypatch):
+        clock = FakeClock()
+        calls = self._slow_failures(monkeypatch, clock, [20, 20])
+
+        await self._service(clock).convert(TEXT, "fr")
+
+        assert [call["timeout"] for call in calls] == [20, 20, pytest.approx(45 - 20 - 0.5 - 20 - 1.5)]
+
+    @pytest.mark.asyncio
+    async def test_should_stop_retrying_when_the_time_left_is_too_short_for_another_call(self, monkeypatch):
+        clock = FakeClock()
+        calls = self._slow_failures(monkeypatch, clock, [20, 20, 20])
+
+        with pytest.raises(NLProviderError) as raised:
+            # Two timeouts and a 1.75 s backoff leave 2.75 s, under the 3 s a call needs
+            await self._service(clock, jitter=0.999999).convert(TEXT, "fr")
+
+        assert len(calls) == 2
+        assert raised.value.provider_retries == 1
+        assert clock.now - 1000.0 <= 45
+
+    @pytest.mark.asyncio
+    async def test_should_never_exceed_the_request_budget_when_every_call_times_out(self, monkeypatch):
+        clock = FakeClock()
+        self._slow_failures(monkeypatch, clock, [20, 20, 20])
+
+        with pytest.raises(NLProviderError):
+            await self._service(clock).convert(TEXT, "fr")
+
+        assert clock.now - 1000.0 <= 45
 
 class TestBudget:
     def test_should_record_the_litellm_cost_when_it_can_price_the_response(self, nl_client, llm, store, monkeypatch):
@@ -622,7 +933,7 @@ class TestBudgetReservation:
             self.release = asyncio.Event()
             self.calls = 0
 
-        async def complete(self, messages):
+        async def complete(self, messages, **_options):
             self.calls += 1
             await self.release.wait()
             return LlmReply(content=json.dumps(VALID_DRAFT), cost_usd=0.01)

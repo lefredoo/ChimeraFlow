@@ -10,12 +10,14 @@ import math
 import os
 from dataclasses import dataclass, field
 from functools import cache
-from typing import Any, Dict, List, Protocol
+from typing import Any, Dict, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
 # Maximum duration of one provider call, and of the whole call including connection
 LLM_TIMEOUT_SECONDS = 20
+# Margin of the outer timeout over the litellm timeout: it only catches a call that ignores its own
+OUTER_TIMEOUT_MARGIN_SECONDS = 2
 MAX_OUTPUT_TOKENS = 1500
 
 # Price applied only when LiteLLM cannot price the model (a custom proxy alias):
@@ -36,7 +38,20 @@ Message = Dict[str, str]
 
 
 class LlmError(Exception):
-    """The provider failed (network, timeout, HTTP error or malformed answer)."""
+    """The provider failed (network, timeout, HTTP error or malformed answer).
+
+    Attributes:
+        transient: True for a failure worth retrying (5xx, connection, timeout).
+            4xx errors (authentication, bad request, quota) and unexpected
+            errors are not transient.
+        error_class: Class name of the original exception (never its message,
+            which may echo the prompt).
+    """
+
+    def __init__(self, message: str, *, transient: bool = False, error_class: str = "") -> None:
+        super().__init__(message)
+        self.transient = transient
+        self.error_class = error_class
 
 
 @dataclass(frozen=True)
@@ -59,8 +74,16 @@ class LlmReply:
 class LlmClient(Protocol):
     """Anything able to answer a chat conversation."""
 
-    async def complete(self, messages: List[Message]) -> LlmReply:
-        """Return the model answer to the conversation."""
+    async def complete(
+        self, messages: List[Message], *, model: Optional[str] = None, timeout: Optional[float] = None
+    ) -> LlmReply:
+        """Return the model answer to the conversation.
+
+        Args:
+            messages: Chat messages (role and content).
+            model: Proxy alias to use instead of the configured one.
+            timeout: Maximum duration of the call in seconds, capped at LLM_TIMEOUT_SECONDS.
+        """
 
 
 def proxy_model_name(model: str) -> str:
@@ -75,6 +98,28 @@ def proxy_model_name(model: str) -> str:
         The alias the proxy receives.
     """
     return model.removeprefix(LEGACY_MODEL_PREFIX)
+
+
+def is_transient_error(exc: BaseException) -> bool:
+    """Tell whether a provider failure is worth retrying.
+
+    Transient: timeouts, connection errors and HTTP 5xx (litellm and openai
+    classes alike). Not transient: 4xx (authentication, bad request, rate
+    limit, budget) and anything unexpected, which a retry would not fix.
+
+    Args:
+        exc: Exception raised by the provider call.
+
+    Returns:
+        True when the call may succeed if sent again.
+    """
+    import httpx
+    import openai
+
+    if isinstance(exc, (TimeoutError, openai.APIConnectionError, httpx.TransportError)):
+        return True
+    status_code = getattr(exc, "status_code", None)
+    return isinstance(status_code, int) and 500 <= status_code <= 599
 
 
 @cache
@@ -171,25 +216,31 @@ class LiteLLMClient:
         """
         self._settings = settings
 
-    async def complete(self, messages: List[Message]) -> LlmReply:
+    async def complete(
+        self, messages: List[Message], *, model: Optional[str] = None, timeout: Optional[float] = None
+    ) -> LlmReply:
         """Send the conversation and return the answer with its cost.
 
         Args:
             messages: Chat messages (role and content).
+            model: Proxy alias to use instead of the configured one (fallback model).
+            timeout: Maximum duration of the call in seconds, capped at LLM_TIMEOUT_SECONDS.
 
         Returns:
             The text answer and its estimated cost.
 
         Raises:
-            LlmError: On any provider failure or unusable answer. Details go to
-                the logs (class name only: provider messages may echo the prompt).
+            LlmError: On any provider failure or unusable answer, flagged transient
+                or not. Details go to the logs (class name only: provider messages
+                may echo the prompt).
         """
         litellm = load_litellm()
+        call_timeout = LLM_TIMEOUT_SECONDS if timeout is None else max(0.1, min(timeout, LLM_TIMEOUT_SECONDS))
 
         try:
             response = await asyncio.wait_for(
                 litellm.acompletion(
-                    model=proxy_model_name(self._settings.model),
+                    model=proxy_model_name(model or self._settings.model),
                     custom_llm_provider=PROXY_PROVIDER,
                     messages=messages,
                     api_key=self._settings.api_key,
@@ -197,15 +248,16 @@ class LiteLLMClient:
                     temperature=0,
                     max_tokens=MAX_OUTPUT_TOKENS,
                     response_format={"type": "json_object"},
-                    timeout=LLM_TIMEOUT_SECONDS,
+                    timeout=call_timeout,
                     num_retries=0,
                     drop_params=True,
                 ),
-                timeout=LLM_TIMEOUT_SECONDS + 5,
+                timeout=call_timeout + OUTER_TIMEOUT_MARGIN_SECONDS,
             )
             content = response.choices[0].message.content or ""
         except Exception as exc:  # litellm raises its own hierarchy plus provider-specific errors
-            logger.warning("LLM call failed: %s", type(exc).__name__)
-            raise LlmError("LLM call failed") from exc
+            transient = is_transient_error(exc)
+            logger.warning("LLM call failed: %s transient=%s", type(exc).__name__, transient)
+            raise LlmError("LLM call failed", transient=transient, error_class=type(exc).__name__) from exc
 
         return LlmReply(content=content, cost_usd=estimate_cost_usd(litellm, response, messages, content))

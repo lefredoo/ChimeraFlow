@@ -321,4 +321,5 @@ class NaturalLanguageToRuleResponse(BaseModel):
     Failures are returned as errors (see api/errors.py), never in this body.
     """
     rule: RuleCreate
-    retries: int = Field(default=0, ge=0)
+    retries: int = Field(default=0, ge=0)  # model calls repeated because the answer was invalid
+    provider_retries: int = Field(default=0, ge=0)  # model calls repeated after a transient provider error
