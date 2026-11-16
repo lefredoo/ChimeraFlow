@@ -124,12 +124,19 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `RATE_LIMIT_LOGIN_PER_IP` | limite de `POST /auth/login` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 2` (au moins 3) |
 | `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
 | `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
+| `LITELLM_FALLBACK_MODEL` | optionnelle : alias du proxy (même forme que `LITELLM_MODEL`) utilisé par la dernière relance après une erreur passagère du fournisseur. Non définie : toutes les relances utilisent `LITELLM_MODEL` |
 | `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API REST Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les quatre** doivent être définies, sinon la fonction est désactivée. `CF_EMAIL_ACCOUNT_ID` : identifiant du compte Cloudflare (32 caractères hexadécimaux). `CF_EMAIL_API_TOKEN` : jeton avec la seule permission « Email Sending: Edit ». `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` sur un domaine d'envoi déclaré dans Cloudflare (ex. `ChimeraFlow <notifications@notify.linguasolution.com>`) ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
 | `ALERT_EMAIL_COOLDOWN_SECONDS` | délai minimal, en secondes, entre deux e-mails d'alerte (entier ≥ 60). **Obligatoire** dès que les quatre variables d'e-mail ci-dessus sont définies, sinon le démarrage s'arrête. Sans elles, elle est ignorée |
 
 `LITELLM_MODEL` est l'alias du modèle défini sur le proxy LiteLLM (ex. `deepseek-v4.1-flash-group`), sans
 préfixe : le client l'envoie tel quel à `LITELLM_BASE_URL` avec `custom_llm_provider="openai"` (le proxy parle le
 protocole OpenAI). Un ancien préfixe `openai/` est encore accepté et retiré une seule fois.
+
+Une erreur passagère du fournisseur (5xx, connexion, délai dépassé) est relancée au plus 2 fois, après 0,5 s puis 1,5 s
+(± 25 % de gigue), sans dépasser 45 s pour toute la requête ; chaque appel est réservé au budget comme les autres. Les
+erreurs 4xx (authentification, requête invalide, limite de débit, budget) ne sont jamais relancées. La réponse 200 porte
+`provider_retries` (relances de ce type, distinctes de `retries`, qui compte les réponses invalides), et les erreurs
+`nl_*` aussi.
 `LITELLM_BUDGET_USD` est le plafond **global** de dépense (en USD), suivi dans Redis. Il doit être un
 nombre fini strictement positif : `nan`, `inf`, `0` et les valeurs négatives arrêtent le démarrage.
 

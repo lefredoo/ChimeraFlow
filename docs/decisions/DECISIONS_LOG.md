@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Relances sur erreurs passagères du fournisseur LLM et modèle de repli
+**Context**: En production avec `glm-4.7-flash-bedrock`, 6 requêtes NL→règle sur 10 ont reçu `502 nl_provider_error` pendant environ 3 minutes d'`InternalServerError` du proxy ; les mêmes phrases ont ensuite réussi. Seules les réponses invalides étaient relancées.
+**Decision**: Une erreur passagère (5xx, connexion, délai ; jamais 4xx ni erreur inattendue) est relancée au plus 2 fois pour toute la conversion, après 0,5 s puis 1,5 s (± 25 % de gigue), dans un délai global de 45 s (appel limité au temps restant, aucun appel sous 3 s). `LITELLM_FALLBACK_MODEL` (optionnelle) sert à la dernière relance et aux appels suivants. Chaque tentative réserve le budget, un échec garde le coût d'entrée pessimiste. La réponse 200 et les erreurs `nl_*` portent `provider_retries`, `retries` garde son sens.
+**Alternatives rejected**: `num_retries` de LiteLLM (invisible du budget, délais non maîtrisés, relances non comptées). Relancer aussi les 429 : le budget et les limites du fournisseur ne se règlent pas en quelques secondes. Un compteur de relances par type d'erreur : plus de code pour le même plafond de requête.
+**Consequences**: `LlmClient.complete` prend `model` et `timeout`. Pire cas d'une requête sous 50 s (45 s plus la marge de 2 s du délai externe). Image backend inchangée. Le repli n'est pas vérifié contre le vrai proxy (TECH_DEBT).
+**AGENTS.md rule concerned**: §7 (variable optionnelle via `optional_env`, pas de valeur de repli), §22
+
+---
+
 ## [2026-11-17] Frontend : vitest 4, surcharge postcss et audit navigateur
 **Context**: 19 alertes Dependabot npm ouvertes (postcss via Next, vite, vitest, tinypool critique, esbuild, minimatch) et interface jamais exécutée dans un navigateur (R11 : 360 px, clavier, WCAG AA).
 **Decision**: `vitest` 4.1.12 (vite 8, config JSX passée de `esbuild` à `oxc`), `overrides.next.postcss` ^8.5.23, `npm audit fix` pour minimatch et typescript-eslint : `npm audit` donne 0 avis, dev compris. Audit Edge headless (axe-core, Playwright, API simulée, outils hors dépôt) : jeton `--text-muted` clair assombri (`#5f6672`, 4,44:1 mesuré sur la fin du dégradé), nom accessible des boutons FR/EN commençant par le texte visible, `h2` masqué pour la liste des corrélations (ordre des titres).
