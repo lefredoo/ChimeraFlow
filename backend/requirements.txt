@@ -28,7 +28,7 @@ rapidfuzz==3.14.6  # Levenshtein similarity (entity matching)
 access-parser==0.0.6  # pure Python reader, used for local Windows
 
 # NL -> rule conversion
-litellm==1.97.0
+litellm==1.109.0.dev1
 
 # HTTP client of the e-mail alert (Cloudflare Email Service); also a dependency of litellm and mcp
 httpx==0.28.1
