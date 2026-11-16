@@ -20,7 +20,7 @@ hiredis==3.5.0
 # Data Processing
 pandas==3.1.1
 openpyxl==3.1.5  # Excel support
-python-dateutil==4.0.0
+python-dateutil==2.9.0.post0  # < 3: litellm >= 1.100.4 needs boto3, whose botocore requires python-dateutil < 3
 rapidfuzz==3.14.6  # Levenshtein similarity (entity matching)
 
 # Access Database readers (selected by ACCESS_READER)
@@ -28,7 +28,7 @@ rapidfuzz==3.14.6  # Levenshtein similarity (entity matching)
 access-parser==0.0.6  # pure Python reader, used for local Windows
 
 # NL -> rule conversion
-litellm==1.97.0
+litellm==1.100.4  # >= 1.100.4 fixes Dependabot alerts 1 and 22
 
 # HTTP client of the e-mail alert (Cloudflare Email Service); also a dependency of litellm and mcp
 httpx==0.28.1
