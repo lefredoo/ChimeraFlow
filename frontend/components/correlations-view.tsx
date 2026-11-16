@@ -102,7 +102,11 @@ export function CorrelationsView() {
       {live.state.status === "loading" && <LoadingNote />}
       {live.state.status === "failed" && <ErrorNotice error={live.state.error} onRetry={live.refresh} />}
       {live.state.status === "ready" && (
-        <section aria-label={t("correlations.title")}>
+        <section aria-labelledby={`${ids}-list`}>
+          {/* Level 2 between the page title and the "why" panels (level 3) of the cards */}
+          <h2 id={`${ids}-list`} className="sr-only">
+            {t("correlations.list")}
+          </h2>
           <p className="text-muted" aria-live="polite">
             {tp("correlations.shown", visible.length)}
           </p>

@@ -46,7 +46,8 @@
 
   --text-primary: #111827;
   --text-secondary: #4b5563;
-  --text-muted: #6b7280;
+  /* 4.5:1 on the lightest and darkest page surfaces (gradient end #eff6ff, --bg-subtle #e9ecef) */
+  --text-muted: #5f6672;
 
   /* Glass panel */
   --glass-border: rgba(255, 255, 255, 0.18);

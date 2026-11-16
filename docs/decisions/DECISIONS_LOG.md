@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Frontend : vitest 4, surcharge postcss et audit navigateur
+**Context**: 19 alertes Dependabot npm ouvertes (postcss via Next, vite, vitest, tinypool critique, esbuild, minimatch) et interface jamais exécutée dans un navigateur (R11 : 360 px, clavier, WCAG AA).
+**Decision**: `vitest` 4.1.12 (vite 8, config JSX passée de `esbuild` à `oxc`), `overrides.next.postcss` ^8.5.23, `npm audit fix` pour minimatch et typescript-eslint : `npm audit` donne 0 avis, dev compris. Audit Edge headless (axe-core, Playwright, API simulée, outils hors dépôt) : jeton `--text-muted` clair assombri (`#5f6672`, 4,44:1 mesuré sur la fin du dégradé), nom accessible des boutons FR/EN commençant par le texte visible, `h2` masqué pour la liste des corrélations (ordre des titres).
+**Alternatives rejected**: Next 16 : la seule alerte runtime (postcss) se ferme par la surcharge ; la montée imposerait ESLint 9 en config plate et la fin de `next lint` pour un gain nul sur la sécurité. Ajouter Playwright ou axe au `package.json` : demande une dépendance approuvée, l'audit reste un outil ponctuel.
+**Consequences**: la surcharge est à retirer au passage en Next 16 ; l'audit navigateur n'est pas en CI (voir TECH_DEBT 2026-11-17).
+**AGENTS.md rule concerned**: §16 (dépendance de dev montée en version majeure pour fermer des avis), §10 (contraste 4,5:1)
+
+---
+
 ## [2026-11-17] Parseur WhatsApp : formats, ordre des dates et aller-retour (R3, P3)
 **Context**: Le parseur ne lisait que `[JJ/MM/AAAA, HH:MM:SS]` ; iOS, dates EN et messages multi-lignes étaient des erreurs. P3 n'avait ni fonction d'export ni test.
 **Decision**: Parseur pur dans `whatsapp_parser.py` (formats Android avec ou sans crochets, iOS, horloge 12 h). Ordre jour/mois décidé par fichier : premier champ > 12 donne `dmy`, sinon second champ > 12 donne `mdy`, sinon `default_date_order` (`dmy`), exposé et journalisé. Lignes de suite ajoutées au message précédent ; messages système (sans auteur) comptés dans `system_skipped` ; pièces jointes gardées avec `payload["attachment"]`. `export_messages` et trois tests Hypothesis couvrent P3. Deux messages ajoutés en fin de `data/commandes_clients.txt` (multi-lignes, média) sans décaler les numéros de ligne existants.

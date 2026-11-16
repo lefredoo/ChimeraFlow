@@ -73,7 +73,17 @@ Le client traduit le `code` stable de l'API (jamais son `message`) : `nl_feature
 
 ## Tests
 
-Logique pure testée avec Vitest (`frontend/lib/**/*.test.ts` : formats, pluriels, préférences, analyse des réponses, correspondance codes d'erreur et messages, filtres, résumés de règles, flux SSE, explication). Tests de composants avec Testing Library et jsdom : échappement du texte de source, panneau d'explication, tiroir de provenance, bac à sable. Le parcours complet n'a pas été exécuté dans un navigateur.
+Logique pure testée avec Vitest (`frontend/lib/**/*.test.ts` : formats, pluriels, préférences, analyse des réponses, correspondance codes d'erreur et messages, filtres, résumés de règles, flux SSE, explication). Tests de composants avec Testing Library et jsdom : échappement du texte de source, panneau d'explication, tiroir de provenance, bac à sable, formulaire de connexion (identifiants masqués puis révélés avec `aria-expanded`, connexion en un clic, erreur annoncée dans la région `role="alert"`).
+
+## Audit navigateur (2026-11-17)
+
+Edge headless, axe-core (WCAG 2 A/AA, 2.1, 2.2 AA et bonnes pratiques) et Playwright, outils hors dépôt, API simulée par interception des requêtes. Pages : `/login` (y compris identifiants révélés et erreur), `/`, `/rules` (détail, suppression), `/rules/new` (brouillon), `/correlations` (tiroir, « Pourquoi ça correspond »), `/sandbox`, en thèmes clair et sombre, à 1280 px et 360 px.
+
+- Aucune violation axe après correction. Corrigées : nom accessible des boutons FR/EN (le texte visible `FR` n'y figurait pas), ordre des titres de la liste des corrélations, `--text-muted` clair à 4,44:1 sur la fin du dégradé.
+- Contraste vérifié aussi par calcul sur chaque texte (axe ignore les fonds en dégradé) : aucun texte sous 4,5:1 (3:1 pour le grand texte).
+- 360 px : `scrollWidth` égal à 360 sur toutes les pages, boîtes de dialogue et brouillon compris.
+- Clavier : tous les contrôles de `/login` et de `/rules` atteints dans l'ordre visuel, focus visible partout ; les boîtes de dialogue reçoivent le focus, le gardent, se ferment avec Échap et rendent le focus au bouton d'origine.
+- Non couvert : lecteur d'écran réel, Firefox, Safari, appareil tactile.
 
 ## Hors périmètre
 
