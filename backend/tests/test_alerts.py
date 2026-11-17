@@ -30,6 +30,11 @@ ITEMS = [
 ]
 
 
+QUEUED_RESULT = {"delivered": [], "queued": ["ops@example.test"], "permanent_bounces": []}
+BOUNCED_RESULT = {"delivered": [], "queued": [], "permanent_bounces": ["ops@example.test"]}
+EMPTY_RESULT = {"delivered": [], "queued": [], "permanent_bounces": []}
+
+
 class Provider:
     """Scripted Cloudflare Email Service: answers with the given statuses in order, records the requests."""
 
@@ -44,7 +49,7 @@ class Provider:
         if self.override_body is not None:
             return httpx.Response(status, json=self.override_body)
         if status < 300:
-            return httpx.Response(status, json={"success": True, "errors": [], "result": {}})
+            return httpx.Response(status, json={"success": True, "errors": [], "result": QUEUED_RESULT})
         return httpx.Response(status, json={"success": False, "errors": [{"code": 10001, "message": "bad"}]})
 
 
@@ -105,6 +110,57 @@ def test_should_report_failure_when_the_answer_is_2xx_without_success_true(provi
     sent = asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
 
     assert (sent, len(provider.requests)) == (False, 1)
+
+
+def test_should_report_failure_without_retry_when_every_recipient_bounced_despite_success_true(provider, caplog):
+    provider.statuses = [200, 200]
+    provider.override_body = {"success": True, "errors": [], "result": BOUNCED_RESULT}
+    caplog.set_level(logging.DEBUG)
+
+    sent = asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
+
+    assert (sent, len(provider.requests)) == (False, 1)
+    assert "outcome=bounced permanent_bounces=1" in caplog.text
+    assert "outcome=sent" not in caplog.text
+    assert "ops@example.test" not in caplog.text
+
+
+def test_should_report_success_and_log_the_counts_when_the_recipient_is_queued(provider, caplog):
+    caplog.set_level(logging.DEBUG)
+
+    sent = asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
+
+    assert sent is True
+    assert "outcome=sent items=2 delivered=0 queued=1 bounces=0" in caplog.text
+
+
+def test_should_report_success_when_the_recipient_is_delivered_and_another_bounced(provider):
+    provider.override_body = {
+        "success": True,
+        "errors": [],
+        "result": {"delivered": ["a@example.test"], "queued": [], "permanent_bounces": ["b@example.test"]},
+    }
+
+    assert asyncio.run(alerts.send_digest(SETTINGS, ITEMS)) is True
+
+
+def test_should_retry_once_then_fail_when_the_result_is_empty(provider, caplog):
+    provider.statuses = [200, 200]
+    provider.override_body = {"success": True, "errors": [], "result": EMPTY_RESULT}
+    caplog.set_level(logging.DEBUG)
+
+    sent = asyncio.run(alerts.send_digest(SETTINGS, ITEMS))
+
+    assert (sent, len(provider.requests)) == (False, 2)
+    assert "outcome=empty" in caplog.text
+
+
+@pytest.mark.parametrize("result", [None, [], "ok", {"queued": "ops@example.test"}])
+def test_should_report_failure_when_the_result_has_no_delivery_lists(provider, result):
+    provider.statuses = [200, 200]
+    provider.override_body = {"success": True, "errors": [], "result": result}
+
+    assert asyncio.run(alerts.send_digest(SETTINGS, ITEMS)) is False
 
 
 def test_should_log_only_the_error_codes_when_the_provider_rejects_the_request(provider, caplog):

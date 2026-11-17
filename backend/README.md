@@ -268,10 +268,12 @@ l'envoi à un récapitulatif par fenêtre, quel que soit le nombre d'exécutions
 nouvelles corrélations ne sont pas envoyées plus tard (elles restent visibles dans l'interface). Sans Redis, ou si
 Redis est en panne, rien n'est envoyé (échec fermé, journalisé). Les messages
 viennent de textes de sources : caractères de contrôle retirés, 300 caractères au plus par ligne, HTML échappé.
-Un envoi réussi demande un statut HTTP 2xx et `success: true` dans la réponse ; un échec ne journalise que les
-codes d'erreur de Cloudflare. Ni destinataire, ni jeton, ni contenu dans les journaux. Vérification réelle auprès
-de Cloudflare Email Service : non faite (voir
-`docs/decisions/TECH_DEBT.md`).
+Un envoi réussi demande un statut HTTP 2xx, `success: true` et au moins un destinataire dans `result.delivered` ou
+`result.queued` : Cloudflare répond 200 et `success: true` même quand tous les destinataires sont rejetés
+(`result.permanent_bounces`, par exemple domaine d'envoi non déclaré). Un rejet définitif est journalisé
+`outcome=bounced` sans nouvel essai ; un résultat entièrement vide est journalisé `outcome=empty` et retenté une fois.
+Un échec ne journalise que les codes d'erreur ou les compteurs. Ni destinataire, ni jeton, ni contenu dans les
+journaux. Vérification réelle auprès de Cloudflare Email Service : voir `docs/decisions/TECH_DEBT.md`.
 
 La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/chimeraflow-backend/api-spec.md`.
 

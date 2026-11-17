@@ -18,6 +18,13 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Alerte e-mail : un rejet définitif n'est pas un envoi réussi
+**Context**: En production, Cloudflare Email Service a répondu HTTP 200 et `success: true` avec `result: {delivered: [], queued: [], permanent_bounces: [1 élément]}` pour l'ancien domaine d'envoi (retiré) ; `alerts.py` a journalisé `outcome=sent` et aucun e-mail n'est arrivé.
+**Decision**: `send_digest` lit les longueurs de `result.delivered`, `result.queued` et `result.permanent_bounces` (`_delivery_counts`). Succès seulement si HTTP 2xx, `success: true` et delivered + queued ≥ 1. Rejets seuls : `outcome=bounced`, retour `False`, pas de nouvel essai (définitif). Résultat entièrement vide : `outcome=empty`, retenté une fois comme un échec passager (aucun envoi n'a eu lieu, donc pas de doublon possible). Le domaine d'envoi devient `mail.linguasolution.com`.
+**Alternatives rejected**: Ne pas retenter le résultat vide (ambiguïté sans coût : un seul essai de plus). Journaliser les adresses rejetées (données personnelles).
+**Consequences**: Le délai global reste consommé par un envoi échoué (voir TECH_DEBT). Le format réel de `result` n'est connu que par la réponse observée en production.
+**AGENTS.md rule concerned**: §22 (définition du succès mise à jour).
+
 ## [2026-11-17] Specs Kiro au format dossier
 
 **Context**: Le panneau Specs de Kiro restait vide : il attend un dossier par spec (`requirements.md`, `design.md`, `tasks.md`), le dépôt avait des fichiers à plat.

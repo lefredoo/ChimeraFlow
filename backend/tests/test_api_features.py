@@ -49,7 +49,8 @@ class CloudflareEmail:
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.bodies.append(json.loads(request.content))
-        return httpx.Response(self.status, json={"success": self.status < 300, "errors": []})
+        result = {"delivered": [], "queued": ["ops@example.test"], "permanent_bounces": []}
+        return httpx.Response(self.status, json={"success": self.status < 300, "errors": [], "result": result})
 
 
 @pytest.fixture
