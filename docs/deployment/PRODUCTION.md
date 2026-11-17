@@ -10,6 +10,7 @@ Ce document décrit la production de ChimeraFlow et les gestes d'exploitation co
 | API FastAPI | `https://chimeraflow-api.linguasolution.com` | VPS Hetzner, compose Dokploy `chimeraflow-api` (`docker-compose.prod.yml`), exposée par le tunnel Cloudflare partagé `hetzner-1-web`, TLS Let's Encrypt par Traefik (DNS-01) |
 | Redis | Limitation de débit et compteur de dépense LLM | Même compose, réseau privé `internal`, volume `redis-data` |
 | PostgreSQL | Règles, corrélations, exécutions | Neon (`DATABASE_URL`) |
+| Serveurs MCP | `https://chimeraflow-mcp.linguasolution.com/mcp/<source>` (excel, access, whatsapp, momo), lecture seule, jeton Bearer | Même compose, service `mcp` (même image, `mem_limit` 192m, port 8001), tunnel `hetzner-1-web` |
 | Configuration et secrets | Toutes les variables de l'API | Doppler, projet `chimeraflow`, config `prd` |
 
 Le conteneur de l'API ne reçoit qu'une variable, `DOPPLER_TOKEN` (jeton de service en lecture seule). Au démarrage, `docker-entrypoint.sh` lance `doppler run`, applique les migrations (`alembic upgrade head`) puis démarre uvicorn. Si Doppler est injoignable ou le jeton invalide, le conteneur s'arrête au lieu de démarrer avec une configuration partielle.
@@ -28,6 +29,16 @@ La CI compte cinq jobs : « Backend lint and tests », « Backend Docker test st
 4. Contrôler avec le test de fumée (voir plus bas).
 
 Avant une fusion qui ajoute une variable obligatoire à `backend/config.py`, la créer d'abord dans Doppler (`chimeraflow/prd`) : l'API ne démarre pas si une variable obligatoire manque.
+
+## Serveurs MCP hébergés
+
+Le service compose `mcp` sert les quatre sources en Streamable HTTP. Il ne reçoit que `DOPPLER_TOKEN` et lit, via `doppler run --only-secrets`, `MCP_HTTP_TOKEN`, `MCP_RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS`, `TRUSTED_PROXIES`, `DATA_DIR`, `ACCESS_READER` et `BACKEND_LOG_LEVEL`. Sans `MCP_HTTP_TOKEN` (32 caractères minimum) ou `MCP_RATE_LIMIT_PER_IP`, le conteneur s'arrête au démarrage.
+
+Mise en place d'un nom public (déjà faite pour `chimeraflow-mcp.linguasolution.com`) : une règle d'entrée dans le tunnel `hetzner-1-web` (avant la règle finale `http_status:404`, `https://localhost:443`, `noTLSVerify`), un CNAME proxifié vers le tunnel, un domaine Dokploy sur le service `mcp`, port 8001, certificat `letsencrypt`.
+
+Vérification : `GET /health` répond 200 sans jeton ; `POST /mcp/excel` sans jeton répond 401. Un client MCP avec `Authorization: Bearer <MCP_HTTP_TOKEN>` doit lister `fetch_records` et `health_check` sur chaque point d'accès.
+
+**Rotation du jeton** : générer une nouvelle valeur (`openssl rand -hex 24`), la placer dans Doppler (`MCP_HTTP_TOKEN`), redéployer le compose (le service lit Doppler au démarrage), puis mettre à jour la variable utilisateur `CHIMERAFLOW_MCP_TOKEN` de chaque poste et redémarrer Kiro.
 
 ## Tests de fumée
 

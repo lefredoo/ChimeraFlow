@@ -123,3 +123,7 @@ Required by AGENTS.md §15.
 ---
 
 _Add new entries at the top of this file (reverse chronological order)._
+
+- [2026-11-17] Le service MCP hébergé limite le débit en mémoire (un compteur par processus, remis à zéro à chaque redémarrage) et n'a qu'un jeton partagé sans rotation automatique | low | backend/mcp_servers/mcp_http_app.py
+- [2026-11-17] `client_ip` de l'API (`api/rate_limit.py`) et `resolve_client` du service MCP dupliquent la lecture de `X-Forwarded-For` car `config.py` n'est pas importable sans les réglages de l'API ; à extraire dans un module commun | low | backend/api/rate_limit.py, backend/mcp_servers/mcp_http_app.py
+- [2026-11-17] Le jeton de service Doppler de `chimeraflow/prd` accepte l'écriture alors que PRODUCTION.md le décrit en lecture seule : le remplacer par un jeton en lecture seule pour les conteneurs | med | docs/deployment/PRODUCTION.md
