@@ -54,6 +54,20 @@ settings.register_profile("dev", max_examples=100, deadline=None)
 settings.register_profile("ci", max_examples=500, deadline=5000)
 
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
+    """Skip the tests marked `redis` unless REDIS_TEST_URL names a Redis to run them against.
+
+    When the variable is set nothing is skipped: an unreachable Redis then fails
+    the tests instead of hiding them (CI sets it).
+    """
+    if os.environ.get("REDIS_TEST_URL"):
+        return
+    skip = pytest.mark.skip(reason="REDIS_TEST_URL is not set (see tests/test_redis_integration.py)")
+    for item in items:
+        if "redis" in item.keywords:
+            item.add_marker(skip)
+
+
 @pytest.fixture
 def anonymous_client() -> Iterator[TestClient]:
     """Test client without credentials, with a fresh in-memory database.

@@ -20,6 +20,7 @@ tests/
 ├── test_schemas.py             # validation du schéma de règle
 ├── test_rule_files.py          # chargement de data/rules/*.json (échec immédiat), CLI de validation
 ├── test_rate_limit.py          # 429 + Retry-After, IP client / proxys de confiance, variables requises
+├── test_redis_integration.py   # vrai Redis (si REDIS_TEST_URL) : limiteur, budget LLM, délai d'alerte
 ├── test_nl_to_rule.py          # NL→règle : relances, budget, désactivation, injection (LiteLLM simulé)
 ├── test_api_errors.py          # codes d'erreur stables de l'API
 └── test_health.py              # contrôle de santé et endpoints de base
@@ -63,6 +64,23 @@ docker build --target test -t chimeraflow-backend-test backend; docker run --rm 
 ```
 
 En bash, remplacer `;` par `&&` et `${PWD}` par `$PWD`. Pour lancer le profil de CI, ajouter `python -m pytest tests -q --hypothesis-profile=ci` après le nom de l'image. L'étape `test` de `backend/Dockerfile` installe `requirements-dev.txt` par-dessus l'image d'exécution, qui fournit `mdb-export`.
+
+### Tests d'intégration sur un vrai Redis
+
+`test_redis_integration.py` (marqueur `redis`) vérifie sur un vrai Redis le limiteur slowapi (429, expiration des
+compteurs, compteur partagé entre deux instances), le compteur de dépense LLM (réservation puis règlement, plafond
+tenu sous réservations concurrentes) et le délai d'alerte (`SET NX EX`). Ces tests ne tournent que si
+`REDIS_TEST_URL` est définie, sinon ils sont sautés. L'URL doit désigner un index de base dédié autre que 0 : cette
+base est vidée avant et après chaque test, et aucune autre.
+
+```powershell
+docker run --rm -p 6390:6379 redis:7-alpine   # dans un autre terminal
+$env:REDIS_TEST_URL = "redis://localhost:6390/15"
+.venv\Scripts\python.exe -m pytest tests -m redis -v
+```
+
+La CI démarre un service `redis:7-alpine`, définit `REDIS_TEST_URL` et échoue si un test Redis est sauté. Quand la
+variable est définie, un Redis injoignable fait échouer les tests au lieu de les masquer.
 
 ### Un fichier, une classe ou une fonction
 
