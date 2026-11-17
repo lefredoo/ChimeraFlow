@@ -125,7 +125,7 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
 | `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
 | `LITELLM_FALLBACK_MODEL` | optionnelle : alias du proxy (même forme que `LITELLM_MODEL`) utilisé par la dernière relance après une erreur passagère du fournisseur. Non définie : toutes les relances utilisent `LITELLM_MODEL` |
-| `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API REST Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les quatre** doivent être définies, sinon la fonction est désactivée. `CF_EMAIL_ACCOUNT_ID` : identifiant du compte Cloudflare (32 caractères hexadécimaux). `CF_EMAIL_API_TOKEN` : jeton avec la seule permission « Email Sending: Edit ». `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` sur un domaine d'envoi déclaré dans Cloudflare (ex. `ChimeraFlow <notifications@notify.linguasolution.com>`) ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
+| `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API REST Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les quatre** doivent être définies, sinon la fonction est désactivée. `CF_EMAIL_ACCOUNT_ID` : identifiant du compte Cloudflare (32 caractères hexadécimaux). `CF_EMAIL_API_TOKEN` : jeton avec la seule permission « Email Sending: Edit ». `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` sur un domaine d'envoi déclaré dans Cloudflare (ex. `ChimeraFlow <notifications@mail.linguasolution.com>`) ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
 | `ALERT_EMAIL_COOLDOWN_SECONDS` | délai minimal, en secondes, entre deux e-mails d'alerte (entier ≥ 60). **Obligatoire** dès que les quatre variables d'e-mail ci-dessus sont définies, sinon le démarrage s'arrête. Sans elles, elle est ignorée |
 
 `LITELLM_MODEL` est l'alias du modèle défini sur le proxy LiteLLM (ex. `deepseek-v4.1-flash-group`), sans
@@ -268,12 +268,14 @@ l'envoi à un récapitulatif par fenêtre, quel que soit le nombre d'exécutions
 nouvelles corrélations ne sont pas envoyées plus tard (elles restent visibles dans l'interface). Sans Redis, ou si
 Redis est en panne, rien n'est envoyé (échec fermé, journalisé). Les messages
 viennent de textes de sources : caractères de contrôle retirés, 300 caractères au plus par ligne, HTML échappé.
-Un envoi réussi demande un statut HTTP 2xx et `success: true` dans la réponse ; un échec ne journalise que les
-codes d'erreur de Cloudflare. Ni destinataire, ni jeton, ni contenu dans les journaux. Vérification réelle auprès
-de Cloudflare Email Service : non faite (voir
-`docs/decisions/TECH_DEBT.md`).
+Un envoi réussi demande un statut HTTP 2xx, `success: true` et au moins un destinataire dans `result.delivered` ou
+`result.queued` : Cloudflare répond 200 et `success: true` même quand tous les destinataires sont rejetés
+(`result.permanent_bounces`, par exemple domaine d'envoi non déclaré). Un rejet définitif est journalisé
+`outcome=bounced` sans nouvel essai ; un résultat entièrement vide est journalisé `outcome=empty` et retenté une fois.
+Un échec ne journalise que les codes d'erreur ou les compteurs. Ni destinataire, ni jeton, ni contenu dans les
+journaux. Vérification réelle auprès de Cloudflare Email Service : voir `docs/decisions/TECH_DEBT.md`.
 
-La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/api-spec.md`.
+La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/chimeraflow-backend/api-spec.md`.
 
 ### Conversion NL→règle (`POST /api/v1/rules/from-text`)
 
@@ -496,16 +498,29 @@ Sous Linux ou macOS, le Python du venv est `backend/.venv/bin/python`. Dans l'im
 Aucun port n'est ouvert et aucun service compose ne démarre de serveur MCP.
 
 ### Utilisation par Kiro
+`.kiro/settings/mcp.json` déclare les quatre serveurs avec le Python du venv, `backend/mcp_main.py --source <nom>`,
+`cwd` et deux variables d'environnement (`DATA_DIR`, `ACCESS_READER=access-parser`). La documentation de Kiro ne
+précise pas la résolution des chemins relatifs, et le serveur n'est pas garanti d'être lancé depuis la racine du
+dépôt : un chemin relatif échoue avec `FileNotFoundError` dès que le répertoire courant diffère. Tous les chemins
+sont donc absolus, ce qui rend le fichier propre à chaque poste. Il est ignoré par git ; le modèle versionné est
+`backend/mcp_servers/kiro-mcp.json` (marqueur `<RACINE_DEPOT>`), vérifié par `tests/test_mcp_servers.py`.
 
-`.kiro/settings/mcp.json` déclare les quatre serveurs avec le Python du venv
-(`backend/.venv/Scripts/python.exe`), `backend/mcp_main.py --source <nom>` et deux variables d'environnement
-(`DATA_DIR=data`, `ACCESS_READER=access-parser`). Les chemins sont relatifs à la racine du dépôt, répertoire
-de travail de Kiro. Le modèle versionné est `backend/mcp_servers/kiro-mcp.json`, vérifié par
-`tests/test_mcp_servers.py`. Les deux outils sont en `autoApprove` car ils sont en lecture seule.
+Étape par poste, depuis la racine du dépôt (PowerShell), une fois le venv créé :
 
-Pour vérifier dans Kiro : ouvrir le panneau MCP (vue « MCP Servers »), les quatre serveurs doivent passer à l'état
-connecté avec deux outils chacun. Demander ensuite dans le chat « appelle `health_check` du serveur
-chimeraflow-excel » : la réponse contient `status: ok`.
+```powershell
+$racine = (Get-Location).Path.Replace('\', '/')
+(Get-Content backend/mcp_servers/kiro-mcp.json -Raw).Replace('<RACINE_DEPOT>', $racine) |
+  Set-Content .kiro/settings/mcp.json -Encoding utf8
+```
+
+Sous Linux ou macOS, remplacer aussi `Scripts/python.exe` par `bin/python`. Les deux outils sont en `autoApprove`
+car ils sont en lecture seule.
+
+Pour vérifier dans Kiro : ouvrir le panneau MCP (onglet Kiro, vue « MCP Servers »), les quatre serveurs doivent
+passer à l'état connecté avec deux outils chacun. Demander ensuite dans le chat « appelle `health_check` du serveur
+chimeraflow-excel » : la réponse contient `status: ok`. Le canal « Kiro - MCP Logs » reste vide au niveau de
+journalisation par défaut : palette de commandes, « Developer: Set Log Level… », choisir l'extension Kiro puis
+« Debug », pour voir le chargement de la configuration et les erreurs de démarrage.
 
 ## Schéma de règle
 
@@ -602,7 +617,7 @@ correspond à `Tuyau PVC Ø 32mm (barre 6m)` et `perceuse 500W` à `Perceuse él
 0.85 à 0.99, jamais devant une correspondance exacte). Garde numérique : deux noms dont les nombres diffèrent ne
 correspondent pas (`ciment 50 kg` et `ciment 40 kg`, ou `Ciment-colle 25 kg`, même si la similarité vaut 0.92),
 sauf qu'un nom qui a moins de nombres, tous présents dans l'autre, peut y correspondre par inclusion. Le détail
-est dans `.kiro/specs/design.md` §4.
+est dans `.kiro/specs/chimeraflow-backend/design.md` §4.
 
 Exemple :
 ```python

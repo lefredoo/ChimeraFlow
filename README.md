@@ -123,7 +123,7 @@ Navigateur ──► Frontend Next.js 15 (Vercel)
 | Secrets | Doppler | Les conteneurs ne reçoivent que `DOPPLER_TOKEN` |
 | Accès à l'API | Tunnel Cloudflare puis Traefik | Les ports 80 et 443 du VPS restent fermés |
 
-Détail de l'exploitation (déploiement, retour arrière, surveillance) : [docs/deployment/PRODUCTION.md](./docs/deployment/PRODUCTION.md). Architecture du backend : [.kiro/specs/design.md](./.kiro/specs/design.md).
+Détail de l'exploitation (déploiement, retour arrière, surveillance) : [docs/deployment/PRODUCTION.md](./docs/deployment/PRODUCTION.md). Architecture du backend : [.kiro/specs/chimeraflow-backend/design.md](./.kiro/specs/chimeraflow-backend/design.md).
 
 ---
 
@@ -131,11 +131,11 @@ Détail de l'exploitation (déploiement, retour arrière, surveillance) : [docs/
 
 Ce que le dépôt contient de la configuration Kiro :
 
-- **Specs** (`.kiro/specs/`) : `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md`, `api-spec.md`, `design.md` (architecture réelle et propriétés de correction P1 à P6) et `tasks.md` (avancement par phase).
+- **Specs** (`.kiro/specs/`, format dossier de Kiro : `requirements.md`, `design.md`, `tasks.md` par spec) : `chimeraflow-backend/` (exigences EARS, architecture réelle et propriétés de correction P1 à P6, avancement par phase, détails `connectors-spec.md`, `rule-engine-spec.md`, `api-spec.md`) et `chimeraflow-ui/` (exigences, conception de l'interface, tâches).
 - **Steering** (`.kiro/steering/`) : `connectors.md` (conventions des connecteurs) et `security.md` (règles de sécurité).
 - **Hooks** (`.kiro/hooks/`) : `parser-test` (tests de contrat et tests de propriétés à la sauvegarde d'un connecteur), `rule-validate` (validation des fichiers de `data/rules/`), `spec-update-reminder` (rappel de mise à jour de `tasks.md`).
 - **Serveurs MCP** : chaque source est exposée en serveur MCP stdio (`chimeraflow-excel`, `chimeraflow-access`, `chimeraflow-whatsapp`, `chimeraflow-momo`), déclarés dans `.kiro/settings/mcp.json`. Outils en lecture seule : `fetch_records(limit)` et `health_check()`. Dans Kiro, demander par exemple « appelle `health_check` du serveur chimeraflow-excel ».
-- **Tests basés sur les propriétés** (Hypothesis), statuts d'après `.kiro/specs/design.md` §12 :
+- **Tests basés sur les propriétés** (Hypothesis), statuts d'après `.kiro/specs/chimeraflow-backend/design.md` §12 :
 
 | Propriété | Énoncé | Statut |
 |-----------|--------|--------|
@@ -146,7 +146,7 @@ Ce que le dépôt contient de la configuration Kiro :
 | P5 Monotonie | Élargir la fenêtre ne retire aucune corrélation | couverte |
 | P6 Pas de fabrication | Aucune valeur émise absente des sources | partielle |
 
-- **Kiro Crew** (`.kiro/agents/`) : prévue (`chimera-builder`, `test-warden`, `rule-smith`), pas encore créée. Le connecteur n°4 (Mobile Money) n'a pas encore été généré par Crew en session enregistrée.
+- **Outils Kiro utilisés** : Kiro IDE et Kiro CLI. Kiro Crew n'est pas utilisé.
 
 ---
 
@@ -237,7 +237,7 @@ docker compose up -d
 
 ### Utiliser les serveurs MCP dans Kiro
 
-Ouvrir le dépôt dans Kiro après l'étape 2 : `.kiro/settings/mcp.json` lance `backend/mcp_main.py --source <nom>` avec le Python du venv Windows (`backend/.venv/Scripts/python.exe`). Sous Linux ou macOS, adapter le chemin vers `backend/.venv/bin/python`. Détail : section « Serveurs MCP » de [backend/README.md](./backend/README.md).
+Ouvrir le dépôt dans Kiro après l'étape 2 : `.kiro/settings/mcp.json` (fichier local, chemins absolus, non versionné) lance `backend/mcp_main.py --source <nom>` avec le Python du venv. Le générer sur chaque poste depuis le modèle `backend/mcp_servers/kiro-mcp.json` (Windows : `backend/.venv/Scripts/python.exe` ; Linux ou macOS : `backend/.venv/bin/python`). Détail : section « Serveurs MCP » de [backend/README.md](./backend/README.md).
 
 ---
 
@@ -292,14 +292,14 @@ Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisio
 
 ## Avancement
 
-État au 2026-11-17. Détail case par case : [.kiro/specs/tasks.md](./.kiro/specs/tasks.md).
+État au 2026-11-17. Détail case par case : [.kiro/specs/chimeraflow-backend/tasks.md](./.kiro/specs/chimeraflow-backend/tasks.md).
 
 | Phase | Statut | Contenu |
 |-------|--------|---------|
 | P0 Fondations | terminée | Structure, specs, steering, données synthétiques, déploiement Vercel et VPS |
 | P1 Connecteurs | terminée | Quatre connecteurs, enregistrement unifié, tests de contrat, serveurs MCP stdio |
 | P2 Moteur de règles | terminée, sauf conversion en réel | Normaliseur, interpréteur avec provenance, cinq règles actives, API, migrations, limitation par IP, budget LLM. Reste : brancher et mesurer un vrai modèle LiteLLM |
-| P3 Interface et Crew | interface livrée | Tableau de bord, composeur, corrélations, bac à sable, temps réel, FR/EN, thème sombre. Agents Crew non créés |
+| P3 Interface | interface livrée | Tableau de bord, composeur, corrélations, bac à sable, temps réel, FR/EN, thème sombre |
 | P4 Durcissement | en grande partie faite | Authentification, tests de fumée, surveillance, scan de secrets, documentation. Reste : mesures d'accessibilité dans un navigateur, gel du code |
 | P5 Soumission | à faire | Vidéo, write-up, blog, formulaire Devpost |
 

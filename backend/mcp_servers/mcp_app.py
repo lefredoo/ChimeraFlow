@@ -3,7 +3,7 @@ MCP server exposing one ChimeraFlow data source (stdio transport).
 
 One process serves one source (`--source excel|access|whatsapp|momo`), so Kiro
 lists four servers. Tools are read-only and mirror the connector contract of
-.kiro/specs/connectors-spec.md (R1): `fetch_records(limit)` and `health_check()`.
+.kiro/specs/chimeraflow-backend/connectors-spec.md (R1): `fetch_records(limit)` and `health_check()`.
 
 The launcher (backend/mcp_main.py) configures logging on stderr: stdout carries the protocol.
 """

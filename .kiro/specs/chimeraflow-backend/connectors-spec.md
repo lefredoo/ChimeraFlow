@@ -88,5 +88,6 @@ respectent R1 à R7. Ils sont appelés directement par l'API et exposés en serv
   de record). stdout est réservé au protocole.
 - Une erreur de lecture est renvoyée comme erreur d'outil sans chemin de fichier ; le détail
   reste dans les journaux. `health_check` renvoie `status: error` au lieu de lever.
-- Enregistrement dans Kiro : `.kiro/settings/mcp.json` (modèle versionné dans
-  `backend/mcp_servers/kiro-mcp.json`), uniquement des références à des chemins, aucun secret.
+- Enregistrement dans Kiro : `.kiro/settings/mcp.json` (fichier local, ignoré par git,
+  chemins absolus ; modèle versionné dans `backend/mcp_servers/kiro-mcp.json`), uniquement des références à des chemins,
+  aucun secret.

@@ -1,6 +1,6 @@
 """
 Base connector interface for MCP servers
-Implements contract defined in .kiro/specs/connectors-spec.md
+Implements contract defined in .kiro/specs/chimeraflow-backend/connectors-spec.md
 """
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional

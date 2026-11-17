@@ -14,7 +14,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] API FastAPI avec `GET /health` (`backend/main.py`)
 - [x] Page d'accueil Next.js qui appelle `/health` (`frontend/app/page.tsx`)
 - [x] `docker-compose.yml` : API et Redis, `mem_limit`, volume `data` en lecture seule, health checks
-- [x] Trois specs Kiro : `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md`
+- [x] Trois specs Kiro : `connectors-spec.md`, `rule-engine-spec.md` et l'interface (`../chimeraflow-ui/design.md`, ancien `ui-spec.md`) ; depuis le 2026-11-17 une spec par dossier avec `requirements.md`, `design.md` et `tasks.md`
 - [x] Deux steering : `connectors.md`, `security.md`
 - [x] Générateurs de données synthétiques : `scripts/generate_excel.py`, `generate_whatsapp.py`, `generate_momo.py`, `generate_access_windows.vbs`
 - [x] Spike Access : `data/STOCK_ZOBO.mdb` lu par `access-parser` (`test_access_readers.py`)
@@ -34,7 +34,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [~] Propriétés de parseur (PBT) : P2 et P3 couvertes ; P1 et P6 partielles (`design.md` §12)
 - [x] Parseur WhatsApp : Android et iOS, dates FR et EN (ordre jour/mois décidé par fichier), messages sur plusieurs lignes, pièces jointes signalées, messages système comptés à part (`backend/mcp_servers/whatsapp_parser.py`, `backend/tests/test_whatsapp_parser.py`)
 - [x] Les quatre connecteurs servis en serveurs MCP stdio (`backend/mcp_servers/mcp_app.py`, lanceur `backend/mcp_main.py`, tests `backend/tests/test_mcp_servers.py`)
-- [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` (copie du modèle `backend/mcp_servers/kiro-mcp.json`, testé) ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
+- [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` (local, chemins absolus, généré depuis le modèle `backend/mcp_servers/kiro-mcp.json`, testé ; démarrage des quatre serveurs vérifié depuis deux répertoires) ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
 - [ ] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18, cible d'architecture) : l'image runtime contient le lanceur, mais aucun service compose ne le démarre (stdio uniquement)
 
 ## P2 : Moteur de règles (20–24 nov.) — en cours
@@ -65,19 +65,8 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Déploiement du backend sur le VPS avec migrations au démarrage (API en ligne en HTTPS)
 - [ ] Pull request `dev` → `main` ouverte et fusionnée (squash, CI verte, une revue)
 
-## P3 : Interface et Crew (25–29 nov.) — interface livrée, Crew non commencée
-
-- [x] Tableau de bord mobile-first : état des 4 sources, statistiques, bouton « Exécuter les règles », dernières corrélations (`frontend/components/dashboard.tsx`)
-- [x] Composeur de règles en langage naturel, avec aperçu du brouillon et repli sur les règles prédéfinies (`rule-composer.tsx`)
-- [x] Liste des règles avec détail JSON et suppression confirmée (`rules-view.tsx`)
-- [x] Cartes de corrélation avec badges par source et tiroir de provenance (R10)
-- [x] Assainissement des textes de source avant affichage (R12) : rendu en texte React seulement, jamais de HTML ; testé (`correlation-card.test.tsx`)
-- [x] État dégradé quand une source est absente (R8) : bandeau et fil coupé sur le tableau de bord
-- [x] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : mesurée le 2026-11-17 dans Edge (axe-core, 0 violation, aucun débordement horizontal à 360 px, clavier et boîtes de dialogue vérifiés, thèmes clair et sombre) ; lecteur d'écran réel, Firefox, Safari et téléphone non couverts (voir `ui-spec.md` et TECH_DEBT)
-- [x] Bascule FR/EN mémorisée et thème sombre (système par défaut, choix mémorisé)
-- [x] Vue « pourquoi ça correspond » (affichée seulement quand la corrélation a une `explanation`), bac à sable de normalisation (`/sandbox`), corrélations en temps réel (flux SSE, sinon actualisation toutes les 15 s)
-- [ ] Connecteur n°4 généré par Crew en session enregistrée (`.kiro/agents/` absent)
-- [ ] Hook `rule-validate` : déjà présent (`.kiro/hooks/rule-validate.json`, cible `data/rules/*.json`) ; l'agent qu'il lance reste à valider en session
+## P3 : Interface (25–29 nov.) — interface livrée (Crew abandonné)
+Le détail des tâches de cette phase est dans `../chimeraflow-ui/tasks.md` (spec de l'interface).
 
 ## P4 : Durcissement (30 nov. – 1er déc.) — non commencée
 

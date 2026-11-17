@@ -18,6 +18,41 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Alerte e-mail : un rejet définitif n'est pas un envoi réussi
+**Context**: En production, Cloudflare Email Service a répondu HTTP 200 et `success: true` avec `result: {delivered: [], queued: [], permanent_bounces: [1 élément]}` pour l'ancien domaine d'envoi (retiré) ; `alerts.py` a journalisé `outcome=sent` et aucun e-mail n'est arrivé.
+**Decision**: `send_digest` lit les longueurs de `result.delivered`, `result.queued` et `result.permanent_bounces` (`_delivery_counts`). Succès seulement si HTTP 2xx, `success: true` et delivered + queued ≥ 1. Rejets seuls : `outcome=bounced`, retour `False`, pas de nouvel essai (définitif). Résultat entièrement vide : `outcome=empty`, retenté une fois comme un échec passager (aucun envoi n'a eu lieu, donc pas de doublon possible). Le domaine d'envoi devient `mail.linguasolution.com`.
+**Alternatives rejected**: Ne pas retenter le résultat vide (ambiguïté sans coût : un seul essai de plus). Journaliser les adresses rejetées (données personnelles).
+**Consequences**: Le délai global reste consommé par un envoi échoué (voir TECH_DEBT). Le format réel de `result` n'est connu que par la réponse observée en production.
+**AGENTS.md rule concerned**: §22 (définition du succès mise à jour).
+
+## [2026-11-17] Specs Kiro au format dossier
+
+**Context**: Le panneau Specs de Kiro restait vide : il attend un dossier par spec (`requirements.md`, `design.md`, `tasks.md`), le dépôt avait des fichiers à plat.
+**Decision**: `.kiro/specs/chimeraflow-backend/` (design, tasks, détails connectors/rule-engine/api, `requirements.md` EARS en français) et `.kiro/specs/chimeraflow-ui/` (`design.md` ex-`ui-spec.md`, `requirements.md`, `tasks.md` extrait de la phase P3). Déplacements par `git mv`.
+**Alternatives rejected**: Une spec par fichier d'origine (trois specs sans design propre). Une seule spec (mélange backend et interface).
+**Consequences**: Références mises à jour (AGENTS.md §21, README, docs, commentaires de code). `docs/build-log.md` et les QCM HTML gardent les anciens chemins (historique).
+
+---
+
+## [2026-11-17] Configuration MCP de Kiro locale, en chemins absolus
+
+**Context**: Le panneau MCP de Kiro restait vide malgré `.kiro/settings/mcp.json`. Avec des chemins relatifs (`command`, `args`, `DATA_DIR`), un serveur lancé depuis un autre répertoire que la racine échoue (`FileNotFoundError`, constaté sur les quatre serveurs).
+**Decision**: `.kiro/settings/mcp.json` utilise des chemins absolus et `cwd`, il est ignoré par git. Le modèle `backend/mcp_servers/kiro-mcp.json` garde le marqueur `<RACINE_DEPOT>`, remplacé par poste (commande dans `backend/README.md`).
+**Alternatives rejected**: Versionner le fichier absolu (casse tous les autres postes et publie un chemin utilisateur). Variable `${RACINE}` : Kiro ne développe que les variables d'environnement du processus, à définir avant chaque lancement.
+**Consequences**: Une étape par poste, documentée. Le test du modèle (`test_mcp_servers.py`) reste valable.
+
+---
+
+## [2026-11-17] Kiro Crew abandonné : le projet utilise Kiro IDE et Kiro CLI
+
+**Context**: Le plan prévoyait trois agents Crew (`.kiro/agents/`) et un connecteur n°4 généré par Crew en session filmée. Le règlement du hackathon n'exige pas Crew.
+**Decision**: Crew est retiré du plan. Le projet est construit avec Kiro IDE et Kiro CLI. Le connecteur Mobile Money est écrit comme les trois autres. README, AGENTS.md §21, `tasks.md` et `Roadmap.md` (P3 et ligne Crew du §6) sont mis à jour.
+**Alternatives rejected**: Garder Crew « au cas où » : budget de crédits (≈ 1 000) et temps de session pour un prérequis absent du règlement.
+**Consequences**: Pas de `.kiro/agents/`. Le prix « Best Kiro Crew App » n'est pas visé. Le reste du Roadmap (budget de crédits, scénario de vidéo, liste de soumission) cite encore Crew : à relire par le propriétaire.
+**AGENTS.md rule concerned**: §21
+
+---
+
 ## [2026-11-17] Relances sur erreurs passagères du fournisseur LLM et modèle de repli
 **Context**: En production avec `glm-4.7-flash-bedrock`, 6 requêtes NL→règle sur 10 ont reçu `502 nl_provider_error` pendant environ 3 minutes d'`InternalServerError` du proxy ; les mêmes phrases ont ensuite réussi. Seules les réponses invalides étaient relancées.
 **Decision**: Une erreur passagère (5xx, connexion, délai ; jamais 4xx ni erreur inattendue) est relancée au plus 2 fois pour toute la conversion, après 0,5 s puis 1,5 s (± 25 % de gigue), dans un délai global de 45 s (appel limité au temps restant, aucun appel sous 3 s). `LITELLM_FALLBACK_MODEL` (optionnelle) sert à la dernière relance et aux appels suivants. Chaque tentative réserve le budget, un échec garde le coût d'entrée pessimiste. La réponse 200 et les erreurs `nl_*` portent `provider_retries`, `retries` garde son sens.

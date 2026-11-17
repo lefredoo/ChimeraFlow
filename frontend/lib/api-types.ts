@@ -1,5 +1,5 @@
 /**
- * Types of the backend API payloads (see .kiro/specs/api-spec.md).
+ * Types of the backend API payloads (see .kiro/specs/chimeraflow-backend/api-spec.md).
  *
  * Rule and correlation fields keep the API's snake_case names: the rule JSON is
  * shown and sent back to the API as is, and extra fields added by newer backend

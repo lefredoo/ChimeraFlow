@@ -7,7 +7,8 @@ ALERT_EMAIL_TO are all set. One digest is sent per execution, from a background 
 failing provider never delays or fails the request. A global cooldown
 (ALERT_EMAIL_COOLDOWN_SECONDS, enforced in Redis with SET NX EX) allows at most
 one digest per window, whatever the number of executions or workers; when Redis
-is unavailable nothing is sent (fail closed). Recipients, the API token
+is unavailable nothing is sent (fail closed). The e-mail counts as sent only when the provider reports at least one recipient
+delivered or queued (HTTP 200 with `success: true` is not enough). Recipients, the API token
 and the message bodies are never logged. Correlation messages come from source
 text (untrusted): control characters are stripped, the length is bounded, and
 the HTML part is escaped.
@@ -231,6 +232,27 @@ def _body_reports_success(response: httpx.Response) -> bool:
     return body is not None and body.get("success") is True
 
 
+def _delivery_counts(response: httpx.Response) -> Tuple[int, int, int]:
+    """Recipients delivered, queued and permanently bounced, as reported in `result`.
+
+    Cloudflare answers HTTP 200 with `success: true` even when every recipient
+    bounced, so the lists of `result` are the only proof of acceptance.
+
+    Returns:
+        (delivered, queued, permanent_bounces); 0 for a list that is absent or not a list.
+    """
+    body = _json_body(response)
+    result = body.get("result") if body is not None else None
+    if not isinstance(result, dict):
+        return 0, 0, 0
+
+    def length(key: str) -> int:
+        value = result.get(key)
+        return len(value) if isinstance(value, list) else 0
+
+    return length("delivered"), length("queued"), length("permanent_bounces")
+
+
 def _error_codes(response: httpx.Response) -> str:
     """Error codes of a Cloudflare answer, comma-separated (never the messages, which may echo input)."""
     body = _json_body(response)
@@ -250,8 +272,12 @@ async def send_digest(settings: AlertSettings, items: Sequence[AlertItem], langu
         language: "fr" or "en".
 
     Returns:
-        True if the provider accepted the e-mail (HTTP 2xx and `success: true`).
-        Failures are logged with the provider error codes only, never with
+        True if the provider accepted the e-mail: HTTP 2xx, `success: true` and at
+        least one recipient in `result.delivered` or `result.queued`. Cloudflare
+        answers 200 and `success: true` even when every recipient bounced, so a
+        `permanent_bounces`-only result is a definitive failure (no retry), and an
+        all-empty result is a failure retried like a transient error.
+        Failures are logged with the provider error codes or the counts only, never with
         recipients or content, and never raised.
     """
     if not items:
@@ -272,22 +298,36 @@ async def send_digest(settings: AlertSettings, items: Sequence[AlertItem], langu
             async with httpx.AsyncClient(timeout=SEND_TIMEOUT_SECONDS, transport=_TRANSPORT) as client:
                 response = await client.post(url, json=payload, headers=headers)
             if response.is_success and _body_reports_success(response):
-                logger.info("alert_email outcome=sent items=%d", len(items))
-                return True
-            logger.warning(
-                "alert_email outcome=rejected status=%d codes=%s attempt=%d",
-                response.status_code,
-                _error_codes(response),
-                attempt + 1,
-            )
-            if response.status_code < 500 and response.status_code != 429:
-                return False
+                delivered, queued, bounces = _delivery_counts(response)
+                if delivered + queued >= 1:
+                    logger.info(
+                        "alert_email outcome=sent items=%d delivered=%d queued=%d bounces=%d",
+                        len(items),
+                        delivered,
+                        queued,
+                        bounces,
+                    )
+                    return True
+                if bounces >= 1:
+                    # Definitive: the provider refused every recipient (e.g. sender domain not onboarded)
+                    logger.warning("alert_email outcome=bounced permanent_bounces=%d", bounces)
+                    return False
+                # Accepted but nothing delivered or queued: ambiguous, so it is retried like a transient failure
+                logger.warning("alert_email outcome=empty attempt=%d", attempt + 1)
+            else:
+                logger.warning(
+                    "alert_email outcome=rejected status=%d codes=%s attempt=%d",
+                    response.status_code,
+                    _error_codes(response),
+                    attempt + 1,
+                )
+                if response.status_code < 500 and response.status_code != 429:
+                    return False
         except httpx.HTTPError as error:
             logger.warning("alert_email outcome=error kind=%s attempt=%d", type(error).__name__, attempt + 1)
         if attempt + 1 < SEND_ATTEMPTS:
             await asyncio.sleep(RETRY_DELAY_SECONDS * 2 ** attempt)
     return False
-
 
 async def dispatch_alerts(items: Sequence[AlertItem]) -> None:
     """Background task: send the digest when configured and outside the cooldown.

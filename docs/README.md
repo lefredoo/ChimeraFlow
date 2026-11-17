@@ -22,16 +22,14 @@ Décisions d'architecture et dette technique.
 
 ### [specs/](./specs/)
 Vide pour l'instant (`.gitkeep`). Les spécifications Kiro sont dans **[`../.kiro/specs/`](../.kiro/specs/)** :
-- `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md` : specs des phases P0 et P1
-- `api-spec.md` : endpoints de l'API FastAPI
-- `design.md` : architecture implémentée et propriétés de correction P1 à P6
-- `tasks.md` : avancement par phase
+- `chimeraflow-backend/` : `requirements.md` (exigences EARS), `design.md` (architecture implémentée et propriétés de correction P1 à P6), `tasks.md` (avancement par phase) ; détails `connectors-spec.md`, `rule-engine-spec.md`, `api-spec.md` (endpoints de l'API FastAPI)
+- `chimeraflow-ui/` : `requirements.md`, `design.md` (écrans et composants), `tasks.md`
 
 ### [design/](./design/)
 Documents de design, maquettes et éléments visuels. Vide pour l'instant (`.gitkeep`) : le système de design est dans [`../DESIGN.md`](../DESIGN.md).
 
 ### [architecture/](./architecture/)
-Diagrammes et documents d'architecture système. Vide pour l'instant (`.gitkeep`). L'architecture implémentée est décrite dans [`../.kiro/specs/design.md`](../.kiro/specs/design.md).
+Diagrammes et documents d'architecture système. Vide pour l'instant (`.gitkeep`). L'architecture implémentée est décrite dans [`../.kiro/specs/chimeraflow-backend/design.md`](../.kiro/specs/chimeraflow-backend/design.md).
 
 ### [reference/](./reference/)
 Références techniques et bonnes pratiques. Vide pour l'instant (`.gitkeep`).

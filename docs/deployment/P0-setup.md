@@ -4,7 +4,7 @@
 
 **Dates :** 13 et 14 novembre 2026
 **Durée prévue :** 8 heures
-**Statut :** ✓ terminée dans le dépôt. Les points qui ne se vérifient pas dans le dépôt (déploiement, Vercel, Dokploy) sont listés dans `.kiro/specs/tasks.md`.
+**Statut :** ✓ terminée dans le dépôt. Les points qui ne se vérifient pas dans le dépôt (déploiement, Vercel, Dokploy) sont listés dans `.kiro/specs/chimeraflow-backend/tasks.md`.
 
 ---
 
@@ -31,7 +31,7 @@
 - ✓ Volume de données monté en lecture seule (`./data:/data:ro`)
 
 ### Artefacts Kiro
-- ✓ 3 specs : `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md`
+- ✓ 3 specs : `connectors-spec.md`, `rule-engine-spec.md` (dossier `chimeraflow-backend/`) et l'interface (`chimeraflow-ui/design.md`, ancien `ui-spec.md`)
 - ✓ 2 fichiers de steering : `connectors.md`, `security.md`
 - ✓ Hooks de test et de validation dans `.kiro/hooks/` (ajoutés en P1)
 - ✗ `.kiro/agents/` : prévu en P3, non créé
@@ -155,7 +155,7 @@ cd backend
 ## Phase suivante
 
 **P1 Connecteurs** : terminée côté code (4 connecteurs, enregistrement unifié, tests de contrat). Les serveurs MCP restent à faire.
-**P2 Moteur de règles** : en cours. Voir `.kiro/specs/tasks.md`.
+**P2 Moteur de règles** : en cours. Voir `.kiro/specs/chimeraflow-backend/tasks.md`.
 
 ---
 
