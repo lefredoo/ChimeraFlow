@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Configuration MCP de Kiro locale, en chemins absolus
+
+**Context**: Le panneau MCP de Kiro restait vide malgré `.kiro/settings/mcp.json`. Avec des chemins relatifs (`command`, `args`, `DATA_DIR`), un serveur lancé depuis un autre répertoire que la racine échoue (`FileNotFoundError`, constaté sur les quatre serveurs).
+**Decision**: `.kiro/settings/mcp.json` utilise des chemins absolus et `cwd`, il est ignoré par git. Le modèle `backend/mcp_servers/kiro-mcp.json` garde le marqueur `<RACINE_DEPOT>`, remplacé par poste (commande dans `backend/README.md`).
+**Alternatives rejected**: Versionner le fichier absolu (casse tous les autres postes et publie un chemin utilisateur). Variable `${RACINE}` : Kiro ne développe que les variables d'environnement du processus, à définir avant chaque lancement.
+**Consequences**: Une étape par poste, documentée. Le test du modèle (`test_mcp_servers.py`) reste valable.
+
+---
+
 ## [2026-11-17] Kiro Crew abandonné : le projet utilise Kiro IDE et Kiro CLI
 
 **Context**: Le plan prévoyait trois agents Crew (`.kiro/agents/`) et un connecteur n°4 généré par Crew en session filmée. Le règlement du hackathon n'exige pas Crew.

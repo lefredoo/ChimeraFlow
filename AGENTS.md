@@ -422,7 +422,7 @@ Rules are JSON, never executed code:
 - P5: Window monotonicity (wider window ⊇ narrower window)
 - P6: No fabrication (all emitted values exist in sources)
 
-**MCP Servers (`.kiro/settings/mcp.json`):** — one stdio server per source, `python backend/mcp_main.py --source <name>`
+**MCP Servers (`.kiro/settings/mcp.json`, local and git-ignored, absolute paths; template `backend/mcp_servers/kiro-mcp.json`, per-machine step in `backend/README.md`):** — one stdio server per source, `python backend/mcp_main.py --source <name>`
 - `chimeraflow-excel`
 - `chimeraflow-access`
 - `chimeraflow-whatsapp`

@@ -237,7 +237,7 @@ docker compose up -d
 
 ### Utiliser les serveurs MCP dans Kiro
 
-Ouvrir le dépôt dans Kiro après l'étape 2 : `.kiro/settings/mcp.json` lance `backend/mcp_main.py --source <nom>` avec le Python du venv Windows (`backend/.venv/Scripts/python.exe`). Sous Linux ou macOS, adapter le chemin vers `backend/.venv/bin/python`. Détail : section « Serveurs MCP » de [backend/README.md](./backend/README.md).
+Ouvrir le dépôt dans Kiro après l'étape 2 : `.kiro/settings/mcp.json` (fichier local, chemins absolus, non versionné) lance `backend/mcp_main.py --source <nom>` avec le Python du venv. Le générer sur chaque poste depuis le modèle `backend/mcp_servers/kiro-mcp.json` (Windows : `backend/.venv/Scripts/python.exe` ; Linux ou macOS : `backend/.venv/bin/python`). Détail : section « Serveurs MCP » de [backend/README.md](./backend/README.md).
 
 ---
 

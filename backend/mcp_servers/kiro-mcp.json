@@ -1,44 +1,76 @@
 {
   "mcpServers": {
     "chimeraflow-excel": {
-      "command": "backend/.venv/Scripts/python.exe",
-      "args": ["backend/mcp_main.py", "--source", "excel"],
+      "command": "<RACINE_DEPOT>/backend/.venv/Scripts/python.exe",
+      "args": [
+        "<RACINE_DEPOT>/backend/mcp_main.py",
+        "--source",
+        "excel"
+      ],
+      "cwd": "<RACINE_DEPOT>",
       "env": {
-        "DATA_DIR": "data",
+        "DATA_DIR": "<RACINE_DEPOT>/data",
         "ACCESS_READER": "access-parser"
       },
       "disabled": false,
-      "autoApprove": ["fetch_records", "health_check"]
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
     },
     "chimeraflow-access": {
-      "command": "backend/.venv/Scripts/python.exe",
-      "args": ["backend/mcp_main.py", "--source", "access"],
+      "command": "<RACINE_DEPOT>/backend/.venv/Scripts/python.exe",
+      "args": [
+        "<RACINE_DEPOT>/backend/mcp_main.py",
+        "--source",
+        "access"
+      ],
+      "cwd": "<RACINE_DEPOT>",
       "env": {
-        "DATA_DIR": "data",
+        "DATA_DIR": "<RACINE_DEPOT>/data",
         "ACCESS_READER": "access-parser"
       },
       "disabled": false,
-      "autoApprove": ["fetch_records", "health_check"]
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
     },
     "chimeraflow-whatsapp": {
-      "command": "backend/.venv/Scripts/python.exe",
-      "args": ["backend/mcp_main.py", "--source", "whatsapp"],
+      "command": "<RACINE_DEPOT>/backend/.venv/Scripts/python.exe",
+      "args": [
+        "<RACINE_DEPOT>/backend/mcp_main.py",
+        "--source",
+        "whatsapp"
+      ],
+      "cwd": "<RACINE_DEPOT>",
       "env": {
-        "DATA_DIR": "data",
+        "DATA_DIR": "<RACINE_DEPOT>/data",
         "ACCESS_READER": "access-parser"
       },
       "disabled": false,
-      "autoApprove": ["fetch_records", "health_check"]
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
     },
     "chimeraflow-momo": {
-      "command": "backend/.venv/Scripts/python.exe",
-      "args": ["backend/mcp_main.py", "--source", "momo"],
+      "command": "<RACINE_DEPOT>/backend/.venv/Scripts/python.exe",
+      "args": [
+        "<RACINE_DEPOT>/backend/mcp_main.py",
+        "--source",
+        "momo"
+      ],
+      "cwd": "<RACINE_DEPOT>",
       "env": {
-        "DATA_DIR": "data",
+        "DATA_DIR": "<RACINE_DEPOT>/data",
         "ACCESS_READER": "access-parser"
       },
       "disabled": false,
-      "autoApprove": ["fetch_records", "health_check"]
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
     }
   }
 }

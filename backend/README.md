@@ -496,16 +496,29 @@ Sous Linux ou macOS, le Python du venv est `backend/.venv/bin/python`. Dans l'im
 Aucun port n'est ouvert et aucun service compose ne démarre de serveur MCP.
 
 ### Utilisation par Kiro
+`.kiro/settings/mcp.json` déclare les quatre serveurs avec le Python du venv, `backend/mcp_main.py --source <nom>`,
+`cwd` et deux variables d'environnement (`DATA_DIR`, `ACCESS_READER=access-parser`). La documentation de Kiro ne
+précise pas la résolution des chemins relatifs, et le serveur n'est pas garanti d'être lancé depuis la racine du
+dépôt : un chemin relatif échoue avec `FileNotFoundError` dès que le répertoire courant diffère. Tous les chemins
+sont donc absolus, ce qui rend le fichier propre à chaque poste. Il est ignoré par git ; le modèle versionné est
+`backend/mcp_servers/kiro-mcp.json` (marqueur `<RACINE_DEPOT>`), vérifié par `tests/test_mcp_servers.py`.
 
-`.kiro/settings/mcp.json` déclare les quatre serveurs avec le Python du venv
-(`backend/.venv/Scripts/python.exe`), `backend/mcp_main.py --source <nom>` et deux variables d'environnement
-(`DATA_DIR=data`, `ACCESS_READER=access-parser`). Les chemins sont relatifs à la racine du dépôt, répertoire
-de travail de Kiro. Le modèle versionné est `backend/mcp_servers/kiro-mcp.json`, vérifié par
-`tests/test_mcp_servers.py`. Les deux outils sont en `autoApprove` car ils sont en lecture seule.
+Étape par poste, depuis la racine du dépôt (PowerShell), une fois le venv créé :
 
-Pour vérifier dans Kiro : ouvrir le panneau MCP (vue « MCP Servers »), les quatre serveurs doivent passer à l'état
-connecté avec deux outils chacun. Demander ensuite dans le chat « appelle `health_check` du serveur
-chimeraflow-excel » : la réponse contient `status: ok`.
+```powershell
+$racine = (Get-Location).Path.Replace('\', '/')
+(Get-Content backend/mcp_servers/kiro-mcp.json -Raw).Replace('<RACINE_DEPOT>', $racine) |
+  Set-Content .kiro/settings/mcp.json -Encoding utf8
+```
+
+Sous Linux ou macOS, remplacer aussi `Scripts/python.exe` par `bin/python`. Les deux outils sont en `autoApprove`
+car ils sont en lecture seule.
+
+Pour vérifier dans Kiro : ouvrir le panneau MCP (onglet Kiro, vue « MCP Servers »), les quatre serveurs doivent
+passer à l'état connecté avec deux outils chacun. Demander ensuite dans le chat « appelle `health_check` du serveur
+chimeraflow-excel » : la réponse contient `status: ok`. Le canal « Kiro - MCP Logs » reste vide au niveau de
+journalisation par défaut : palette de commandes, « Developer: Set Log Level… », choisir l'extension Kiro puis
+« Debug », pour voir le chargement de la configuration et les erreurs de démarrage.
 
 ## Schéma de règle
 
