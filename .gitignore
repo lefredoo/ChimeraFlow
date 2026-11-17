@@ -1,4 +1,4 @@
-# Logs
+﻿# Logs
 logs
 *.log
 npm-debug.log*
@@ -185,5 +185,3 @@ __pycache__/
 # Test environment (now set in backend/tests/conftest.py)
 backend/.env.test
 
-# Kiro MCP configuration with absolute paths of this machine (template: backend/mcp_servers/kiro-mcp.json)
-.kiro/settings/mcp.json

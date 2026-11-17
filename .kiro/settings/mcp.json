@@ -1,0 +1,48 @@
+{
+  "mcpServers": {
+    "chimeraflow-excel": {
+      "url": "https://chimeraflow-mcp.linguasolution.com/mcp/excel",
+      "headers": {
+        "Authorization": "Bearer ${CHIMERAFLOW_MCP_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
+    },
+    "chimeraflow-access": {
+      "url": "https://chimeraflow-mcp.linguasolution.com/mcp/access",
+      "headers": {
+        "Authorization": "Bearer ${CHIMERAFLOW_MCP_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
+    },
+    "chimeraflow-whatsapp": {
+      "url": "https://chimeraflow-mcp.linguasolution.com/mcp/whatsapp",
+      "headers": {
+        "Authorization": "Bearer ${CHIMERAFLOW_MCP_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
+    },
+    "chimeraflow-momo": {
+      "url": "https://chimeraflow-mcp.linguasolution.com/mcp/momo",
+      "headers": {
+        "Authorization": "Bearer ${CHIMERAFLOW_MCP_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "fetch_records",
+        "health_check"
+      ]
+    }
+  }
+}
