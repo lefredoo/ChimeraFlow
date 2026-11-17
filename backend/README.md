@@ -34,9 +34,11 @@ backend/
 │   ├── whatsapp_parser.py  # parseur pur (Android, iOS, FR/EN, multi-lignes) et export inverse
 │   ├── momo_connector.py   # lecture du CSV Mobile Money
 │   ├── mcp_app.py          # serveur MCP stdio d'une source (outils fetch_records, health_check)
-│   ├── mcp_settings.py     # réglages des serveurs MCP (DATA_DIR, ACCESS_READER), sans config.py
+│   ├── mcp_http_app.py     # app ASGI des quatre serveurs MCP en Streamable HTTP (jeton Bearer, limitation par IP)
+│   ├── mcp_settings.py     # réglages des serveurs MCP (DATA_DIR, ACCESS_READER, MCP_HTTP_TOKEN), sans config.py
 │   └── kiro-mcp.json       # modèle de .kiro/settings/mcp.json
 ├── mcp_main.py             # lanceur : python mcp_main.py --source excel|access|whatsapp|momo
+├── mcp_http_main.py        # lanceur du service HTTP hébergé (toutes les sources, port 8001)
 ├── migrations/             # migrations Alembic (env.py lit DATABASE_URL)
 ├── models/                 # modèles SQLAlchemy (P2)
 │   ├── base.py             # configuration de la base (clés étrangères activées sur SQLite)
@@ -54,6 +56,7 @@ backend/
 │   ├── test_connector_payloads.py # noms de champs, entités, erreurs de parsing
 │   ├── test_access_readers.py # mdbtools et access-parser produisent les mêmes records
 │   ├── test_mcp_servers.py # serveurs MCP : outils, limite, ressource, configuration, lancement stdio
+│   ├── test_mcp_http.py    # service MCP HTTP : jeton, limitation, outils, configuration Kiro distante
 │   ├── test_migrations.py  # alembic upgrade head / downgrade base, pas de dérive avec les modèles
 │   ├── test_properties.py  # tests basés sur les propriétés (Hypothesis)
 │   ├── test_normalizer.py  # variantes de normalisation, idempotence, nombres
@@ -495,22 +498,59 @@ réglage de l'API (base de données, Redis, secrets d'authentification).
 
 Sous Linux ou macOS, le Python du venv est `backend/.venv/bin/python`. Dans l'image Docker, le lanceur est
 `/app/mcp_main.py` (`docker run -i ... python mcp_main.py --source excel`, `DATA_DIR=/data`).
-Aucun port n'est ouvert et aucun service compose ne démarre de serveur MCP.
 
-### Utilisation par Kiro
-`.kiro/settings/mcp.json` déclare les quatre serveurs avec le Python du venv, `backend/mcp_main.py --source <nom>`,
-`cwd` et deux variables d'environnement (`DATA_DIR`, `ACCESS_READER=access-parser`). La documentation de Kiro ne
-précise pas la résolution des chemins relatifs, et le serveur n'est pas garanti d'être lancé depuis la racine du
-dépôt : un chemin relatif échoue avec `FileNotFoundError` dès que le répertoire courant diffère. Tous les chemins
-sont donc absolus, ce qui rend le fichier propre à chaque poste. Il est ignoré par git ; le modèle versionné est
-`backend/mcp_servers/kiro-mcp.json` (marqueur `<RACINE_DEPOT>`), vérifié par `tests/test_mcp_servers.py`.
+### Serveurs hébergés (Streamable HTTP, utilisés par Kiro)
+Le service compose `mcp` (`backend/mcp_http_main.py`, port 8001) sert les quatre sources sur
+`https://chimeraflow-mcp.linguasolution.com/mcp/excel|access|whatsapp|momo`, mêmes outils en lecture seule. Chaque
+requête exige `Authorization: Bearer <MCP_HTTP_TOKEN>` (comparaison en temps constant), est limitée par IP
+(`MCP_RATE_LIMIT_PER_IP` requêtes par `RATE_LIMIT_WINDOW_SECONDS`, compteur en mémoire) et ne journalise ni jeton ni
+adresse. `GET /health` est le seul chemin ouvert. Variables obligatoires du service : `MCP_HTTP_TOKEN` (32 caractères
+au moins), `MCP_RATE_LIMIT_PER_IP`, `RATE_LIMIT_WINDOW_SECONDS`, `DATA_DIR`, `ACCESS_READER` ; optionnelles :
+`TRUSTED_PROXIES`, `BACKEND_LOG_LEVEL`. Une variable manquante arrête le processus (code 2).
+
+Lancement local pour essai (PowerShell, depuis `backend`) :
+
+```powershell
+$env:MCP_HTTP_TOKEN = -join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
+$env:MCP_RATE_LIMIT_PER_IP = "120"; $env:RATE_LIMIT_WINDOW_SECONDS = "60"
+$env:DATA_DIR = "../data"; $env:ACCESS_READER = "access-parser"
+.venv\Scripts\python.exe mcp_http_main.py --host 127.0.0.1 --port 8001
+```
+
+### Utilisation par Kiro (automatique)
+`.kiro/settings/mcp.json` est versionné et déclare les quatre serveurs distants (`url` + en-tête
+`Authorization: Bearer ${CHIMERAFLOW_MCP_TOKEN}`) : aucun chemin de poste, aucun secret. Étapes par poste :
+
+1. Variable d'environnement utilisateur `CHIMERAFLOW_MCP_TOKEN` = valeur du secret Doppler `MCP_HTTP_TOKEN`
+   (`chimeraflow/prd`) :
+
+   ```powershell
+   $env:DOPPLER_TOKEN = '<jeton de service>'
+   [Environment]::SetEnvironmentVariable('CHIMERAFLOW_MCP_TOKEN', (doppler secrets get MCP_HTTP_TOKEN --plain), 'User')
+   ```
+
+2. Réglage Kiro `kiroAgent.mcpApprovedEnvVars` : `["CHIMERAFLOW_MCP_TOKEN"]` (Kiro n'étend que les variables
+   approuvées ; réglage utilisateur, pas dans le dépôt).
+3. Fermer complètement Kiro puis le relancer (une variable utilisateur n'est lue qu'au démarrage du processus).
+4. Agents personnalisés (`~/.kiro/agents/*.md`) : ajouter `includeMcpJson: true` dans l'en-tête et `"@mcp"` à
+   `tools`. Sans cela l'agent n'a aucun serveur MCP, quel que soit le contenu de `mcp.json`.
+
+### Alternative locale : stdio
+Sans réseau, Kiro peut lancer un processus par source. `.kiro/settings/mcp.json` doit alors déclarer les quatre
+serveurs avec le Python du venv, `backend/mcp_main.py --source <nom>`, `cwd` et deux variables d'environnement
+(`DATA_DIR`, `ACCESS_READER=access-parser`). La documentation de Kiro ne précise pas la résolution des chemins
+relatifs, et le serveur n'est pas garanti d'être lancé depuis la racine du dépôt : tous les chemins doivent être
+absolus, donc propres au poste. Le modèle est `backend/mcp_servers/kiro-mcp.json` (marqueur `<RACINE_DEPOT>`),
+vérifié par `tests/test_mcp_servers.py`. Pour l'utiliser sans modifier le fichier versionné, le placer dans la
+configuration utilisateur `~/.kiro/settings/mcp.json` (la configuration de l'espace de travail prime pour un même nom :
+renommer les entrées, par exemple `chimeraflow-excel-local`).
 
 Étape par poste, depuis la racine du dépôt (PowerShell), une fois le venv créé :
 
 ```powershell
 $racine = (Get-Location).Path.Replace('\', '/')
 (Get-Content backend/mcp_servers/kiro-mcp.json -Raw).Replace('<RACINE_DEPOT>', $racine) |
-  Set-Content .kiro/settings/mcp.json -Encoding utf8
+  Set-Content "$HOME/.kiro/settings/mcp.json" -Encoding utf8
 ```
 
 Sous Linux ou macOS, remplacer aussi `Scripts/python.exe` par `bin/python`. Les deux outils sont en `autoApprove`

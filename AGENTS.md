@@ -420,12 +420,15 @@ Rules are JSON, never executed code:
 - P5: Window monotonicity (wider window ⊇ narrower window)
 - P6: No fabrication (all emitted values exist in sources)
 
-**MCP Servers (`.kiro/settings/mcp.json`, local and git-ignored, absolute paths; template `backend/mcp_servers/kiro-mcp.json`, per-machine step in `backend/README.md`):** — one stdio server per source, `python backend/mcp_main.py --source <name>`
+**MCP Servers (`.kiro/settings/mcp.json`, versioned, portable):** — four hosted servers, Streamable HTTP, one endpoint per source on `https://chimeraflow-mcp.linguasolution.com/mcp/<source>` (`python backend/mcp_http_main.py`, compose service `mcp`)
 - `chimeraflow-excel`
 - `chimeraflow-access`
 - `chimeraflow-whatsapp`
 - `chimeraflow-momo` (Mobile Money connector)
-- Tools: `fetch_records(limit)`, `health_check()` (read-only). Settings: `DATA_DIR`, `ACCESS_READER` (access only), no secrets
+- Tools: `fetch_records(limit)`, `health_check()` (read-only)
+- Auth: `Authorization: Bearer ${CHIMERAFLOW_MCP_TOKEN}`. The token is the Doppler secret `MCP_HTTP_TOKEN`; never commit it. Each developer sets the user environment variable `CHIMERAFLOW_MCP_TOKEN` and lists it in the Kiro setting `kiroAgent.mcpApprovedEnvVars` (Kiro expands only approved variables), then restarts Kiro
+- Custom agents (`~/.kiro/agents/*.md`) must set `includeMcpJson: true` and list `@mcp` (or `@chimeraflow-<source>`) in `tools`, otherwise they get no MCP server
+- Local alternative (stdio, one process per source, no network): template `backend/mcp_servers/kiro-mcp.json`, steps in `backend/README.md`. Settings: `DATA_DIR`, `ACCESS_READER` (access only), no secrets
 
 ---
 
@@ -458,6 +461,7 @@ A missing required variable stops the process at startup. There is no `.env.exam
 - `TRUSTED_PROXIES` — Comma-separated IPs or CIDR networks of trusted reverse proxies (Traefik). `X-Forwarded-For` is read only from them. When unset, the TCP peer is the client
 - `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` — E-mail digest of new `warning`/`error` correlations after each execution, sent through the Cloudflare Email Service REST API (`POST /accounts/{id}/email/sending/send`; success = HTTP 2xx, `success: true` and at least one recipient in `result.delivered` or `result.queued`; a `permanent_bounces`-only result is a definitive failure, because Cloudflare answers 200 and `success: true` even when every recipient bounced). Enabled only when all four are set. `CF_EMAIL_ACCOUNT_ID` is the 32-hex Cloudflare account id; `CF_EMAIL_API_TOKEN` is a token with the "Email Sending: Edit" permission only. `ALERT_EMAIL_FROM` is an address or `Name <address>` on a sending domain onboarded in Cloudflare (e.g. `ChimeraFlow <notifications@mail.linguasolution.com>`); `ALERT_EMAIL_TO` is 1 to 5 comma-separated addresses. Malformed values stop startup (never echoed)
 - `ALERT_EMAIL_COOLDOWN_SECONDS` — Minimum delay between two alert e-mails (integer ≥ 60), enforced globally in Redis (`SET NX EX`, key `chimeraflow:alerts:cooldown`). **Required** when the four e-mail variables above are set (startup stops otherwise, no fallback); ignored when the e-mail alert is disabled. Without Redis, or when Redis fails, no e-mail is sent
+- `MCP_HTTP_TOKEN`, `MCP_RATE_LIMIT_PER_IP` — Read only by the hosted MCP service (`backend/mcp_http_main.py`, compose service `mcp`), not by the API. Both are **required** by that process (it stops at startup otherwise, no fallback). `MCP_HTTP_TOKEN` is the bearer token of `/mcp/<source>` (32 characters or more, random, e.g. `openssl rand -hex 24`; compared in constant time, never logged). `MCP_RATE_LIMIT_PER_IP` is the number of requests per client IP per `RATE_LIMIT_WINDOW_SECONDS` (in-memory counter, one process). The service also reads `DATA_DIR`, `ACCESS_READER`, `TRUSTED_PROXIES` and `BACKEND_LOG_LEVEL`; the container receives only these secrets from Doppler (`--only-secrets`)
 - `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` — NL→rule conversion. Enabled only when all four are set (otherwise `503 nl_feature_disabled`). `LITELLM_BUDGET_USD` is the global cap in USD, must be a finite number greater than 0; `LITELLM_MODEL` is the bare model alias defined on the LiteLLM proxy (e.g. `deepseek-v4.1-flash-group`), no provider prefix: the client sends it with `custom_llm_provider="openai"` to `LITELLM_BASE_URL`. A legacy leading `openai/` is stripped once. Transient provider errors (5xx, connection, timeout) are retried up to twice with a 0.5 s then 1.5 s backoff (jitter ±25 %), within 45 s for the whole request; 4xx errors are never retried
 - `LITELLM_FALLBACK_MODEL` — Optional bare proxy alias (same form as `LITELLM_MODEL`) used by the last retry after transient provider errors, e.g. `glm-4.7-flash-bedrock`. Unset or empty: every retry uses `LITELLM_MODEL`. Not part of the four variables that enable the feature
 

@@ -20,7 +20,8 @@ FastAPI (backend/main.py)
   ├─ api/           routeurs sources, rules, correlations ; limitation par IP ; erreurs stables
   ├─ engine/        normaliseur, interpréteur, règles prédéfinies, NL→règle, budget LLM
   ├─ mcp_servers/   4 connecteurs (Excel, Access, WhatsApp, Mobile Money) → enregistrement unifié,
-  │                 et leurs 4 serveurs MCP stdio (mcp_app.py, lancés par mcp_main.py)
+  │                 et leurs 4 serveurs MCP : stdio (mcp_app.py, lancés par mcp_main.py) ou
+  │                 HTTP hébergé (mcp_http_app.py, lancé par mcp_http_main.py)
   ├─ schemas/       modèles Pydantic : règle déclarative et réponses
   └─ models/, migrations/   SQLAlchemy 2 et Alembic (PostgreSQL en production, SQLite en tests)
 Redis             compteurs du limiteur et compteur de dépense LLM
@@ -28,10 +29,20 @@ Redis             compteurs du limiteur et compteur de dépense LLM
 ```
 
 Les connecteurs sont des classes Python appelées par l'API. Ils sont aussi exposés comme
-serveurs MCP stdio (un processus par source, SDK `mcp`), que Kiro lance via
-`.kiro/settings/mcp.json`. Les serveurs MCP lisent les mêmes fichiers que l'API mais
+serveurs MCP (SDK `mcp`). Les serveurs MCP lisent les mêmes fichiers que l'API mais
 n'importent pas `config.py` : ils ne dépendent que de `DATA_DIR` et `ACCESS_READER`.
-Le transport HTTP n'est pas exposé et les fichiers compose ne démarrent pas de serveur MCP.
+Deux modes de service, mêmes outils :
+
+- **HTTP hébergé (défaut de Kiro)** : le service compose `mcp` (même image, commande `mcp_http_main.py`, port 8001)
+  sert les quatre sources sur `https://chimeraflow-mcp.linguasolution.com/mcp/<source>` (Streamable HTTP, sans état).
+  Un point d'accès par source plutôt qu'un serveur unique à outils préfixés : Kiro garde quatre serveurs aux mêmes
+  deux outils, comme en stdio, et la configuration locale reste interchangeable. Le jeton `MCP_HTTP_TOKEN` (en-tête
+  `Authorization: Bearer`) est comparé en temps constant ; la limitation par IP (`MCP_RATE_LIMIT_PER_IP` par
+  `RATE_LIMIT_WINDOW_SECONDS`, compteur en mémoire, adresse client lue dans `X-Forwarded-For` seulement depuis
+  `TRUSTED_PROXIES`) s'applique avant la vérification du jeton, ce qui borne aussi les essais. `/health` est le seul
+  chemin ouvert. Ni base de données ni Redis ; le conteneur ne reçoit que ses secrets (`--only-secrets`).
+- **stdio local** : un processus par source lancé par Kiro (`.kiro/settings/mcp.json` local, modèle
+  `backend/mcp_servers/kiro-mcp.json`), sans réseau.
 
 ---
 

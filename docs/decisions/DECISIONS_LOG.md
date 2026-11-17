@@ -18,6 +18,16 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Serveurs MCP hébergés en HTTP plutôt que lancés en stdio par Kiro
+
+**Context**: Kiro n'affichait aucun serveur MCP malgré un `.kiro/settings/mcp.json` valide, et le fichier local à chemins absolus ne pouvait pas être versionné. Le propriétaire veut un fonctionnement automatique.
+**Decision**: Service compose `mcp` (même image, `mcp_http_main.py`, 192 Mo) servant `/mcp/<source>` en Streamable HTTP sans état, jeton Bearer `MCP_HTTP_TOKEN` (temps constant), limitation par IP en mémoire avant le contrôle du jeton, secrets limités par `--only-secrets`. Nom `chimeraflow-mcp.linguasolution.com` (tunnel, CNAME, domaine Dokploy). `.kiro/settings/mcp.json` redevient versionné avec `${CHIMERAFLOW_MCP_TOKEN}` ; le stdio reste une alternative documentée.
+**Alternatives rejected**: serveur unique à outils préfixés (Kiro perdrait les quatre serveurs identiques au stdio) ; chemin sur l'API existante (mélange le jeton MCP avec la configuration de l'API, mémoire de 512 Mo partagée avec litellm) ; Vercel (fonctions sans état, fichiers `mdbtools` et Access indisponibles) ; limiteur Redis (dépendance inutile pour un service à un processus).
+**Consequences**: Nouvelle variable obligatoire pour ce service seulement (`MCP_HTTP_TOKEN`, `MCP_RATE_LIMIT_PER_IP`) ; compteur de limitation perdu au redémarrage ; DNS rebinding désactivé car l'accès repose sur le jeton ; chaque poste doit définir `CHIMERAFLOW_MCP_TOKEN` et approuver la variable dans Kiro. Les agents utilisateur de `~/.kiro/agents` reçoivent `includeMcpJson: true`.
+**AGENTS.md rule concerned**: §7 (aucune valeur par défaut), §9 (limitation de débit)
+
+---
+
 ## [2026-11-17] Alerte e-mail : un rejet définitif n'est pas un envoi réussi
 **Context**: En production, Cloudflare Email Service a répondu HTTP 200 et `success: true` avec `result: {delivered: [], queued: [], permanent_bounces: [1 élément]}` pour l'ancien domaine d'envoi (retiré) ; `alerts.py` a journalisé `outcome=sent` et aucun e-mail n'est arrivé.
 **Decision**: `send_digest` lit les longueurs de `result.delivered`, `result.queued` et `result.permanent_bounces` (`_delivery_counts`). Succès seulement si HTTP 2xx, `success: true` et delivered + queued ≥ 1. Rejets seuls : `outcome=bounced`, retour `False`, pas de nouvel essai (définitif). Résultat entièrement vide : `outcome=empty`, retenté une fois comme un échec passager (aucun envoi n'a eu lieu, donc pas de doublon possible). Le domaine d'envoi devient `mail.linguasolution.com`.

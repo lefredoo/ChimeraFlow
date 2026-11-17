@@ -24,7 +24,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [ ] Specs approuvées : approbation non tracée dans le dépôt
 - [ ] Dépôt GitHub public (**non vérifié dans le dépôt**)
 
-## P1 : Connecteurs (15–19 nov.) — terminée côté code, MCP réalisé en stdio
+## P1 : Connecteurs (15–19 nov.) — terminée côté code, MCP en stdio et en HTTP hébergé
 
 - [x] Connecteurs Excel, Access, WhatsApp, Mobile Money (`backend/mcp_servers/`)
 - [x] Enregistrement unifié (`mcp_servers/base.py`, AGENTS.md §19)
@@ -34,8 +34,10 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [~] Propriétés de parseur (PBT) : P2 et P3 couvertes ; P1 et P6 partielles (`design.md` §12)
 - [x] Parseur WhatsApp : Android et iOS, dates FR et EN (ordre jour/mois décidé par fichier), messages sur plusieurs lignes, pièces jointes signalées, messages système comptés à part (`backend/mcp_servers/whatsapp_parser.py`, `backend/tests/test_whatsapp_parser.py`)
 - [x] Les quatre connecteurs servis en serveurs MCP stdio (`backend/mcp_servers/mcp_app.py`, lanceur `backend/mcp_main.py`, tests `backend/tests/test_mcp_servers.py`)
-- [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` (local, chemins absolus, généré depuis le modèle `backend/mcp_servers/kiro-mcp.json`, testé ; démarrage des quatre serveurs vérifié depuis deux répertoires) ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
-- [ ] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18, cible d'architecture) : l'image runtime contient le lanceur, mais aucun service compose ne le démarre (stdio uniquement)
+- [x] Transport Streamable HTTP des quatre serveurs : une app ASGI, un point d'accès par source, jeton Bearer, limitation par IP (`backend/mcp_servers/mcp_http_app.py`, lanceur `backend/mcp_http_main.py`, tests `backend/tests/test_mcp_http.py`)
+- [x] Service compose `mcp` (`docker-compose.prod.yml`, même image, `mem_limit` 192m) et nom public `chimeraflow-mcp.linguasolution.com` (tunnel, CNAME, domaine Dokploy)
+- [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` versionné, serveurs distants avec `Authorization: Bearer ${CHIMERAFLOW_MCP_TOKEN}` (testé) ; l'alternative stdio locale reste dans `backend/mcp_servers/kiro-mcp.json` ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
+- [~] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18) : service `mcp` écrit et déployé depuis `dev` pour vérification ; à confirmer après la fusion dans `main`
 
 ## P2 : Moteur de règles (20–24 nov.) — en cours
 

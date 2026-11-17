@@ -309,7 +309,7 @@ def _kiro_servers() -> Dict[str, Dict[str, object]]:
 
 
 class TestKiroConfiguration:
-    """Kiro entries (copied to .kiro/settings/mcp.json) must match what the launcher serves."""
+    """Local stdio entries (optional alternative to the hosted servers) must match what the launcher serves."""
 
     def test_should_register_one_server_per_source_when_reading_kiro_config(self):
         assert sorted(_kiro_servers()) == [f"chimeraflow-{name}" for name in SOURCE_NAMES]

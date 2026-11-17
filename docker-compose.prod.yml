@@ -54,6 +54,49 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Hosted MCP servers (excel, access, whatsapp, momo), read-only, Streamable HTTP on /mcp/<source>
+  # behind a bearer token (MCP_HTTP_TOKEN in Doppler). Same image as the API, no database and
+  # no Redis: it receives only the secrets it reads (--only-secrets) and the synthetic data baked
+  # at /data. Dokploy domain: service `mcp`, container port 8001.
+  mcp:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+      additional_contexts:
+        data: ./data
+    environment:
+      DOPPLER_TOKEN: ${DOPPLER_TOKEN:?DOPPLER_TOKEN must be set (Doppler service token, project chimeraflow, config prd)}
+    # Replaces the API entrypoint (migrations + uvicorn main:app)
+    entrypoint:
+      - doppler
+      - run
+      - --no-check-version
+      - --no-fallback
+      - --only-secrets
+      - MCP_HTTP_TOKEN,MCP_RATE_LIMIT_PER_IP,RATE_LIMIT_WINDOW_SECONDS,TRUSTED_PROXIES,DATA_DIR,ACCESS_READER,BACKEND_LOG_LEVEL
+      - --
+      - python
+      - mcp_http_main.py
+      - --port
+      - "8001"
+    networks:
+      - dokploy-network
+    restart: unless-stopped
+    mem_limit: 192m
+    cpus: 0.25
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   redis:
     build:
       context: ./backend

@@ -8,10 +8,13 @@ stops the process, there is no fallback.
 """
 import os
 from dataclasses import dataclass
+from ipaddress import IPv4Network, IPv6Network, ip_network
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Tuple, Union
 
 from .access_connector import ACCESS_READERS
+
+IPNetwork = Union[IPv4Network, IPv6Network]
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,82 @@ def _require_env(environ: Mapping[str, str], name: str, description: str) -> str
             f"Purpose: {description}"
         )
     return value
+
+
+@dataclass(frozen=True)
+class McpHttpSettings:
+    """Validated settings of the hosted MCP service (all sources behind one HTTP port)."""
+
+    token: str
+    rate_limit_per_ip: int
+    rate_limit_window_seconds: int
+    trusted_proxies: Tuple[IPNetwork, ...]
+    sources: Tuple[McpSettings, ...]
+    log_level: Optional[str]
+
+
+# A shorter bearer token is guessable; `openssl rand -hex 24` gives 48 characters
+MIN_TOKEN_LENGTH = 32
+
+
+def _require_positive_int(environ: Mapping[str, str], name: str, description: str) -> int:
+    """Read a required integer >= 1.
+
+    Raises:
+        ValueError: If the variable is missing, empty or not an integer >= 1.
+    """
+    raw = _require_env(environ, name, description)
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ValueError(f"Environment variable '{name}' must be an integer >= 1")
+    return value
+
+
+def _parse_trusted_proxies(raw: Optional[str]) -> Tuple[IPNetwork, ...]:
+    """Parse TRUSTED_PROXIES (comma-separated IPs or CIDR networks; empty when unset).
+
+    Raises:
+        ValueError: If an entry is not an IP address or network (the entry is not echoed).
+    """
+    if raw is None or raw.strip() == "":
+        return ()
+    try:
+        return tuple(ip_network(item.strip(), strict=False) for item in raw.split(",") if item.strip())
+    except ValueError as exc:
+        raise ValueError("Environment variable 'TRUSTED_PROXIES' must list IP addresses or CIDR networks") from exc
+
+
+def load_http_settings(environ: Mapping[str, str] = os.environ) -> McpHttpSettings:
+    """Build the settings of the hosted MCP service.
+
+    Args:
+        environ: Environment to read (the process environment by default).
+
+    Returns:
+        Validated settings, with the settings of the four sources.
+
+    Raises:
+        ValueError: If a required variable is missing or invalid (MCP_HTTP_TOKEN,
+            MCP_RATE_LIMIT_PER_IP, RATE_LIMIT_WINDOW_SECONDS, DATA_DIR, ACCESS_READER).
+    """
+    token = _require_env(environ, "MCP_HTTP_TOKEN", "Bearer token that protects the hosted MCP endpoints")
+    if len(token) < MIN_TOKEN_LENGTH:
+        raise ValueError(f"Environment variable 'MCP_HTTP_TOKEN' must hold at least {MIN_TOKEN_LENGTH} characters")
+    return McpHttpSettings(
+        token=token,
+        rate_limit_per_ip=_require_positive_int(
+            environ, "MCP_RATE_LIMIT_PER_IP", "MCP requests allowed per client IP per window"
+        ),
+        rate_limit_window_seconds=_require_positive_int(
+            environ, "RATE_LIMIT_WINDOW_SECONDS", "Length of the rate limit window in seconds"
+        ),
+        trusted_proxies=_parse_trusted_proxies(environ.get("TRUSTED_PROXIES")),
+        sources=tuple(load_settings(name, environ) for name in SOURCES),
+        log_level=environ.get("BACKEND_LOG_LEVEL") or None,
+    )
 
 
 def load_settings(source: str, environ: Mapping[str, str] = os.environ) -> McpSettings:
