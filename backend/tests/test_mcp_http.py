@@ -192,6 +192,9 @@ def _kiro_remote_servers() -> Dict[str, Dict[str, object]]:
     return json.loads(KIRO_REMOTE_CONFIG.read_text(encoding="utf-8"))["mcpServers"]
 
 
+@pytest.mark.skipif(
+    not KIRO_REMOTE_CONFIG.is_file(), reason="repository root not available (Docker test image holds backend/ only)"
+)
 class TestKiroRemoteConfiguration:
     """The committed workspace config points to the hosted servers and carries no secret."""
 
