@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, timezone
 import logging
+import math
 import re
 
 from schemas.rule import PLACEHOLDER, RuleCreate, Operator, WhereCondition
@@ -439,15 +440,24 @@ class RuleInterpreter:
         """Relative gap |actual - reference| / |reference| in percent.
 
         Returns:
-            The gap, or None when either side is not a number or the
-            reference is zero (the gap is undefined, so the condition fails).
+            The gap, or None when either side is not a number, the reference
+            is zero or the gap is not a finite float (the gap is undefined,
+            so the condition fails).
         """
         for value in (actual, reference):
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None
         if reference == 0:
             return None
-        return round(abs(actual - reference) / abs(reference) * 100, _GAP_DECIMALS)
+        try:
+            gap = abs(actual - reference) / abs(reference) * 100
+        except OverflowError:
+            # An integer beyond the float range: the gap cannot be represented
+            return None
+        if not math.isfinite(gap):
+            # Infinity or NaN would be stored as invalid JSON and compare meaninglessly
+            return None
+        return round(gap, _GAP_DECIMALS)
 
     def _apply_operator(self, op: Operator, actual: Any, expected: Any) -> bool:
         """Apply one whitelisted operator.

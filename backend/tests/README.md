@@ -17,6 +17,7 @@ tests/
 ├── test_properties.py          # tests basés sur les propriétés (Hypothesis), P1 à P6
 ├── test_normalizer.py          # variantes de normalisation, idempotence (P2), nombres
 ├── test_interpreter.py         # exécution des règles, provenance, conditions where
+├── test_interpreter_no_fabrication.py  # P6 : records et règles générés, oracle indépendant (Hypothesis)
 ├── test_schemas.py             # validation du schéma de règle
 ├── test_rule_files.py          # chargement de data/rules/*.json (échec immédiat), CLI de validation
 ├── test_rate_limit.py          # 429 + Retry-After, IP client / proxys de confiance, variables requises

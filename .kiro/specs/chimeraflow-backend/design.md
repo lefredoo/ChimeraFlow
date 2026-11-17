@@ -336,17 +336,26 @@ Statuts : **couverte** (test automatisé du comportement énoncé), **partielle*
 
 ### P6 : absence de fabrication
 
-**Énoncé** : aucune valeur émise n'est absente des records sources.
+**Énoncé** : aucune valeur émise n'est absente des records sources, hors le texte littéral du modèle de message de la règle.
 
-**Tests** :
-- `backend/tests/test_properties.py::TestNoFabrication::test_entities_from_payload` : sur WhatsApp uniquement, vérifie qu'au moins un mot de plus de deux lettres de l'entité apparaît dans le payload.
-- `backend/tests/test_connector_payloads.py::test_should_emit_product_entity_when_reading_momo_reference` : l'entité vient de la colonne `reference` du CSV.
-- `backend/tests/test_interpreter.py::test_should_not_expand_braces_when_source_text_contains_a_placeholder` : un texte source n'est pas réinterprété comme placeholder.
-- `backend/tests/test_interpreter.py::test_should_render_empty_text_when_placeholder_field_is_missing` : un champ absent donne une chaîne vide.
+**Propriété principale** (Hypothesis, `backend/tests/test_interpreter_no_fabrication.py::test_should_emit_only_values_read_from_the_input_records_when_a_correlation_is_found`) : les enregistrements ET les règles sont générés. Règles : source déclencheur et jointures parmi les quatre sources (une jointure par source, y compris sur la source du déclencheur), conditions `where` avec valeur, liste `in`, `ref` et `tolerance_pct`, modèle fait de texte littéral et de placeholders valides. Enregistrements : valeurs de tout type (texte, entiers, flottants, booléens, `None`, textes qui ressemblent à des placeholders comme `{access.qty_stock}`), entités de type produit et personne. Pour chaque corrélation émise, un oracle indépendant vérifie :
+- la provenance : une entrée pour le déclencheur puis une par jointure, dans l'ordre de la règle, chacune retrouvée dans les entrées avec son `source_ref` ;
+- le message : il est égal au modèle rendu en un seul passage à partir des seuls records cités (texte littéral du modèle, entité du déclencheur, champs des records cités ; un champ absent donne une chaîne vide) ; un texte de source n'est donc jamais réinterprété ;
+- l'explication : l'entité du déclencheur est une entité du record déclencheur, le nom candidat est un nom du record joint, `actual` est la valeur du record cité, `expected` est le littéral de la règle ou la valeur du record visé par `ref`, `gap_pct` est recalculé et fini, `norm` est recalculée depuis `raw`, `score` est dans [0, 1] ;
+- la fenêtre est celle du déclencheur ± `window_seconds`, et toute la corrélation s'écrit en JSON valide (`allow_nan=False`).
 
-**Test ajouté** : `backend/tests/test_interpreter_properties.py::test_should_only_render_prices_found_in_the_sources_when_a_correlation_is_emitted` (Hypothesis : le prix rendu dans un message est un prix présent dans les records Excel d'entrée).
+**Autres tests** :
+- `test_should_emit_only_values_read_from_the_input_records_when_comparing_prices_with_a_tolerance` : même oracle sur un scénario d'écart de prix (`ref` + `tolerance_pct`) dont les prix sont de tout type, y compris des entiers au-delà de la plage des flottants.
+- `test_should_generate_correlations_when_exploring_scenarios` et `test_should_reach_tolerance_comparisons_when_exploring_price_gap_scenarios` : garde-fous contre une propriété vide (`hypothesis.find` doit atteindre des corrélations et un écart calculé).
+- `test_should_not_expand_a_placeholder_lookalike_when_a_source_value_contains_one` : cas d'exemple d'un texte de source contenant un placeholder.
+- `test_should_not_abort_the_rule_when_a_price_is_an_integer_beyond_the_float_range` et `test_should_refuse_the_condition_when_the_gap_is_not_a_finite_number` : régressions des deux défauts trouvés (ci-dessous).
+- `backend/tests/test_interpreter_properties.py::test_should_only_render_prices_found_in_the_sources_when_a_correlation_is_emitted` (propriété plus ancienne, sur le seul champ `Prix_Unitaire`).
+- `backend/tests/test_properties.py::TestNoFabrication::test_entities_from_payload` : entités WhatsApp (un mot de plus de deux lettres de l'entité apparaît dans le payload) ; `backend/tests/test_connector_payloads.py::test_should_emit_product_entity_when_reading_momo_reference` : l'entité Mobile Money vient de la colonne `reference`.
+- `backend/tests/test_interpreter.py::test_should_not_expand_braces_when_source_text_contains_a_placeholder` et `test_should_render_empty_text_when_placeholder_field_is_missing`.
 
-**Statut : partielle.** La vérification de l'entité des connecteurs est faible (un seul mot suffit) et ne porte que sur WhatsApp ; le test de l'interpréteur ne couvre que le champ `Prix_Unitaire` du message.
+**Défaut trouvé par la propriété** : `RuleInterpreter._gap_pct` calculait `abs(a - b) / abs(b) * 100` sans garde. Avec un entier hors de la plage des flottants (`10**400`), la division levait `OverflowError`, que seule `TypeError` était rattrapée : toute l'exécution de la règle échouait (« Rule execution failed ») au lieu d'écarter le record. Avec des flottants extrêmes (`1e308` et `1e-300`), l'écart valait l'infini : la condition `gt` passait et `gap_pct: Infinity` entrait dans l'explication, JSON invalide pour PostgreSQL. Correction (`backend/engine/interpreter.py`) : `OverflowError` et résultat non fini donnent un écart indéfini, donc une condition non satisfaite, comme pour une référence nulle.
+
+**Statut : couverte pour l'interpréteur.** Limite : les connecteurs ne sont couverts que par les tests d'entités ci-dessus ; la propriété porte sur des records construits en mémoire (valeurs sans NaN ni infini en entrée), pas sur les fichiers de `data/`.
 
 ### Synthèse
 
@@ -357,7 +366,7 @@ Statuts : **couverte** (test automatisé du comportement énoncé), **partielle*
 | P3 Aller-retour | couverte | `test_properties.py::TestParserRoundTrip` (Hypothesis), `test_whatsapp_parser.py` |
 | P4 Déterminisme | couverte | `test_interpreter_properties.py`, `test_interpreter.py`, `test_api_correlations.py` |
 | P5 Monotonie | couverte | `test_interpreter_properties.py` (Hypothesis) |
-| P6 Pas de fabrication | partielle | `test_interpreter_properties.py`, `test_properties.py::TestNoFabrication`, `test_interpreter.py` |
+| P6 Pas de fabrication | couverte (interpréteur) | `test_interpreter_no_fabrication.py` (Hypothesis, enregistrements et règles générés), `test_properties.py::TestNoFabrication`, `test_interpreter.py` |
 
 Propriétés du comparateur de noms (`test_normalizer.py`, Hypothesis) : symétrie, score entre 0 et 1, un nom se compare exactement à lui-même, mêmes résultats avant et après normalisation.
 
