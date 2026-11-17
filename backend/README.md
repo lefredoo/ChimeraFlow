@@ -316,8 +316,9 @@ Fonctionnement :
 - Délai : 20 s par appel au fournisseur.
 - Les journaux ne contiennent ni le texte, ni la réponse du modèle, ni la clé d'API.
 
-**État réel :** le pipeline est testé avec LiteLLM simulé. Aucun appel à un vrai proxy n'a encore été fait
-(voir `docs/decisions/TECH_DEBT.md`).
+**État réel :** le pipeline est testé avec LiteLLM simulé, et mesuré en production avec le proxy LiteLLM réel
+(`glm-4.7-flash-bedrock`) : 9 phrases sur 10 converties en règle valide (2026-11-17). Les relances sur erreurs
+passagères et le modèle de repli ne sont testés qu'avec un LiteLLM simulé (voir `docs/decisions/TECH_DEBT.md`).
 
 ### Authentification
 

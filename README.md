@@ -61,7 +61,7 @@ Le bouton de réinitialisation du tableau de bord remet les données de démonst
 ## Fonctionnalités
 
 **Sources et enregistrement unifié**
-- Quatre connecteurs : Excel (pandas, openpyxl), Access (`mdbtools` en Docker, `access-parser` en Python pur sous Windows), WhatsApp (export Android), Mobile Money (CSV).
+- Quatre connecteurs : Excel (pandas, openpyxl), Access (`mdbtools` en Docker, `access-parser` en Python pur sous Windows), WhatsApp (exports Android et iOS, dates FR et EN, messages sur plusieurs lignes), Mobile Money (CSV).
 - Chaque ligne devient un enregistrement unifié (`source`, `source_ref`, `timestamp`, `lang`, `entities`, `payload`). Une ligne illisible est ignorée et comptée, jamais inventée.
 
 **Normalisation**
@@ -89,12 +89,12 @@ Le bouton de réinitialisation du tableau de bord remet les données de démonst
 
 **Règle en langage naturel**
 - `POST /api/v1/rules/from-text` convertit une phrase en **brouillon** de règle via un proxy LiteLLM : prompt qui sépare instructions et texte utilisateur, validation stricte, 2 relances au plus, budget plafonné suivi dans Redis, repli sur les règles prédéfinies si la conversion échoue. Le brouillon n'est pas stocké avant validation par l'utilisateur.
-- **État réel :** le pipeline est testé avec un LiteLLM simulé. Le modèle de production est en cours de changement : la conversion n'est pas à considérer comme fonctionnelle sur la démonstration en ligne.
+- **État réel :** mesuré en production avec le proxy LiteLLM réel et le modèle `glm-4.7-flash-bedrock` : 9 phrases sur 10 converties en règle valide (2026-11-17). Les erreurs passagères du fournisseur sont relancées (2 fois au plus, 45 s pour toute la requête) et un modèle de repli facultatif existe.
 
 **Interface**
 - Tableau de bord, liste des règles, composeur, cartes de corrélation, bac à sable de normalisation.
 - Corrélations en temps réel (flux SSE, avec actualisation périodique en repli).
-- Alerte par e-mail (Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` par exécution, avec un délai minimal entre deux e-mails. Elle n'est active que si sa configuration est complète.
+- Alerte par e-mail (Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` par exécution, avec un délai minimal entre deux e-mails. Elle n'est active que si sa configuration est complète. L'envoi réel depuis `mail.linguasolution.com` fonctionne (confirmé par le propriétaire) ; un rejet définitif signalé par Cloudflare est traité comme un échec.
 - Interface en français et en anglais, thème sombre, éléments accessibles au clavier, mise en page pensée pour 360 px.
 
 ---
@@ -112,12 +112,14 @@ Navigateur ──► Frontend Next.js 15 (Vercel)
                                               ├──► Fichiers de données synthétiques (lecture seule)
                                               ├──► Proxy LiteLLM : conversion langage naturel → règle
                                               └──► Cloudflare Email Service : alertes
+
+Kiro ──► Service MCP (même VPS) : chimeraflow-mcp.linguasolution.com/mcp/<source>, jeton Bearer
 ```
 
 | Élément | Technologie | Hébergement |
 |---------|-------------|-------------|
 | Frontend | Next.js 15 (App Router), TypeScript strict | Vercel |
-| API | FastAPI, SQLAlchemy, Alembic, Python 3.13 | VPS Hetzner, Dokploy (`docker-compose.prod.yml` : API et Redis) |
+| API | FastAPI, SQLAlchemy, Alembic, Python 3.13 | VPS Hetzner, Dokploy (`docker-compose.prod.yml` : API, Redis et service MCP) |
 | Base de données | PostgreSQL | Neon |
 | Cache et compteurs | Redis | Même compose que l'API, réseau privé |
 | Secrets | Doppler | Les conteneurs ne reçoivent que `DOPPLER_TOKEN` |
@@ -134,17 +136,19 @@ Ce que le dépôt contient de la configuration Kiro :
 - **Specs** (`.kiro/specs/`, format dossier de Kiro : `requirements.md`, `design.md`, `tasks.md` par spec) : `chimeraflow-backend/` (exigences EARS, architecture réelle et propriétés de correction P1 à P6, avancement par phase, détails `connectors-spec.md`, `rule-engine-spec.md`, `api-spec.md`) et `chimeraflow-ui/` (exigences, conception de l'interface, tâches).
 - **Steering** (`.kiro/steering/`) : `connectors.md` (conventions des connecteurs) et `security.md` (règles de sécurité).
 - **Hooks** (`.kiro/hooks/`) : `parser-test` (tests de contrat et tests de propriétés à la sauvegarde d'un connecteur), `rule-validate` (validation des fichiers de `data/rules/`), `spec-update-reminder` (rappel de mise à jour de `tasks.md`).
-- **Serveurs MCP** : chaque source est exposée en serveur MCP stdio (`chimeraflow-excel`, `chimeraflow-access`, `chimeraflow-whatsapp`, `chimeraflow-momo`), déclarés dans `.kiro/settings/mcp.json`. Outils en lecture seule : `fetch_records(limit)` et `health_check()`. Dans Kiro, demander par exemple « appelle `health_check` du serveur chimeraflow-excel ».
+- **Serveurs MCP hébergés** : un service (`backend/mcp_http_main.py`, service `mcp` de `docker-compose.prod.yml`) expose chaque source en Streamable HTTP sur `https://chimeraflow-mcp.linguasolution.com/mcp/<source>` (`excel`, `access`, `whatsapp`, `momo`). Chaque requête exige `Authorization: Bearer <MCP_HTTP_TOKEN>` et est limitée par IP. `.kiro/settings/mcp.json`, versionné, déclare les quatre serveurs (`chimeraflow-excel`, `chimeraflow-access`, `chimeraflow-whatsapp`, `chimeraflow-momo`) avec `Bearer ${CHIMERAFLOW_MCP_TOKEN}` : chaque poste définit la variable utilisateur `CHIMERAFLOW_MCP_TOKEN` (valeur du secret Doppler `MCP_HTTP_TOKEN`), l'approuve dans le réglage Kiro `kiroAgent.mcpApprovedEnvVars`, puis redémarre Kiro. Outils en lecture seule : `fetch_records(limit)` et `health_check()`. Les quatre serveurs sont au vert dans Kiro. Dans Kiro, demander par exemple « appelle `health_check` du serveur chimeraflow-excel ». Une variante stdio locale sans réseau reste disponible (`backend/mcp_servers/kiro-mcp.json`).
 - **Tests basés sur les propriétés** (Hypothesis), statuts d'après `.kiro/specs/chimeraflow-backend/design.md` §12 :
 
 | Propriété | Énoncé | Statut |
 |-----------|--------|--------|
 | P1 Provenance | Une corrélation ne cite que des enregistrements d'entrée | couverte (interpréteur) |
 | P2 Idempotence | `norm(norm(x)) == norm(x)` | couverte |
-| P3 Aller-retour | `parse(export(m)) == m` | non couverte |
+| P3 Aller-retour | `parse(export(m)) == m` | couverte |
 | P4 Déterminisme | Mêmes entrées, même sortie | couverte |
 | P5 Monotonie | Élargir la fenêtre ne retire aucune corrélation | couverte |
-| P6 Pas de fabrication | Aucune valeur émise absente des sources | partielle |
+| P6 Pas de fabrication | Aucune valeur émise absente des sources | couverte (interpréteur) |
+
+P6 est vérifiée sur des règles et des records générés, avec un oracle indépendant du rendu des messages. Cette propriété a trouvé un défaut réel : un entier hors de la plage des flottants faisait échouer toute la règle, et des flottants extrêmes donnaient un écart de prix infini, qui ne peut pas être stocké en JSON. Détail : `design.md` §12.
 
 - **Outils Kiro utilisés** : Kiro IDE et Kiro CLI. Kiro Crew n'est pas utilisé.
 
@@ -237,7 +241,7 @@ docker compose up -d
 
 ### Utiliser les serveurs MCP dans Kiro
 
-Ouvrir le dépôt dans Kiro après l'étape 2 : `.kiro/settings/mcp.json` (fichier local, chemins absolus, non versionné) lance `backend/mcp_main.py --source <nom>` avec le Python du venv. Le générer sur chaque poste depuis le modèle `backend/mcp_servers/kiro-mcp.json` (Windows : `backend/.venv/Scripts/python.exe` ; Linux ou macOS : `backend/.venv/bin/python`). Détail : section « Serveurs MCP » de [backend/README.md](./backend/README.md).
+`.kiro/settings/mcp.json` (versionné) pointe vers le service hébergé : définir la variable utilisateur `CHIMERAFLOW_MCP_TOKEN`, l'ajouter à `kiroAgent.mcpApprovedEnvVars` dans les réglages de Kiro, puis redémarrer Kiro complètement. Sans réseau, la variante stdio lance `backend/mcp_main.py --source <nom>` avec le Python du venv, depuis une configuration utilisateur générée à partir de `backend/mcp_servers/kiro-mcp.json`. Détail : section « Serveurs MCP » de [backend/README.md](./backend/README.md).
 
 ---
 
@@ -262,11 +266,13 @@ docker build --target test -t chimeraflow-backend-test backend; docker run --rm 
 
 | Suite | Résultat |
 |-------|----------|
-| Backend, en local sous Windows | environ 603 tests, dont 3 sautés sans mdbtools |
-| Backend, étage Docker de test | aucun test sauté |
-| Frontend (Vitest) | 178 tests |
+| Backend, en local sous Windows, avec Redis réel et profil `ci` de Hypothesis | 758 réussis, 3 sautés sans mdbtools |
+| Backend, CI (mdbtools et Redis réels) | aucun test sauté, dont 9 tests d'intégration Redis |
+| Frontend (Vitest) | 185 tests |
 
-**CI GitHub Actions** (`.github/workflows/ci.yml`), cinq jobs : lint et tests du backend ; étage Docker de test ; migrations Alembic sur PostgreSQL (montée, vérification de dérive, descente) ; lint, tests et build du frontend ; scan de secrets (gitleaks) sur tout l'historique.
+Les 9 tests d'intégration Redis (`backend/tests/test_redis_integration.py`) ne tournent que si `REDIS_TEST_URL` désigne un Redis dédié (index de base autre que 0, vidé avant et après chaque test) ; sans cette variable ils sont sautés.
+
+**CI GitHub Actions** (`.github/workflows/ci.yml`), cinq jobs : lint et tests du backend (avec un service `redis:7-alpine`) ; étage Docker de test ; migrations Alembic sur PostgreSQL (montée, vérification de dérive, descente) ; lint, tests et build du frontend ; scan de secrets (gitleaks) sur tout l'historique.
 
 **Exploitation :**
 - `uptime.yml` : contrôle de `/health` et de `/login` toutes les 30 minutes une fois activé (variable de dépôt `UPTIME_SCHEDULE_ENABLED`), avec ticket GitHub en cas de panne.
@@ -286,7 +292,7 @@ Détail des tests : [backend/tests/README.md](./backend/tests/README.md).
 - Secrets uniquement dans Doppler, jamais dans le code. Scan de secrets (gitleaks) à chaque exécution de la CI.
 - `/docs` n'est pas servi en production. CORS en liste blanche.
 
-Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisions/TECH_DEBT.md). Parmi elles : un seul compte de démonstration partagé et public, un parseur WhatsApp limité au format Android, et une alerte e-mail jamais envoyée à un vrai Cloudflare Email Service.
+Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisions/TECH_DEBT.md). Parmi elles : un seul compte de démonstration partagé et public, des rejets d'e-mail différés que la réponse d'envoi ne permet pas de détecter, et des relances LLM jamais éprouvées contre le vrai proxy.
 
 ---
 
@@ -297,10 +303,10 @@ Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisio
 | Phase | Statut | Contenu |
 |-------|--------|---------|
 | P0 Fondations | terminée | Structure, specs, steering, données synthétiques, déploiement Vercel et VPS |
-| P1 Connecteurs | terminée | Quatre connecteurs, enregistrement unifié, tests de contrat, serveurs MCP stdio |
-| P2 Moteur de règles | terminée, sauf conversion en réel | Normaliseur, interpréteur avec provenance, cinq règles actives, API, migrations, limitation par IP, budget LLM. Reste : brancher et mesurer un vrai modèle LiteLLM |
-| P3 Interface | interface livrée | Tableau de bord, composeur, corrélations, bac à sable, temps réel, FR/EN, thème sombre |
-| P4 Durcissement | en grande partie faite | Authentification, tests de fumée, surveillance, scan de secrets, documentation. Reste : mesures d'accessibilité dans un navigateur, gel du code |
+| P1 Connecteurs | terminée | Quatre connecteurs, enregistrement unifié, tests de contrat, serveurs MCP hébergés en HTTP et visibles dans Kiro |
+| P2 Moteur de règles | terminée | Normaliseur, interpréteur avec provenance, cinq règles actives, API, migrations, limitation par IP, budget LLM, conversion en langage naturel mesurée en production (9/10), alerte e-mail confirmée |
+| P3 Interface | interface livrée | Tableau de bord, composeur, corrélations, bac à sable, temps réel, FR/EN, thème sombre, audit d'accessibilité dans un navigateur |
+| P4 Durcissement | en grande partie faite | Authentification, tests de fumée, surveillance, scan de secrets, documentation, Redis réel en CI. Reste : revue de `.kiro` et du `.gitignore`, gel du code |
 | P5 Soumission | à faire | Vidéo, write-up, blog, formulaire Devpost |
 
 **Vidéo de démonstration :** à publier en P5.
@@ -334,7 +340,7 @@ Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisio
 ├── .kiro/                    # specs, steering, hooks, settings/mcp.json
 ├── .github/workflows/        # ci.yml, uptime.yml, smoke-prod.yml
 ├── docker-compose.yml        # local : API et Redis
-├── docker-compose.prod.yml   # production (Dokploy) : API et Redis
+├── docker-compose.prod.yml   # production (Dokploy) : API, Redis et service MCP
 ├── AGENTS.md                 # règles de développement pour les agents IA
 ├── DESIGN.md                 # système de design
 ├── Roadmap.md                # plan produit

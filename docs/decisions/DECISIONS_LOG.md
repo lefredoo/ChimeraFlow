@@ -18,6 +18,13 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Redis réel en CI et écart de prix indéfini refusé par l'interpréteur
+**Context**: Le limiteur, le compteur de dépense LLM et le délai d'alerte n'étaient testés qu'avec des faux ; la propriété P6 (pas de fabrication) n'était que partielle.
+**Decision**: Service `redis:7-alpine` dans le job backend de la CI, `REDIS_TEST_URL` (base 15, vidée avant et après chaque test, jamais la base 0), tests marqués `redis` sautés sans la variable et étape CI qui échoue si un test est sauté. P6 : propriété Hypothesis sur règles et records générés, avec un oracle indépendant du rendu. Elle a trouvé `_gap_pct` : `OverflowError` sur un entier hors de la plage des flottants (toute la règle échouait) et écart infini (JSON invalide). Un écart non représentable est désormais indéfini, donc la condition n'est pas satisfaite (comme une référence nulle).
+**Alternatives rejected**: `fakeredis` (ne prouve ni `SET NX EX` ni `INCRBY` atomiques) ; traiter un écart infini comme supérieur à toute tolérance (la valeur ne peut pas être stockée) ; restreindre le générateur aux petits entiers (masque le défaut).
+**Consequences**: Un record dont l'écart de prix est hors plage ne corrèle plus au lieu de faire échouer la règle. Les tests Redis exigent un Redis local hors CI (`docker run -p 6390:6379 redis:7-alpine`).
+
+---
 ## [2026-11-17] Serveurs MCP hébergés en HTTP plutôt que lancés en stdio par Kiro
 
 **Context**: Kiro n'affichait aucun serveur MCP malgré un `.kiro/settings/mcp.json` valide, et le fichier local à chemins absolus ne pouvait pas être versionné. Le propriétaire veut un fonctionnement automatique.

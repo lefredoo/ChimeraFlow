@@ -374,7 +374,7 @@ Propriétés du comparateur de noms (`test_normalizer.py`, Hypothesis) : symétr
 
 ## 13. Écarts connus
 
-Détail et priorités dans `docs/decisions/TECH_DEBT.md`. Principaux : pas de service Redis
-ni de vrai proxy LiteLLM en CI ; fenêtre symétrique (une note WhatsApp peut corréler un prix
-postérieur) ; un nom d'un seul mot correspond à tout produit qui le contient ; alerte e-mail
-jamais envoyée à un vrai Cloudflare Email Service ; propriété P6 incomplète.
+Détail et priorités dans `docs/decisions/TECH_DEBT.md`. Principaux : pas de vrai proxy
+LiteLLM en CI (la conversion NL→règle n'est mesurée qu'en production) ; fenêtre symétrique (une
+note WhatsApp peut corréler un prix postérieur) ; un nom d'un seul mot correspond à tout
+produit qui le contient ; rejets d'e-mail différés non détectables depuis la réponse d'envoi.
