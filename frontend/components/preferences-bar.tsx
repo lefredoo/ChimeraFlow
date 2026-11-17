@@ -5,7 +5,10 @@ import { MoonIcon, SunIcon } from "./icons";
 import { useI18n } from "./locale-provider";
 import { useTheme } from "./theme-provider";
 
-/** Language switcher (FR / EN). Each button names its language in that language. */
+/**
+ * Language switcher (FR / EN). Each button names its language in that language;
+ * the accessible name starts with the visible code (WCAG 2.5.3, label in name).
+ */
 export function LocaleSwitcher() {
   const { locale, setLocale, t } = useI18n();
   const names: Record<Locale, string> = { fr: t("locale.fr"), en: t("locale.en") };
@@ -18,7 +21,7 @@ export function LocaleSwitcher() {
           lang={code}
           className="segmented-option"
           aria-pressed={locale === code}
-          aria-label={names[code]}
+          aria-label={t("locale.option", { code: code.toUpperCase(), name: names[code] })}
           onClick={() => setLocale(code)}
         >
           {code.toUpperCase()}

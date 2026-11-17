@@ -217,12 +217,12 @@ Le principe de réponse d'erreur est dans `backend/api/errors.py` :
 Pipeline de `POST /api/v1/rules/from-text` :
 
 1. Le texte (20 à 1000 caractères après `strip`) est transmis comme donnée, pas comme instruction. Le message système porte les règles de format et la liste des colonnes. Le message utilisateur porte un objet JSON `{description, language}` entre les marqueurs `<<<USER_DATA` et `USER_DATA>>>`. Les suites de trois `<` ou `>` sont réduites à deux.
-2. Appel LiteLLM (`acompletion`) : `base_url` et `model` depuis la configuration, `temperature=0`, `max_tokens=1500`, `response_format=json_object`, `timeout=20 s`, sans retry interne de LiteLLM (`num_retries=0`).
+2. Appel LiteLLM (`acompletion`) : `base_url` et `model` depuis la configuration, `temperature=0`, `max_tokens=1500`, `response_format=json_object`, `timeout=20 s` (réduit au temps restant), sans retry interne de LiteLLM (`num_retries=0`). **Erreurs passagères** (5xx, `APIConnectionError`, délais ; jamais les 4xx ni les erreurs inattendues) : au plus 2 relances au total pour la requête, après 0,5 s puis 1,5 s (± 25 % de gigue), sur la même conversation. Si `LITELLM_FALLBACK_MODEL` est défini, la dernière relance, et les appels suivants, l'utilisent. Délai global de 45 s pour toute la conversion (aucun appel n'est lancé avec moins de 3 s restantes), donc la requête HTTP reste sous 50 s. Chaque tentative réserve le budget puis règle ; une tentative en échec garde le coût d'entrée pessimiste. Les journaux portent le nom de classe de l'erreur, `provider_retries` et l'alias du modèle, jamais le texte.
 3. La réponse doit être un objet JSON (une clôture markdown est tolérée). Seules les clés `trigger`, `joins`, `window_seconds`, `emit` sont admises. `id` et `natural_language` sont fixés par le serveur. La réponse est validée par `RuleCreate`.
 4. En cas d'échec, le modèle reçoit son propre message (au plus 2000 caractères) et les erreurs de validation, sans les valeurs rejetées. **2 relances au plus, soit 3 appels.**
 5. Le brouillon est renvoyé (`id` généré `r_nl_<12 hex>`, `natural_language` = texte de l'utilisateur). **Rien n'est stocké** : le client doit appeler `POST /api/v1/rules`.
 
-Erreurs : `nl_feature_disabled` (503), `nl_budget_exceeded` (503), `nl_budget_unavailable` (503), `nl_provider_error` (502), `nl_conversion_failed` (422). Les erreurs `nl_*` contiennent `fallback_rules` : les règles prédéfinies.
+Erreurs : `nl_feature_disabled` (503), `nl_budget_exceeded` (503), `nl_budget_unavailable` (503), `nl_provider_error` (502), `nl_conversion_failed` (422). Les erreurs `nl_*` contiennent `fallback_rules` (les règles prédéfinies) et `provider_retries`. La réponse 200 contient `retries` (réponses invalides) et `provider_retries`.
 
 **État réel** : le pipeline est testé avec `litellm.acompletion` simulé. Aucun appel à un vrai proxy LiteLLM n'a été fait (clé, URL et nom de modèle non configurés). L'alias nu (`LITELLM_MODEL`, envoyé avec `custom_llm_provider="openai"`) et `completion_cost` ne sont donc pas vérifiés en réel (TECH_DEBT).
 
@@ -284,9 +284,16 @@ Statuts : **couverte** (test automatisé du comportement énoncé), **partielle*
 
 **Énoncé** : `parse(export(messages)) == messages` pour les formats Android et iOS, FR et EN.
 
-**Tests** : `backend/tests/test_properties.py::TestRoundTrip::test_whatsapp_parse_lossless` ne vérifie que la présence non vide de `author` et `text`. Aucune fonction d'export n'existe. Le format iOS n'est pas lu (il est compté comme erreur).
+**Mise en œuvre** : `export_messages(messages, format)` (`backend/mcp_servers/whatsapp_parser.py`) écrit cinq formats (`android_fr`, `android_nobracket_fr`, `ios_fr`, `ios_en`, `android_en`) ; `parse_export` les relit. Deux formats n'ont pas de secondes : l'export refuse alors un message dont la seconde n'est pas nulle. Les formats EN sont mois d'abord : l'aller-retour se fait avec `default_date_order="mdy"` (règle de l'ordre jour/mois dans `backend/README.md`). Messages générés : texte sur 1 à 3 lignes (lignes vides et caractères Unicode quelconques compris, sauf contrôles, séparateurs de ligne et marques invisibles), auteur sans `:`, espaces réservés de pièces jointes FR et EN, dates de 2000 à 2099.
 
-**Statut : non couverte.** Le test porte un autre nom que la propriété. À corriger si P3 est retenue.
+**Tests** (Hypothesis, `backend/tests/test_properties.py::TestParserRoundTrip`) :
+- `test_should_parse_back_the_exported_messages_when_exporting_in_any_format` : `parse_export(export_messages(m, f)) == m` (horodatage, auteur, texte, drapeau de pièce jointe), sans erreur ni message système.
+- `test_should_number_each_message_by_its_first_line_when_exporting_in_any_format` : le numéro de ligne de chaque message est celui de sa première ligne.
+- `test_should_return_the_exported_messages_when_the_connector_reads_the_file` : même propriété à travers un fichier et `WhatsAppConnector.fetch_records` (payload `author`, `text`, `attachment`).
+- Cas d'exemple dans `backend/tests/test_whatsapp_parser.py` (formats, ordre des dates, multi-lignes, pièces jointes, messages système, erreurs).
+- `test_whatsapp_parse_lossless` (même classe `TestRoundTrip`) reste un test de lecture des données livrées, il ne porte pas la propriété.
+
+**Statut : couverte.** Limite : le round-trip ne génère que des messages dont aucune ligne de suite ne ressemble à un en-tête (sinon la ligne serait un nouveau message, par construction du format), et les messages système ne sont pas exportés.
 
 ### P4 : déterminisme
 
@@ -336,7 +343,7 @@ Statuts : **couverte** (test automatisé du comportement énoncé), **partielle*
 |-----------|--------|------------------|
 | P1 Provenance | couverte (interpréteur) | `test_interpreter_properties.py`, `test_interpreter.py`, `test_properties.py::TestProvenance` |
 | P2 Idempotence | couverte | `test_properties.py`, `test_normalizer.py` (Hypothesis) |
-| P3 Aller-retour | non couverte | `test_properties.py::TestRoundTrip` (ne teste pas la propriété) |
+| P3 Aller-retour | couverte | `test_properties.py::TestParserRoundTrip` (Hypothesis), `test_whatsapp_parser.py` |
 | P4 Déterminisme | couverte | `test_interpreter_properties.py`, `test_interpreter.py`, `test_api_correlations.py` |
 | P5 Monotonie | couverte | `test_interpreter_properties.py` (Hypothesis) |
 | P6 Pas de fabrication | partielle | `test_interpreter_properties.py`, `test_properties.py::TestNoFabrication`, `test_interpreter.py` |
@@ -350,4 +357,4 @@ Propriétés du comparateur de noms (`test_normalizer.py`, Hypothesis) : symétr
 Détail et priorités dans `docs/decisions/TECH_DEBT.md`. Principaux : pas de service Redis
 ni de vrai proxy LiteLLM en CI ; fenêtre symétrique (une note WhatsApp peut corréler un prix
 postérieur) ; un nom d'un seul mot correspond à tout produit qui le contient ; alerte e-mail
-jamais envoyée à un vrai Cloudflare Email Service ; propriétés P3 et P6 incomplètes.
+jamais envoyée à un vrai Cloudflare Email Service ; propriété P6 incomplète.

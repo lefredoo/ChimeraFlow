@@ -44,7 +44,7 @@ Toutes les réponses JSON sont en UTF-8. Les dates sont des chaînes ISO 8601.
 | `nl_feature_disabled` | 503 | POST /rules/from-text | variables `LITELLM_*` incomplètes |
 | `nl_budget_exceeded` | 503 | POST /rules/from-text | budget LLM épuisé |
 | `nl_budget_unavailable` | 503 | POST /rules/from-text | compteur de dépense illisible |
-| `nl_provider_error` | 502 | POST /rules/from-text | fournisseur LLM en échec (réseau, délai, HTTP) |
+| `nl_provider_error` | 502 | POST /rules/from-text | fournisseur LLM en échec (réseau, délai, HTTP) ; les erreurs passagères (5xx, connexion, délai) ont d'abord été relancées 2 fois |
 | `nl_conversion_failed` | 422 | POST /rules/from-text | aucune règle valide après 2 relances |
 
 ### 1.2 Limitation par IP
@@ -200,8 +200,8 @@ Convertit une phrase en brouillon de règle. **Ne stocke rien.** Le client relit
 
 - **Corps** : `{"text": "<20 à 1000 caractères, espaces de début et de fin retirés>", "language": "fr" | "en"}` (défaut `fr`).
 - **Limite** : `RATE_LIMIT_NL_PER_IP` par IP et par fenêtre.
-- **Réponse 200** : `{"rule": RuleCreate, "retries": <0 à 2>}`. Le `rule.id` est généré (`r_nl_<12 hex>`) et `natural_language` reprend le texte de l'utilisateur.
-- **Erreurs** : 422 validation du corps ou `nl_conversion_failed` ; 429 `rate_limit_exceeded` ; 502 `nl_provider_error` ; 503 `nl_feature_disabled`, `nl_budget_exceeded`, `nl_budget_unavailable`, `rate_limit_unavailable`. Les erreurs `nl_*` contiennent `fallback_rules`.
+- **Réponse 200** : `{"rule": RuleCreate, "retries": <0 à 2>, "provider_retries": <0 à 2>}`. `retries` compte les réponses invalides renvoyées au modèle, `provider_retries` les appels relancés après une erreur passagère du fournisseur. Le `rule.id` est généré (`r_nl_<12 hex>`) et `natural_language` reprend le texte de l'utilisateur.
+- **Erreurs** : 422 validation du corps ou `nl_conversion_failed` ; 429 `rate_limit_exceeded` ; 502 `nl_provider_error` ; 503 `nl_feature_disabled`, `nl_budget_exceeded`, `nl_budget_unavailable`, `rate_limit_unavailable`. Les erreurs `nl_*` contiennent `fallback_rules` et `provider_retries` (relances déjà faites).
 
 Le modèle ne reçoit le texte que comme donnée. La réponse du modèle est validée par `RuleCreate`. Aucun code n'est exécuté (voir design.md §9).
 

@@ -30,7 +30,8 @@ backend/
 │   ├── base.py             # BaseConnector et schéma UnifiedRecord
 │   ├── excel_connector.py  # lecture Excel (pandas + openpyxl)
 │   ├── access_connector.py # lecture Access (CLI mdbtools ou access-parser, selon ACCESS_READER)
-│   ├── whatsapp_connector.py # parseur WhatsApp (expression régulière, format Android)
+│   ├── whatsapp_connector.py # connecteur WhatsApp (records unifiés, produits)
+│   ├── whatsapp_parser.py  # parseur pur (Android, iOS, FR/EN, multi-lignes) et export inverse
 │   ├── momo_connector.py   # lecture du CSV Mobile Money
 │   ├── mcp_app.py          # serveur MCP stdio d'une source (outils fetch_records, health_check)
 │   ├── mcp_settings.py     # réglages des serveurs MCP (DATA_DIR, ACCESS_READER), sans config.py
@@ -62,6 +63,7 @@ backend/
 │   ├── test_alerts.py      # e-mail récapitulatif (transport HTTP simulé)
 │   ├── test_scenario_data.py # chaque règle prédéfinie trouve une corrélation sur les données livrées
 │   ├── test_connector_errors.py # erreurs de format, compteur d'erreurs par lecture
+│   ├── test_whatsapp_parser.py # formats, ordre des dates, multi-lignes, pièces jointes, messages système
 │   ├── test_schemas.py     # validation du schéma de règle
 │   ├── test_rule_files.py  # chargement de data/rules/*.json, CLI de validation
 │   ├── test_rate_limit.py  # 429, Retry-After, IP client, variables requises
@@ -122,12 +124,19 @@ arrête l'application au démarrage, c'est voulu (AGENTS.md §7).
 | `RATE_LIMIT_LOGIN_PER_IP` | limite de `POST /auth/login` par IP et par fenêtre. Non définie : `RATE_LIMIT_PER_IP // 2` (au moins 3) |
 | `TRUSTED_PROXIES` | adresses IP ou réseaux CIDR, séparés par des virgules, des proxys dont l'en-tête `X-Forwarded-For` est lu (Traefik). Non définie : l'IP du pair TCP sert de clé |
 | `LITELLM_API_KEY`, `LITELLM_BASE_URL`, `LITELLM_MODEL`, `LITELLM_BUDGET_USD` | conversion NL→règle. **Les quatre** doivent être définies, sinon la fonctionnalité est désactivée (`503 nl_feature_disabled`) |
+| `LITELLM_FALLBACK_MODEL` | optionnelle : alias du proxy (même forme que `LITELLM_MODEL`) utilisé par la dernière relance après une erreur passagère du fournisseur. Non définie : toutes les relances utilisent `LITELLM_MODEL` |
 | `CF_EMAIL_ACCOUNT_ID`, `CF_EMAIL_API_TOKEN`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | alerte e-mail (API REST Cloudflare Email Service) : un récapitulatif des nouvelles corrélations `warning` et `error` après chaque exécution. **Les quatre** doivent être définies, sinon la fonction est désactivée. `CF_EMAIL_ACCOUNT_ID` : identifiant du compte Cloudflare (32 caractères hexadécimaux). `CF_EMAIL_API_TOKEN` : jeton avec la seule permission « Email Sending: Edit ». `ALERT_EMAIL_FROM` : adresse ou `Nom <adresse>` sur un domaine d'envoi déclaré dans Cloudflare (ex. `ChimeraFlow <notifications@notify.linguasolution.com>`) ; `ALERT_EMAIL_TO` : 1 à 5 adresses séparées par des virgules. Une valeur mal formée arrête le démarrage (sans être affichée) |
 | `ALERT_EMAIL_COOLDOWN_SECONDS` | délai minimal, en secondes, entre deux e-mails d'alerte (entier ≥ 60). **Obligatoire** dès que les quatre variables d'e-mail ci-dessus sont définies, sinon le démarrage s'arrête. Sans elles, elle est ignorée |
 
 `LITELLM_MODEL` est l'alias du modèle défini sur le proxy LiteLLM (ex. `deepseek-v4.1-flash-group`), sans
 préfixe : le client l'envoie tel quel à `LITELLM_BASE_URL` avec `custom_llm_provider="openai"` (le proxy parle le
 protocole OpenAI). Un ancien préfixe `openai/` est encore accepté et retiré une seule fois.
+
+Une erreur passagère du fournisseur (5xx, connexion, délai dépassé) est relancée au plus 2 fois, après 0,5 s puis 1,5 s
+(± 25 % de gigue), sans dépasser 45 s pour toute la requête ; chaque appel est réservé au budget comme les autres. Les
+erreurs 4xx (authentification, requête invalide, limite de débit, budget) ne sont jamais relancées. La réponse 200 porte
+`provider_retries` (relances de ce type, distinctes de `retries`, qui compte les réponses invalides), et les erreurs
+`nl_*` aussi.
 `LITELLM_BUDGET_USD` est le plafond **global** de dépense (en USD), suivi dans Redis. Il doit être un
 nombre fini strictement positif : `nan`, `inf`, `0` et les valeurs négatives arrêtent le démarrage.
 
@@ -400,15 +409,53 @@ que l'utilisateur voit dans son fichier.
 |--------|-------------------|----------------------|---------|
 | `excel` | `Produit`, `Prix_Unitaire`, `Fournisseur`, `Date_MAJ` | `Date_MAJ` | `product` |
 | `access` | `id`, `designation`, `unite`, `qty_stock`, `prix_achat`, `date_modif` | `date_modif` | `product` |
-| `whatsapp` | `author`, `text` | date du message | `product` (mot-clé + quantité, par exemple `ciment 50kg`) |
+| `whatsapp` | `author`, `text`, `attachment` | date du message | `product` (mot-clé + quantité, par exemple `ciment 50kg`) |
 | `momo` | `transaction_id`, `timestamp`, `phone`, `customer_name`, `operator`, `amount`, `currency`, `status`, `reference`, `quantity` | `timestamp` | `payment`, `product` (tiré de `reference`) |
 
 Les lignes qui ne peuvent pas être lues (produit absent, date invalide, quantité ou montant invalide) sont
 sautées, journalisées et comptées dans `parse_errors` du connecteur. Aucune valeur n'est inventée : les mêmes
 fichiers donnent toujours les mêmes records (P4).
 
-Le parseur WhatsApp ne lit que le format Android `[JJ/MM/AAAA, HH:MM:SS] Auteur: Message`. Le format iOS et
-les messages sur plusieurs lignes sont comptés comme erreurs (voir `TECH_DEBT.md`).
+### Parseur WhatsApp (`whatsapp_parser.py`)
+
+Fonctions pures (aucune E/S), utilisées par `WhatsAppConnector`. Formats lus, ligne par ligne :
+
+| Forme | Exemple |
+|-------|---------|
+| Android, crochets | `[01/11/2026, 09:24:00] Client A: texte` |
+| Android, sans crochets (secondes facultatives) | `01/11/2026 09:24 - Client A: texte` |
+| iOS | `[01/11/2026 09:24:00] Client A: texte` |
+| iOS ou Android EN (horloge 12 h, `AM`/`PM`, espace fine U+202F acceptée) | `[11/1/26, 9:24:00 AM] Client A: texte`, `11/1/26, 9:24 AM - Client A: texte` |
+
+Les séparateurs `/` et `.` sont acceptés, l'année fait 2 ou 4 chiffres (`26` = 2026). Les marques invisibles
+de début de ligne (U+200E, BOM) sont ignorées.
+
+**Ordre jour/mois, décidé une fois par fichier** (aucun repli silencieux) :
+1. un premier champ supérieur à 12 dans un en-tête : jour d'abord (`dmy`) ;
+2. sinon un second champ supérieur à 12 : mois d'abord (`mdy`) ;
+3. sinon toutes les dates sont ambiguës : l'argument `default_date_order` du connecteur décide (`dmy` par
+   défaut, `WhatsAppConnector(chemin, default_date_order="mdy")` pour un export EN). Le connecteur expose
+   `date_order` et `date_order_source` (`detected` ou `default`) et journalise le cas par défaut.
+
+Si un fichier contient les deux preuves, le jour d'abord l'emporte et les en-têtes incompatibles sont comptés
+comme erreurs. Les données livrées (`data/commandes_clients.txt`) sont ambiguës : elles se lisent en `dmy`.
+
+| Ligne | Traitement | Compteur |
+|-------|------------|----------|
+| En-tête avec `Auteur: texte` | message ; les lignes suivantes qui ne sont pas des en-têtes le prolongent (jointes par `\n`, texte final sans espaces de bord) | |
+| En-tête sans auteur (notice de chiffrement, « X a rejoint ») et ses lignes de suite | ignoré | `system_skipped` |
+| En-tête à date ou heure impossible, ou `Auteur:` sans texte | ignoré (les lignes de suite d'une date impossible aussi) | `parse_errors` |
+| Ligne non vide avant le premier en-tête | ignoré | `parse_errors` |
+
+Le numéro de ligne de `source_ref` et de l'`id` (`wa-<n>`) est celui de la **première ligne** du message. Un
+message dont la première ligne est un espace réservé de média (`<Media omitted>`, `<Médias omis>`, `image omitted`,
+`<attached: …>`, `… (file attached)`) est gardé avec `payload["attachment"] = true` ; les autres ont `false`.
+`attachment` n'est pas une colonne de règle (absent de `schemas/sources.py`). Les produits sont extraits ligne par
+ligne. Le fichier entier est lu à chaque appel (pour fixer l'ordre des dates) ; `parse_errors` et `system_skipped`
+portent sur tout le fichier, même quand `limit` coupe la liste des records.
+
+`export_messages(messages, format)` fait le chemin inverse (formats `android_fr`, `android_nobracket_fr`, `ios_fr`,
+`ios_en`, `android_en`). Il n'est utilisé que par les tests de la propriété P3 (aller-retour).
 
 ## Serveurs MCP
 

@@ -31,8 +31,8 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Tests de contrat R1 à R4 (`backend/tests/test_connectors.py`)
 - [x] Hook `parser-test` (`.kiro/hooks/parser-test.json`)
 - [x] Hook `spec-update-reminder` (`.kiro/hooks/spec-update-reminder.json`)
-- [~] Propriétés de parseur (PBT) : P2 couverte ; P1 et P6 partielles ; P3 non couverte (`design.md` §12)
-- [~] Parseur WhatsApp : format Android seulement ; le format iOS et les messages sur plusieurs lignes sont comptés comme erreurs (`TECH_DEBT.md`)
+- [~] Propriétés de parseur (PBT) : P2 et P3 couvertes ; P1 et P6 partielles (`design.md` §12)
+- [x] Parseur WhatsApp : Android et iOS, dates FR et EN (ordre jour/mois décidé par fichier), messages sur plusieurs lignes, pièces jointes signalées, messages système comptés à part (`backend/mcp_servers/whatsapp_parser.py`, `backend/tests/test_whatsapp_parser.py`)
 - [x] Les quatre connecteurs servis en serveurs MCP stdio (`backend/mcp_servers/mcp_app.py`, lanceur `backend/mcp_main.py`, tests `backend/tests/test_mcp_servers.py`)
 - [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` (copie du modèle `backend/mcp_servers/kiro-mcp.json`, testé) ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
 - [ ] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18, cible d'architecture) : l'image runtime contient le lanceur, mais aucun service compose ne le démarre (stdio uniquement)
@@ -73,7 +73,7 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Cartes de corrélation avec badges par source et tiroir de provenance (R10)
 - [x] Assainissement des textes de source avant affichage (R12) : rendu en texte React seulement, jamais de HTML ; testé (`correlation-card.test.tsx`)
 - [x] État dégradé quand une source est absente (R8) : bandeau et fil coupé sur le tableau de bord
-- [~] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : conçue ainsi (éléments `<dialog>`, focus visible, lien d'évitement, couleurs par jetons), mais non mesurée dans un navigateur
+- [x] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : mesurée le 2026-11-17 dans Edge (axe-core, 0 violation, aucun débordement horizontal à 360 px, clavier et boîtes de dialogue vérifiés, thèmes clair et sombre) ; lecteur d'écran réel, Firefox, Safari et téléphone non couverts (voir `ui-spec.md` et TECH_DEBT)
 - [x] Bascule FR/EN mémorisée et thème sombre (système par défaut, choix mémorisé)
 - [x] Vue « pourquoi ça correspond » (affichée seulement quand la corrélation a une `explanation`), bac à sable de normalisation (`/sandbox`), corrélations en temps réel (flux SSE, sinon actualisation toutes les 15 s)
 - [ ] Connecteur n°4 généré par Crew en session enregistrée (`.kiro/agents/` absent)

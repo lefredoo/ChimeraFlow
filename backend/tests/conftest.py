@@ -37,6 +37,7 @@ for _name in (
     "LITELLM_API_KEY",
     "LITELLM_BASE_URL",
     "LITELLM_MODEL",
+    "LITELLM_FALLBACK_MODEL",
     "LITELLM_BUDGET_USD",
     "TRUSTED_PROXIES",
     "CF_EMAIL_ACCOUNT_ID",  # the e-mail alert is enabled per test

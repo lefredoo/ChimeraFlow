@@ -18,6 +18,60 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Relances sur erreurs passagères du fournisseur LLM et modèle de repli
+**Context**: En production avec `glm-4.7-flash-bedrock`, 6 requêtes NL→règle sur 10 ont reçu `502 nl_provider_error` pendant environ 3 minutes d'`InternalServerError` du proxy ; les mêmes phrases ont ensuite réussi. Seules les réponses invalides étaient relancées.
+**Decision**: Une erreur passagère (5xx, connexion, délai ; jamais 4xx ni erreur inattendue) est relancée au plus 2 fois pour toute la conversion, après 0,5 s puis 1,5 s (± 25 % de gigue), dans un délai global de 45 s (appel limité au temps restant, aucun appel sous 3 s). `LITELLM_FALLBACK_MODEL` (optionnelle) sert à la dernière relance et aux appels suivants. Chaque tentative réserve le budget, un échec garde le coût d'entrée pessimiste. La réponse 200 et les erreurs `nl_*` portent `provider_retries`, `retries` garde son sens.
+**Alternatives rejected**: `num_retries` de LiteLLM (invisible du budget, délais non maîtrisés, relances non comptées). Relancer aussi les 429 : le budget et les limites du fournisseur ne se règlent pas en quelques secondes. Un compteur de relances par type d'erreur : plus de code pour le même plafond de requête.
+**Consequences**: `LlmClient.complete` prend `model` et `timeout`. Pire cas d'une requête sous 50 s (45 s plus la marge de 2 s du délai externe). Image backend inchangée. Le repli n'est pas vérifié contre le vrai proxy (TECH_DEBT).
+**AGENTS.md rule concerned**: §7 (variable optionnelle via `optional_env`, pas de valeur de repli), §22
+
+---
+
+## [2026-11-17] Frontend : vitest 4, surcharge postcss et audit navigateur
+**Context**: 19 alertes Dependabot npm ouvertes (postcss via Next, vite, vitest, tinypool critique, esbuild, minimatch) et interface jamais exécutée dans un navigateur (R11 : 360 px, clavier, WCAG AA).
+**Decision**: `vitest` 4.1.12 (vite 8, config JSX passée de `esbuild` à `oxc`), `overrides.next.postcss` ^8.5.23, `npm audit fix` pour minimatch et typescript-eslint : `npm audit` donne 0 avis, dev compris. Audit Edge headless (axe-core, Playwright, API simulée, outils hors dépôt) : jeton `--text-muted` clair assombri (`#5f6672`, 4,44:1 mesuré sur la fin du dégradé), nom accessible des boutons FR/EN commençant par le texte visible, `h2` masqué pour la liste des corrélations (ordre des titres).
+**Alternatives rejected**: Next 16 : la seule alerte runtime (postcss) se ferme par la surcharge ; la montée imposerait ESLint 9 en config plate et la fin de `next lint` pour un gain nul sur la sécurité. Ajouter Playwright ou axe au `package.json` : demande une dépendance approuvée, l'audit reste un outil ponctuel.
+**Consequences**: la surcharge est à retirer au passage en Next 16 ; l'audit navigateur n'est pas en CI (voir TECH_DEBT 2026-11-17).
+**AGENTS.md rule concerned**: §16 (dépendance de dev montée en version majeure pour fermer des avis), §10 (contraste 4,5:1)
+
+---
+
+## [2026-11-17] Parseur WhatsApp : formats, ordre des dates et aller-retour (R3, P3)
+**Context**: Le parseur ne lisait que `[JJ/MM/AAAA, HH:MM:SS]` ; iOS, dates EN et messages multi-lignes étaient des erreurs. P3 n'avait ni fonction d'export ni test.
+**Decision**: Parseur pur dans `whatsapp_parser.py` (formats Android avec ou sans crochets, iOS, horloge 12 h). Ordre jour/mois décidé par fichier : premier champ > 12 donne `dmy`, sinon second champ > 12 donne `mdy`, sinon `default_date_order` (`dmy`), exposé et journalisé. Lignes de suite ajoutées au message précédent ; messages système (sans auteur) comptés dans `system_skipped` ; pièces jointes gardées avec `payload["attachment"]`. `export_messages` et trois tests Hypothesis couvrent P3. Deux messages ajoutés en fin de `data/commandes_clients.txt` (multi-lignes, média) sans décaler les numéros de ligne existants.
+**Alternatives rejected**: Heuristique « AM/PM donc mois d'abord » (faux au Royaume-Uni ou en Australie). Variable d'environnement pour l'ordre par défaut (hors périmètre, demanderait AGENTS.md §22). Lecture en flux avec arrêt à `limit` (l'ordre des dates exige tout le fichier).
+**Consequences**: `parse_errors` et `system_skipped` portent sur tout le fichier ; une ligne vide avant le premier en-tête n'est plus une erreur ; `attachment` s'ajoute au payload sans être une colonne de règle. Limites dans TECH_DEBT (2026-11-17). Les hooks `parser-test` et `spec-update-reminder` avaient un `matcher` jamais vrai (`\\.py` au lieu de `\.py` après échappement JSON) et `cd backend && …` échoue sous PowerShell 5.1 : corrigés.
+**AGENTS.md rule concerned**: §4 (corriger dans le cycle), §7 (pas de repli de configuration : l'ordre par défaut est un argument documenté)
+
+---
+
+## [2026-11-17] Dépendances Python : litellm 1.100.4 et python-dateutil 2.9.0.post0
+**Context**: Alertes Dependabot 1 et 22 (litellm, sévérité haute, correctif 1.100.4).
+**Decision**: `litellm==1.100.4` (version corrigée la plus basse). Il tire `boto3`, qui borne `python-dateutil < 3` : `python-dateutil` passe de 4.0.0 à 2.9.0.post0 (aucun import direct, dépendance de pandas).
+**Alternatives rejected**: Une version de litellm plus récente (plus de changements sans besoin). Garder `python-dateutil` 4.0.0 (résolution impossible).
+**Consequences**: Trois paquets de plus (`boto3`, `botocore`, `s3transfer`). Voir TECH_DEBT (2026-11-17).
+**AGENTS.md rule concerned**: §16 (dépendance ajoutée de façon transitive, imposée par le correctif de sécurité)
+
+---
+
+## [2026-11-17] Traefik : garde-fou systemd contre la perte des réglages
+**Context**: Les réglages `trustedIPs` et `api.insecure: false` sont dans un fichier partagé que Dokploy gère. Il fallait savoir si un rechargement depuis l'interface les efface.
+**Decision**: Lecture du code Dokploy v0.31.0 : Reload = `docker restart` seul, `traefik.yml` n'est recréé que s'il est absent, et Dokploy ne le stocke pas en base (rien à synchroniser par `settings.updateTraefikConfig`). Ajout de `check-traefik-config.timer` (5 min, root) : script `/usr/local/sbin/check-traefik-config.sh`, copie de référence `traefik.yml.chimeraflow-reference`, correction des deux clés seulement puis `docker restart`, rien si aucune dérive. Copies dans `ops/vps/`. Essais : sans dérive, copies à dérive, conteneur factice, un Reload Dokploy réel (fichier inchangé).
+**Alternatives rejected**: Remplacer le fichier entier par la référence (écraserait les changements des autres applications). Recréer automatiquement le conteneur s'il perd le secret DNS-01 (invasif sur une infra partagée) : le script journalise l'erreur seulement. `chattr +i` sur le fichier (bloquerait aussi les écritures légitimes de Dokploy).
+**Consequences**: Les commentaires du YAML sont perdus lors d'une correction. Une recréation du conteneur par Dokploy (toggle dashboard, ports, variables, version) garde le fichier mais perd le montage du secret DNS-01 et change la version de Traefik (TECH_DEBT). Retrait : voir `ops/vps/README.md`.
+**AGENTS.md rule concerned**: §4 (ne laisser aucun problème non résolu), §9
+
+---
+
+## [2026-11-17] Traefik : IP visiteur de confiance et tableau de bord fermé
+**Context**: Derrière le tunnel, Traefik remplaçait `X-Forwarded-For` par la passerelle Docker `172.18.0.1` (cloudflared, en réseau hôte, atteint Traefik par `[::1]:443` puis docker-proxy), donc tous les visiteurs partageaient une clé de limitation. `api.insecure: true` publiait en plus l'API et le tableau de bord de Traefik sur `:8080` sans authentification, joignable depuis tout conteneur du réseau `dokploy-network`.
+**Decision**: Dans `/etc/dokploy/traefik/traefik.yml` (accord du propriétaire) : `forwardedHeaders.trustedIPs: ["172.18.0.1/32"]` sur `websecure` seulement, et `api.insecure: false` (aucun routeur `api@internal`, le tableau de bord n'est plus exposé). Sauvegarde : `/etc/dokploy/traefik/traefik.yml.bak-chimeraflow-20261116200929`. Puis `docker restart dokploy-traefik`. `TRUSTED_PROXIES=10.0.1.0/24,172.18.0.1/32` posé dans Doppler par le propriétaire.
+**Alternatives rejected**: Faire confiance aux plages publiques de Cloudflare : inutile, seul le pair `172.18.0.1` parle à Traefik. Élargir à `172.18.0.0/16` : tout conteneur du pont pourrait forger l'IP cliente. Ajouter `web` : cloudflared n'utilise que `https://localhost:443`.
+**Consequences**: Mesuré sur l'API : `X-Forwarded-For: <IP visiteur>, 172.18.0.1`. Limite de connexion (5 par minute) : 429 à la 6e tentative depuis un poste, le test de fumée GitHub (autre IP) passe. Le port 8080 n'était pas publié sur l'hôte et reste fermé dans le réseau Docker. Un rechargement de Traefik par Dokploy peut réécrire le fichier (TECH_DEBT, 2026-11-17). Retour arrière : copier la sauvegarde sur `traefik.yml` puis `docker restart dokploy-traefik`.
+**AGENTS.md rule concerned**: §9 (limitation de débit sur les points d'entrée publics)
+
+---
+
 ## [2026-11-17] API publique sur `chimeraflow-api.linguasolution.com` via le tunnel partagé
 **Context**: L'API n'était pas joignable depuis Internet (DNS vers l'adresse Tailscale, ports 80 et 443 fermés sur `eth0`), donc les runners GitHub et le frontend hors Tailscale échouaient. Le propriétaire a déjà un tunnel Cloudflare `hetzner-1-web` qui sert ses autres applications.
 **Decision**: Le nom public est `chimeraflow-api.linguasolution.com` (CNAME proxied vers le tunnel `hetzner-1-web`, ingress vers Traefik en `https://localhost:443`). Traefik délivre le certificat en DNS-01. Les ports 80 et 443 du VPS restent fermés. Vercel pointe déjà sur ce nom.

@@ -314,6 +314,8 @@ DEMO_LOGIN_PASSWORD_HASH = _require_password_hash()
 LITELLM_API_KEY = optional_env("LITELLM_API_KEY")
 LITELLM_BASE_URL = optional_env("LITELLM_BASE_URL")
 LITELLM_MODEL = optional_env("LITELLM_MODEL")
+# Optional proxy alias tried by the last retry after transient provider errors
+LITELLM_FALLBACK_MODEL = optional_env("LITELLM_FALLBACK_MODEL")
 LITELLM_BUDGET_USD = _optional_float("LITELLM_BUDGET_USD")
 # A cap that is NaN (every comparison false), infinite or not positive is no cap
 if LITELLM_BUDGET_USD is not None and not (math.isfinite(LITELLM_BUDGET_USD) and LITELLM_BUDGET_USD > 0):

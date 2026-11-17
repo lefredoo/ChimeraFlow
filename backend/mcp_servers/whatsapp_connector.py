@@ -1,13 +1,15 @@
 """
 WhatsApp Connector - MCP Server
-Parses WhatsApp export files (Android/iOS formats)
+Parses WhatsApp export files (Android/iOS formats, FR/EN dates, multi-line messages)
 """
 from typing import List
 from pathlib import Path
 from datetime import datetime
 import re
+import time
 
 from .base import BaseConnector, UnifiedRecord
+from .whatsapp_parser import DATE_ORDERS, parse_export
 
 # Common product keywords from ZOBO (normalized: lowercase, no accents)
 _PRODUCT_KEYWORDS = frozenset({
@@ -22,69 +24,95 @@ _MAX_PRODUCTS_PER_MESSAGE = 3
 
 
 class WhatsAppConnector(BaseConnector):
-    """WhatsApp export parser (R6 from connectors-spec.md)"""
+    """WhatsApp export parser (R6 from connectors-spec.md)
 
-    def __init__(self, file_path: str):
+    Date order of ambiguous files (every date has both fields <= 12) is
+    `default_date_order`; see whatsapp_parser.py for the full rule.
+    """
+
+    def __init__(self, file_path: str, default_date_order: str = "dmy"):
         super().__init__("whatsapp")
+        if default_date_order not in DATE_ORDERS:
+            raise ValueError(f"default_date_order must be one of {DATE_ORDERS}, got {default_date_order!r}")
         self.file_path = Path(file_path)
+        self.default_date_order = default_date_order
         self.parse_errors = 0
+        self.system_skipped = 0
+        self.date_order = default_date_order
+        self.date_order_source = "default"
 
     async def fetch_records(self, limit: int = 100) -> List[UnifiedRecord]:
         """Parse WhatsApp export file
 
-        Lines that do not match the export format or carry an invalid date
-        are skipped and counted as parse errors.
+        The whole file is read so that the date order is settled per file. Lines
+        that are not messages and not continuation lines, and headers with an
+        invalid date, are skipped and counted in `parse_errors` (whole file).
+        System messages (encryption notice, joins) are skipped and counted in
+        `system_skipped`. Media placeholders are kept and flagged
+        `payload["attachment"] = True`. At most `limit` messages are returned.
         """
-        records = []
+        started = time.monotonic()
         limit = min(limit, 1000)
         self.parse_errors = 0  # counts the errors of this fetch only
-
-        # Android format: [DD/MM/YYYY, HH:MM:SS] Author: Message
-        pattern = r'\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\] ([^:]+): (.+)'
+        self.system_skipped = 0
 
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
-                for line_no, line in enumerate(f, 1):
-                    if len(records) >= limit:
-                        break
-
-                    match = re.match(pattern, line.strip())
-                    if not match:
-                        self.parse_errors += 1
-                        continue
-
-                    timestamp_str, author, message = match.groups()
-
-                    try:
-                        timestamp_iso = datetime.strptime(timestamp_str, "%d/%m/%Y, %H:%M:%S").isoformat()
-                    except ValueError:
-                        self.logger.warning(f"WhatsApp line {line_no}: invalid date '{timestamp_str}', skipped")
-                        self.parse_errors += 1
-                        continue
-
-                    # Detect language (simple heuristic)
-                    lang = "fr" if any(w in message.lower() for w in ["bonjour", "bsr", "svp", "merci"]) else "en"
-
-                    # Extract product mentions (simple keyword matching for now)
-                    products = self._extract_products(message)
-                    entities = [{"type": "product", "raw": p, "norm": self.normalize_text(p)} for p in products]
-
-                    records.append(UnifiedRecord(
-                        id=f"wa-{line_no}",
-                        source="whatsapp",
-                        source_ref=f"{self.file_path.name}#L{line_no}",
-                        timestamp=timestamp_iso,
-                        lang=lang,
-                        entities=entities,
-                        payload={"author": author, "text": message}
-                    ))
-
+            with open(self.file_path, 'r', encoding='utf-8-sig') as f:
+                result = parse_export(f, self.default_date_order)
         except (OSError, UnicodeDecodeError) as e:
             self.logger.error(f"Failed to read WhatsApp file: {e}")
             raise
 
-        self.logger.info(f"Parsed {len(records)} messages, {self.parse_errors} errors")
+        self.parse_errors = result.parse_errors
+        self.system_skipped = result.system_skipped
+        self.date_order = result.date_order
+        self.date_order_source = result.date_order_source
+
+        records = []
+        for message in result.messages[:limit]:
+            text = message.text
+            # Detect language (simple heuristic)
+            lang = "fr" if any(w in text.lower() for w in ["bonjour", "bsr", "svp", "merci"]) else "en"
+
+            # Extract product mentions (simple keyword matching for now)
+            products = self._extract_products_of_message(text)
+            entities = [{"type": "product", "raw": p, "norm": self.normalize_text(p)} for p in products]
+
+            records.append(UnifiedRecord(
+                id=f"wa-{message.line_no}",
+                source="whatsapp",
+                source_ref=f"{self.file_path.name}#L{message.line_no}",
+                timestamp=message.timestamp.isoformat(),
+                lang=lang,
+                entities=entities,
+                payload={"author": message.author, "text": text, "attachment": message.attachment},
+            ))
+
+        if self.date_order_source == "default":
+            self.logger.info(
+                "WhatsApp dates are ambiguous (every field <= 12): default order '%s' applied", self.date_order
+            )
+        self.logger.info(
+            "connector=whatsapp operation=fetch_records records_count=%d errors_count=%d "
+            "system_skipped=%d date_order=%s(%s) duration_ms=%d",
+            len(records), self.parse_errors, self.system_skipped, self.date_order,
+            self.date_order_source, int((time.monotonic() - started) * 1000),
+        )
         return records
+
+    def _extract_products_of_message(self, text: str) -> List[str]:
+        """Product mentions of a message, line by line (a mention never spans two lines)."""
+        mentions: List[str] = []
+        for line in text.split("\n"):
+            mentions.extend(self._extract_products(line))
+        return mentions[:_MAX_PRODUCTS_PER_MESSAGE]
+
+    def _extract_products_of_message(self, text: str) -> List[str]:
+        """Product mentions of a message, line by line (a mention never spans two lines)."""
+        mentions: List[str] = []
+        for line in text.split("\n"):
+            mentions.extend(self._extract_products(line))
+        return mentions[:_MAX_PRODUCTS_PER_MESSAGE]
 
     def _extract_products(self, text: str) -> List[str]:
         """Extract product mentions from a message (simple keywords for MVP)

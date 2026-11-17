@@ -10,6 +10,8 @@ something on the shipped data. Which message feeds which rule:
   (r_high_value_order, r_stock_replenish, r_payment_received)
 - the 03/11 10:05 message asks for two products at once
 - câble, serrure: low stock products that customers ask for (r_stock_replenish)
+- the last two messages exercise the parser: a three-line message and a media
+  placeholder (flagged `attachment` in the payload)
 """
 from pathlib import Path
 
@@ -40,6 +42,9 @@ MESSAGES = [
     ("07/11/2026", "09:24:00", "Client C", "Scie égoïne 450mm dispo"),
     ("07/11/2026", "12:05:00", "Client B", "Penture acier 30cm la paire"),
     ("07/11/2026", "13:36:00", "Client B", "Raccord coude 90° PVC 32"),
+    # Multi-line message (the text keeps its line breaks) and a media placeholder
+    ("08/11/2026", "08:15:00", "Mme Nguema", "Bonjour,\nje repasse demain matin.\nPouvez-vous réserver une perceuse 500W ?\nMerci"),
+    ("08/11/2026", "08:16:00", "Mme Nguema", "<Médias omis>"),
 ]
 
 
@@ -52,7 +57,7 @@ def main() -> None:
 
     print(f"✓ Generated: {output_path}")
     print(f"  Messages: {len(MESSAGES)}")
-    print("  Period: 7 days (Nov 1-7, 2026)")
+    print("  Period: 8 days (Nov 1-8, 2026)")
     print("  Format: Android WhatsApp export")
 
 

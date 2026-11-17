@@ -2,6 +2,11 @@
 Property-Based Testing with Hypothesis
 Tests properties P1-P6 from Roadmap.md §7
 """
+import asyncio
+import tempfile
+from dataclasses import replace
+from datetime import datetime
+
 import pytest
 from hypothesis import given, strategies as st, settings
 from pathlib import Path
@@ -10,6 +15,14 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mcp_servers.base import BaseConnector
+from mcp_servers.whatsapp_connector import WhatsAppConnector
+from mcp_servers.whatsapp_parser import (
+    EXPORT_FORMATS,
+    ParsedMessage,
+    export_messages,
+    is_header_line,
+    parse_export,
+)
 
 
 class TestNormalizationProperties:
@@ -214,3 +227,94 @@ class TestRoundTrip:
             
             if "text" in payload:
                 assert payload["text"], "Text should not be empty"
+
+
+# --- P3: parse(export(messages)) == messages (Hypothesis) ---
+
+# No control character, no line or paragraph separator (they would split a line), no
+# invisible mark (the parser strips those before a header)
+_PLAIN = st.characters(
+    blacklist_categories=("Cc", "Cs", "Zl", "Zp"),
+    blacklist_characters="\u200e\u200f\u202a\u202b\u202c\ufeff",
+)
+_PLACEHOLDERS = [
+    "<Media omitted>",
+    "<Médias omis>",
+    "image omitted",
+    "\u200e<attached: 00000012-PHOTO-2026-11-01-09-24-00.jpg>",
+    "IMG-20261101-WA0001.jpg (file attached)",
+]
+
+
+_TEXT_LINE = st.text(_PLAIN, max_size=30).filter(lambda line: not is_header_line(line))
+_WRITTEN_TEXT = (
+    st.lists(_TEXT_LINE, min_size=1, max_size=3)
+    .map("\n".join)
+    .filter(lambda text: text != "" and text == text.strip())
+)
+_AUTHOR = st.text(_PLAIN, min_size=1, max_size=20).filter(lambda a: ":" not in a and a == a.strip())
+_MOMENT = st.datetimes(
+    min_value=datetime(2000, 1, 1),
+    max_value=datetime(2099, 12, 31, 23, 59, 59),
+).map(lambda moment: moment.replace(microsecond=0))
+_MESSAGES = st.lists(
+    st.builds(
+        ParsedMessage,
+        timestamp=_MOMENT,
+        author=_AUTHOR,
+        text=st.one_of(_WRITTEN_TEXT, st.sampled_from(_PLACEHOLDERS)),
+    ),
+    min_size=1,
+    max_size=8,
+)
+_FORMATS_WITHOUT_SECONDS = ("android_nobracket_fr", "android_en")
+
+
+def _fit(messages, export_format):
+    """Drop the seconds that the format cannot write."""
+    if export_format not in _FORMATS_WITHOUT_SECONDS:
+        return messages
+    return [replace(m, timestamp=m.timestamp.replace(second=0)) for m in messages]
+
+
+def _default_order(export_format):
+    return "mdy" if export_format in ("ios_en", "android_en") else "dmy"
+
+
+class TestParserRoundTrip:
+    """Property P3: parse(export(messages)) == messages across every export format"""
+
+    @given(messages=_MESSAGES, export_format=st.sampled_from(EXPORT_FORMATS))
+    @settings(max_examples=200)
+    def test_should_parse_back_the_exported_messages_when_exporting_in_any_format(self, messages, export_format):
+        messages = _fit(messages, export_format)
+
+        result = parse_export(export_messages(messages, export_format).split("\n"), _default_order(export_format))
+
+        assert result.messages == messages
+        assert (result.parse_errors, result.system_skipped) == (0, 0)
+
+    @given(messages=_MESSAGES, export_format=st.sampled_from(EXPORT_FORMATS))
+    @settings(max_examples=100)
+    def test_should_number_each_message_by_its_first_line_when_exporting_in_any_format(self, messages, export_format):
+        messages = _fit(messages, export_format)
+        first_lines = [1 + sum(m.text.count("\n") + 1 for m in messages[:i]) for i in range(len(messages))]
+
+        result = parse_export(export_messages(messages, export_format).split("\n"), _default_order(export_format))
+
+        assert [m.line_no for m in result.messages] == first_lines
+
+    @given(messages=_MESSAGES, export_format=st.sampled_from(EXPORT_FORMATS))
+    @settings(max_examples=40)
+    def test_should_return_the_exported_messages_when_the_connector_reads_the_file(self, messages, export_format):
+        messages = _fit(messages, export_format)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "chat.txt"
+            path.write_text(export_messages(messages, export_format), encoding="utf-8", newline="\n")
+            connector = WhatsAppConnector(str(path), default_date_order=_default_order(export_format))
+            records = asyncio.run(connector.fetch_records(limit=1000))
+
+        assert [(r.timestamp, r.payload["author"], r.payload["text"], r.payload["attachment"]) for r in records] == [
+            (m.timestamp.isoformat(), m.author, m.text, m.attachment) for m in messages
+        ]

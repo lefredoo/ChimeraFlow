@@ -52,7 +52,7 @@ The application must not use static Tailwind color classes (`bg-blue-500`, `text
 ### Text Hierarchy
 - `--text-primary`: `#111827` (light) / `#f9fafb` (dark)
 - `--text-secondary`: `#6b7280` (light) / `#9ca3af` (dark)
-- `--text-muted`: `#6b7280` (light) / `#9ca3af` (dark) — raised from `#9ca3af` / `#6b7280` to reach 4.5:1 for text
+- `--text-muted`: `#5f6672` (light) / `#9ca3af` (dark) — the light value is darker than the first `#6b7280`, which measured 4.44:1 on the end of the page gradient (`#eff6ff`) in the browser audit; 4.5:1 is required for text
 
 ### Text-safe status colors
 `--success`, `--error` and `--primary` fail 4.5:1 as text on the light background. For text use

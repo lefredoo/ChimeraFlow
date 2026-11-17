@@ -23,3 +23,8 @@
 [07/11/2026, 09:24:00] Client C: Scie égoïne 450mm dispo
 [07/11/2026, 12:05:00] Client B: Penture acier 30cm la paire
 [07/11/2026, 13:36:00] Client B: Raccord coude 90° PVC 32
+[08/11/2026, 08:15:00] Mme Nguema: Bonjour,
+je repasse demain matin.
+Pouvez-vous réserver une perceuse 500W ?
+Merci
+[08/11/2026, 08:16:00] Mme Nguema: <Médias omis>
