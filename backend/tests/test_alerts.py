@@ -180,9 +180,9 @@ def test_should_report_failure_when_the_answer_is_not_json(monkeypatch):
 
 
 def test_should_accept_a_display_name_sender_when_reading_the_setting(monkeypatch):
-    monkeypatch.setenv("ALERT_EMAIL_FROM", "ChimeraFlow <notifications@notify.linguasolution.com>")
+    monkeypatch.setenv("ALERT_EMAIL_FROM", "ChimeraFlow <notifications@mail.linguasolution.com>")
 
-    assert config._optional_alert_sender() == "ChimeraFlow <notifications@notify.linguasolution.com>"
+    assert config._optional_alert_sender() == "ChimeraFlow <notifications@mail.linguasolution.com>"
 
 
 @pytest.mark.parametrize("raw", ["abc", "0123456789ABCDEF0123456789abcdeg", "0123456789abcdef"])
