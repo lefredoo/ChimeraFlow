@@ -99,4 +99,36 @@ Format: [Date] Decision | Discovery | Observation
 
 ---
 
+## 2026-11-15 — Déploiement, authentification, DSL étendu, interface
+
+- Décisions : premier déploiement depuis `dev` (Vercel, VPS Dokploy/Traefik) avant la fusion de la PR ; compte de démonstration unique avec jeton signé par le backend ; DSL étendu (`trigger.where`, `ref` avec `tolerance_pct`, jointure sur `entities`) mais fermé, sans expression libre ; budget LLM réservé avant l'appel plutôt que compté après.
+- Noms partiels : un nom contenu mot pour mot dans l'autre correspond (« tuyau PVC » dans « Tuyau PVC Ø 32mm (barre 6m) »), mais des nombres différents ne correspondent jamais. Une comparaison par `token_set_ratio` seule notait 0,9 deux produits différents (« tuyau pvc 32mm » et « tuyau ppr 32mm »).
+- Ce que les tests de propriétés (Hypothesis) et l'exécution sur PostgreSQL avaient déjà révélé le 13 novembre reste la base du moteur : U+2110 (capitale sans minuscule) cassait l'idempotence de la normalisation, et les clés étrangères, ignorées par SQLite sans `PRAGMA foreign_keys`, exigent que le seed crée les règles prédéfinies au démarrage.
+- Interface P3 livrée (tableau de bord, composeur, corrélations, bac à sable, flux SSE) ; première version des serveurs MCP en stdio.
+
+---
+
+## 2026-11-16 — E-mails d'alerte, alias LiteLLM, Traefik
+
+- Décisions : délai global des e-mails d'alerte (`SET NX EX` dans Redis, échec fermé sans Redis) ; envoi par Cloudflare Email Service ; le modèle est l'alias nu du proxy LiteLLM, sans préfixe de fournisseur.
+- Revue du 16 novembre : validation des règles et des connecteurs durcie, résidus consignés dans `TECH_DEBT.md`.
+- Derrière le tunnel, Traefik remplaçait `X-Forwarded-For` par l'adresse de la passerelle Docker : tous les visiteurs partageaient une clé de limitation. Traefik fait maintenant confiance à cette seule adresse, le limiteur lit l'en-tête de droite à gauche depuis `TRUSTED_PROXIES`, le tableau de bord de Traefik n'est plus exposé, et un garde-fou rétablit ces réglages après un rechargement de Dokploy.
+- API publique déplacée sur `chimeraflow-api.linguasolution.com` via le tunnel Cloudflare partagé ; ports 80 et 443 du VPS fermés.
+- Dépendances du frontend corrigées (alertes Dependabot) ; README mis à jour pour la démonstration en ligne.
+
+---
+
+## 2026-11-17 — WhatsApp iOS, relances LLM, MCP hébergé, Redis réel
+
+- Parseur WhatsApp : exports iOS, dates FR et EN, messages sur plusieurs lignes ; le test d'aller-retour (P3) est couvert par Hypothesis.
+- Cloudflare Email Service a répondu HTTP 200 et `success: true` pour un e-mail rejeté (`permanent_bounces`) : l'envoi était journalisé comme réussi. Un rejet définitif est maintenant un échec. Le propriétaire a ensuite confirmé la réception depuis `mail.linguasolution.com`.
+- Production LLM : 6 requêtes sur 10 en `502` pendant une panne passagère du proxy avec `glm-4.7-flash-bedrock` ; ajout de relances sur erreurs passagères et d'un modèle de repli. Mesure en production : 9 phrases sur 10 converties en règle valide.
+- Audit d'accessibilité dans un navigateur (Edge, axe-core, 360 px, clavier) : corrections livrées ; Kiro Crew retiré du plan, le projet utilise Kiro IDE et Kiro CLI.
+- Kiro n'affichait aucun serveur MCP avec la configuration locale en chemins absolus : les quatre sources sont maintenant servies en HTTP (`/mcp/<source>`, jeton Bearer, `${CHIMERAFLOW_MCP_TOKEN}`) ; PR #8 fusionnée, quatre serveurs au vert dans Kiro (constaté par le propriétaire).
+- Tests : service Redis réel dans la CI (limiteur, budget LLM sous réservations concurrentes, délai d'alerte). La propriété P6 sur règles et records générés a trouvé un vrai défaut : un entier hors de la plage des flottants faisait lever `OverflowError` dans le calcul d'écart de prix (toute la règle échouait), et des flottants extrêmes donnaient un écart infini, JSON invalide. Un écart non représentable est maintenant indéfini.
+
+**Crédits consommés :** à compléter par le propriétaire (kiro.dev/account/usage).
+
+---
+
 _Continue logging daily progress here._
