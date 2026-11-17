@@ -4,11 +4,11 @@
     {
       "name": "Spec Update Reminder",
       "trigger": "PostFileSave",
-      "description": "When a spec file is modified, remind to update tasks.md",
+      "description": "When a spec file is modified, remind to update the tasks.md of the same spec folder",
       "matcher": "\\.kiro[/\\\\]specs[/\\\\].*\\.md$",
       "action": {
         "type": "agent",
-        "prompt": "A spec file was just modified. Remember to check if tasks.md needs updating to reflect new requirements or design decisions."
+        "prompt": "A spec file was just modified. Remember to check if the tasks.md of the same spec folder (.kiro/specs/<spec>/tasks.md) needs updating to reflect new requirements or design decisions."
       }
     }
   ]

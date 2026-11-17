@@ -18,6 +18,15 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Specs Kiro au format dossier
+
+**Context**: Le panneau Specs de Kiro restait vide : il attend un dossier par spec (`requirements.md`, `design.md`, `tasks.md`), le dépôt avait des fichiers à plat.
+**Decision**: `.kiro/specs/chimeraflow-backend/` (design, tasks, détails connectors/rule-engine/api, `requirements.md` EARS en français) et `.kiro/specs/chimeraflow-ui/` (`design.md` ex-`ui-spec.md`, `requirements.md`, `tasks.md` extrait de la phase P3). Déplacements par `git mv`.
+**Alternatives rejected**: Une spec par fichier d'origine (trois specs sans design propre). Une seule spec (mélange backend et interface).
+**Consequences**: Références mises à jour (AGENTS.md §21, README, docs, commentaires de code). `docs/build-log.md` et les QCM HTML gardent les anciens chemins (historique).
+
+---
+
 ## [2026-11-17] Configuration MCP de Kiro locale, en chemins absolus
 
 **Context**: Le panneau MCP de Kiro restait vide malgré `.kiro/settings/mcp.json`. Avec des chemins relatifs (`command`, `args`, `DATA_DIR`), un serveur lancé depuis un autre répertoire que la racine échoue (`FileNotFoundError`, constaté sur les quatre serveurs).

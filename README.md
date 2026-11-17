@@ -123,7 +123,7 @@ Navigateur ──► Frontend Next.js 15 (Vercel)
 | Secrets | Doppler | Les conteneurs ne reçoivent que `DOPPLER_TOKEN` |
 | Accès à l'API | Tunnel Cloudflare puis Traefik | Les ports 80 et 443 du VPS restent fermés |
 
-Détail de l'exploitation (déploiement, retour arrière, surveillance) : [docs/deployment/PRODUCTION.md](./docs/deployment/PRODUCTION.md). Architecture du backend : [.kiro/specs/design.md](./.kiro/specs/design.md).
+Détail de l'exploitation (déploiement, retour arrière, surveillance) : [docs/deployment/PRODUCTION.md](./docs/deployment/PRODUCTION.md). Architecture du backend : [.kiro/specs/chimeraflow-backend/design.md](./.kiro/specs/chimeraflow-backend/design.md).
 
 ---
 
@@ -131,11 +131,11 @@ Détail de l'exploitation (déploiement, retour arrière, surveillance) : [docs/
 
 Ce que le dépôt contient de la configuration Kiro :
 
-- **Specs** (`.kiro/specs/`) : `connectors-spec.md`, `rule-engine-spec.md`, `ui-spec.md`, `api-spec.md`, `design.md` (architecture réelle et propriétés de correction P1 à P6) et `tasks.md` (avancement par phase).
+- **Specs** (`.kiro/specs/`, format dossier de Kiro : `requirements.md`, `design.md`, `tasks.md` par spec) : `chimeraflow-backend/` (exigences EARS, architecture réelle et propriétés de correction P1 à P6, avancement par phase, détails `connectors-spec.md`, `rule-engine-spec.md`, `api-spec.md`) et `chimeraflow-ui/` (exigences, conception de l'interface, tâches).
 - **Steering** (`.kiro/steering/`) : `connectors.md` (conventions des connecteurs) et `security.md` (règles de sécurité).
 - **Hooks** (`.kiro/hooks/`) : `parser-test` (tests de contrat et tests de propriétés à la sauvegarde d'un connecteur), `rule-validate` (validation des fichiers de `data/rules/`), `spec-update-reminder` (rappel de mise à jour de `tasks.md`).
 - **Serveurs MCP** : chaque source est exposée en serveur MCP stdio (`chimeraflow-excel`, `chimeraflow-access`, `chimeraflow-whatsapp`, `chimeraflow-momo`), déclarés dans `.kiro/settings/mcp.json`. Outils en lecture seule : `fetch_records(limit)` et `health_check()`. Dans Kiro, demander par exemple « appelle `health_check` du serveur chimeraflow-excel ».
-- **Tests basés sur les propriétés** (Hypothesis), statuts d'après `.kiro/specs/design.md` §12 :
+- **Tests basés sur les propriétés** (Hypothesis), statuts d'après `.kiro/specs/chimeraflow-backend/design.md` §12 :
 
 | Propriété | Énoncé | Statut |
 |-----------|--------|--------|
@@ -292,7 +292,7 @@ Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisio
 
 ## Avancement
 
-État au 2026-11-17. Détail case par case : [.kiro/specs/tasks.md](./.kiro/specs/tasks.md).
+État au 2026-11-17. Détail case par case : [.kiro/specs/chimeraflow-backend/tasks.md](./.kiro/specs/chimeraflow-backend/tasks.md).
 
 | Phase | Statut | Contenu |
 |-------|--------|---------|

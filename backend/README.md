@@ -273,7 +273,7 @@ codes d'erreur de Cloudflare. Ni destinataire, ni jeton, ni contenu dans les jou
 de Cloudflare Email Service : non faite (voir
 `docs/decisions/TECH_DEBT.md`).
 
-La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/api-spec.md`.
+La spécification détaillée (corps, réponses, erreurs) est dans `.kiro/specs/chimeraflow-backend/api-spec.md`.
 
 ### Conversion NL→règle (`POST /api/v1/rules/from-text`)
 
@@ -615,7 +615,7 @@ correspond à `Tuyau PVC Ø 32mm (barre 6m)` et `perceuse 500W` à `Perceuse él
 0.85 à 0.99, jamais devant une correspondance exacte). Garde numérique : deux noms dont les nombres diffèrent ne
 correspondent pas (`ciment 50 kg` et `ciment 40 kg`, ou `Ciment-colle 25 kg`, même si la similarité vaut 0.92),
 sauf qu'un nom qui a moins de nombres, tous présents dans l'autre, peut y correspondre par inclusion. Le détail
-est dans `.kiro/specs/design.md` §4.
+est dans `.kiro/specs/chimeraflow-backend/design.md` §4.
 
 Exemple :
 ```python

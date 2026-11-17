@@ -85,7 +85,7 @@ En bash, remplacer `;` par `&&` et `${PWD}` par `$PWD`. Pour lancer le profil de
 
 ### Tests de contrat (`test_connectors.py`)
 
-Vérifient la conformité à `.kiro/specs/connectors-spec.md` :
+Vérifient la conformité à `.kiro/specs/chimeraflow-backend/connectors-spec.md` :
 
 - **R1** : tous les connecteurs implémentent `fetch_records()` et `health_check()`
 - **R2** : les records respectent le schéma unifié
@@ -96,7 +96,7 @@ Le test de contrat Access tourne avec les deux lecteurs (`access-parser`, `mdbto
 
 ### Tests basés sur les propriétés (`test_properties.py`, `test_normalizer.py`)
 
-Utilisent Hypothesis. Statut de chaque propriété de `Roadmap.md` §7 (détail dans `.kiro/specs/design.md` §12) :
+Utilisent Hypothesis. Statut de chaque propriété de `Roadmap.md` §7 (détail dans `.kiro/specs/chimeraflow-backend/design.md` §12) :
 
 - **P1** provenance : partielle
 - **P2** idempotence de la normalisation : couverte (Hypothesis)

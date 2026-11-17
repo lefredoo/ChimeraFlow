@@ -92,7 +92,7 @@ Déployer dès P0 : un bug d'intégration Vercel/VPS découvert le 2 déc. est f
 
 | Fonction | Usage prévu | Preuve |
 | --- | --- | --- |
-| Specs | 3 specs distinctes (connectors, rule-engine, ui) plutôt qu'un monolithe ; les propriétés de correction sont dans `.kiro/specs/design.md` | `.kiro/specs/*` |
+| Specs | 3 specs distinctes (connectors, rule-engine, ui) plutôt qu'un monolithe ; les propriétés de correction sont dans `.kiro/specs/chimeraflow-backend/design.md` | `.kiro/specs/chimeraflow-backend/`, `.kiro/specs/chimeraflow-ui/` |
 | Steering | Conventions de connecteur, règles de sécurité (jamais d'exécution de code généré), ton des textes UI | `.kiro/steering/*` |
 | Hooks | À la sauvegarde d'un connecteur ou parser : test de contrat + PBT. À la modification d'une spec : rappel de mettre à jour `tasks.md`. (Pas de hook Prettier : trop trivial.) | `.kiro/hooks/*` |
 | MCP | Tes 4 serveurs enregistrés dans Kiro et utilisés par l'app | `.kiro/settings/mcp.json`, `backend/mcp_servers/` |
@@ -124,7 +124,7 @@ Budget de crédits (hypothèse) : 4 000 crédits sur 21 jours ≈ 190/jour ; ré
 - **R12** The system shall sanitize all source-originated text before rendering.
 - **R13** Entity normalization shall be idempotent (case, accents, whitespace, FR/EN synonyms).
 
-**Propriétés pour `.kiro/specs/design.md` (PBT, Hypothesis) :**
+**Propriétés pour `.kiro/specs/chimeraflow-backend/design.md` (PBT, Hypothesis) :**
 
 - **P1** Provenance conservation: every emitted correlation lists only records that exist in the inputs.
 - **P2** Normalization idempotence: `norm(norm(x)) == norm(x)`.

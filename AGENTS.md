@@ -395,19 +395,17 @@ Rules are JSON, never executed code:
 - `on.field: "entities"`: a join compares the trigger entity with every entity of the joined record (e.g. the products of a WhatsApp message).
 - Every column named by a rule (`field`, `on.field`, `ref`, template placeholders) must exist in its source (`backend/schemas/sources.py`); templates never expose `momo.phone` or `momo.customer_name`.
 - Bounds: ≤ 10 conditions per list, `value` ≤ 200 characters or ≤ 50 scalars, `template` ≤ 500 characters, `on.field` required.
-- Name matching: exact, synonym, typo (long words only) or token containment (`"tuyau PVC"` in `"Tuyau PVC Ø 32mm (barre 6m)"`); different numbers never match, except a number-less name contained in a numbered one. See `.kiro/specs/design.md` §4.
+- Name matching: exact, synonym, typo (long words only) or token containment (`"tuyau PVC"` in `"Tuyau PVC Ø 32mm (barre 6m)"`); different numbers never match, except a number-less name contained in a numbered one. See `.kiro/specs/chimeraflow-backend/design.md` §4.
 
 ---
 
 ## 21. Kiro Usage
 
 **Specs (`.kiro/specs/`):**
-- `connectors-spec.md` — MCP server contracts
-- `rule-engine-spec.md` — Rule DSL and interpreter
-- `ui-spec.md` — Dashboard and components
-- `api-spec.md` — FastAPI endpoints (method, path, body, response, error codes)
-- `design.md` — architecture as implemented and correctness properties P1–P6 with test status
-- `tasks.md` — checklist by phase (P0–P5), ticked only when verified in the repo
+- Kiro spec folder format: one folder per spec, each with `requirements.md` (EARS, French), `design.md`, `tasks.md`
+- `chimeraflow-backend/` — `requirements.md`, `design.md` (architecture as implemented and correctness properties P1–P6), `tasks.md` (checklist by phase P0–P5); detail documents: `connectors-spec.md` (MCP server contracts), `rule-engine-spec.md` (Rule DSL and interpreter), `api-spec.md` (FastAPI endpoints: method, path, body, response, error codes)
+- `chimeraflow-ui/` — `requirements.md`, `design.md` (dashboard and components), `tasks.md`
+- `tasks.md` is ticked only when verified in the repo
 
 **Hooks (`.kiro/hooks/`):**
 - `parser-test.json` — On parser save: run contract tests + PBT
