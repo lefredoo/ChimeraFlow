@@ -146,7 +146,7 @@ Ce que le dépôt contient de la configuration Kiro :
 | P5 Monotonie | Élargir la fenêtre ne retire aucune corrélation | couverte |
 | P6 Pas de fabrication | Aucune valeur émise absente des sources | partielle |
 
-- **Kiro Crew** (`.kiro/agents/`) : prévue (`chimera-builder`, `test-warden`, `rule-smith`), pas encore créée. Le connecteur n°4 (Mobile Money) n'a pas encore été généré par Crew en session enregistrée.
+- **Outils Kiro utilisés** : Kiro IDE et Kiro CLI. Kiro Crew n'est pas utilisé.
 
 ---
 
@@ -299,7 +299,7 @@ Limites connues, avec leur impact : [docs/decisions/TECH_DEBT.md](./docs/decisio
 | P0 Fondations | terminée | Structure, specs, steering, données synthétiques, déploiement Vercel et VPS |
 | P1 Connecteurs | terminée | Quatre connecteurs, enregistrement unifié, tests de contrat, serveurs MCP stdio |
 | P2 Moteur de règles | terminée, sauf conversion en réel | Normaliseur, interpréteur avec provenance, cinq règles actives, API, migrations, limitation par IP, budget LLM. Reste : brancher et mesurer un vrai modèle LiteLLM |
-| P3 Interface et Crew | interface livrée | Tableau de bord, composeur, corrélations, bac à sable, temps réel, FR/EN, thème sombre. Agents Crew non créés |
+| P3 Interface | interface livrée | Tableau de bord, composeur, corrélations, bac à sable, temps réel, FR/EN, thème sombre |
 | P4 Durcissement | en grande partie faite | Authentification, tests de fumée, surveillance, scan de secrets, documentation. Reste : mesures d'accessibilité dans un navigateur, gel du code |
 | P5 Soumission | à faire | Vidéo, write-up, blog, formulaire Devpost |
 

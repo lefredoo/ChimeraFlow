@@ -18,6 +18,16 @@ Chronological history of architectural and technical decisions.
 
 ---
 
+## [2026-11-17] Kiro Crew abandonné : le projet utilise Kiro IDE et Kiro CLI
+
+**Context**: Le plan prévoyait trois agents Crew (`.kiro/agents/`) et un connecteur n°4 généré par Crew en session filmée. Le règlement du hackathon n'exige pas Crew.
+**Decision**: Crew est retiré du plan. Le projet est construit avec Kiro IDE et Kiro CLI. Le connecteur Mobile Money est écrit comme les trois autres. README, AGENTS.md §21, `tasks.md` et `Roadmap.md` (P3 et ligne Crew du §6) sont mis à jour.
+**Alternatives rejected**: Garder Crew « au cas où » : budget de crédits (≈ 1 000) et temps de session pour un prérequis absent du règlement.
+**Consequences**: Pas de `.kiro/agents/`. Le prix « Best Kiro Crew App » n'est pas visé. Le reste du Roadmap (budget de crédits, scénario de vidéo, liste de soumission) cite encore Crew : à relire par le propriétaire.
+**AGENTS.md rule concerned**: §21
+
+---
+
 ## [2026-11-17] Relances sur erreurs passagères du fournisseur LLM et modèle de repli
 **Context**: En production avec `glm-4.7-flash-bedrock`, 6 requêtes NL→règle sur 10 ont reçu `502 nl_provider_error` pendant environ 3 minutes d'`InternalServerError` du proxy ; les mêmes phrases ont ensuite réussi. Seules les réponses invalides étaient relancées.
 **Decision**: Une erreur passagère (5xx, connexion, délai ; jamais 4xx ni erreur inattendue) est relancée au plus 2 fois pour toute la conversion, après 0,5 s puis 1,5 s (± 25 % de gigue), dans un délai global de 45 s (appel limité au temps restant, aucun appel sous 3 s). `LITELLM_FALLBACK_MODEL` (optionnelle) sert à la dernière relance et aux appels suivants. Chaque tentative réserve le budget, un échec garde le coût d'entrée pessimiste. La réponse 200 et les erreurs `nl_*` portent `provider_retries`, `retries` garde son sens.

@@ -80,7 +80,7 @@ Opérateurs autorisés : `eq, ne, lt, lte, gt, gte, contains, in`.
 | P0 Fondations | ven 13 – sam 14 nov | 8 | Repo public (MIT, `.kiro` committé), compose + déploiement Dokploy, front Vercel « hello » relié à l'API en HTTPS, 3 specs rédigées avec Kiro, steering, générateurs de données synthétiques, **spike Access** | Hello-world bout en bout en prod ; lecture d'un `.mdb` prouvée ; spec connectors approuvée |
 | P1 Connecteurs | dim 15 – jeu 19 nov | 20 | Excel, Access, WhatsApp en MCP ; schéma unifié ; tests de contrat ; PBT des parsers ; hook de test | 3 connecteurs servis en MCP sur le VPS, enregistrés dans mcp.json ; hook déclenché |
 | P2 Moteur de règles | ven 20 – mar 24 nov | 20 | Normalisation d'entités + `lang`, DSL JSON + interpréteur, NL→règle (LiteLLM, validation de schéma, 2 retries), rate limit + budget, 5 règles prédéfinies, PBT corrélation | 3 règles correctes sur le jeu de données, cas piège inclus ; cible : ≥ 8/10 phrases FR/EN converties en règle valide |
-| P3 UI + Crew | mer 25 – dim 29 nov | 20 | Dashboard mobile-first, composeur de règles, cartes de corrélation avec tiroir de provenance, état dégradé, connecteur n°4 généré par Crew (session enregistrée), passe accessibilité | Parcours complet cliquable en prod ; connecteur n°4 mergé |
+| P3 UI + Crew | mer 25 – dim 29 nov | 20 | Dashboard mobile-first, composeur de règles, cartes de corrélation avec tiroir de provenance, état dégradé, ~~connecteur n°4 généré par Crew (session enregistrée)~~ (abandonné : Crew non requis par le règlement ; projet construit avec Kiro IDE et Kiro CLI), passe accessibilité | Parcours complet cliquable en prod ; connecteur n°4 mergé |
 | P4 Durcissement | lun 30 nov – mar 1 déc | 8 | Tests de fumée en prod, bouton reset des données de démo, README, scan de secrets, vérif licence et `.kiro` | **Gel du code le 1er déc. au soir** |
 | P5 Soumission | mer 2 – jeu 3 déc | 8 | Vidéo (2 prises), YouTube public, write-up, blog, post social, site et LinkedIn finalisés, formulaire Devpost | Soumis le 3 déc. avant 18:00 (Yaoundé) |
 
@@ -97,7 +97,7 @@ Déployer dès P0 : un bug d'intégration Vercel/VPS découvert le 2 déc. est f
 | Hooks | À la sauvegarde d'un connecteur ou parser : test de contrat + PBT. À la modification d'une spec : rappel de mettre à jour `tasks.md`. (Pas de hook Prettier : trop trivial.) | `.kiro/hooks/*` |
 | MCP | Tes 4 serveurs enregistrés dans Kiro et utilisés par l'app | `.kiro/settings/mcp.json`, `backend/mcp_servers/` |
 | PBT | Voir propriétés P1 à P6 ci-dessous ; documenter ce qui est réellement trouvé, sans en promettre | `backend/tests/` |
-| Crew | Construire le connecteur n°4 en session enregistrée. Crew tourne sur le Kiro CLI et relit ta config `.kiro` : vérifier le format exact des agents sur kiro.dev/docs/crew/capabilities/agents/ avant de figer `.kiro/agents/` | session filmée + commit |
+| Crew | Abandonné : Crew non requis par le règlement ; projet construit avec Kiro IDE et Kiro CLI | sans objet |
 
 Bonus « Best Kiro Crew App » : les règles parlent d'un dépôt séparé pour une app Crew. **Pose la question sur le Discord (#kiroween-hackathon) avant de cocher cette case.**
 
