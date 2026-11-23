@@ -13,5 +13,6 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel ; `[ ]` à fa
 - [x] Mise en page utilisable à 360 px et au clavier, contraste WCAG AA (R11) : mesurée le 2026-11-17 dans Edge (axe-core, 0 violation, aucun débordement horizontal à 360 px, clavier et boîtes de dialogue vérifiés, thèmes clair et sombre) ; lecteur d'écran réel, Firefox, Safari et téléphone non couverts (voir `design.md` et TECH_DEBT)
 - [x] Bascule FR/EN mémorisée et thème sombre (système par défaut, choix mémorisé)
 - [x] Vue « pourquoi ça correspond » (affichée seulement quand la corrélation a une `explanation`), bac à sable de normalisation (`/sandbox`), corrélations en temps réel (flux SSE, sinon actualisation toutes les 15 s)
+- [x] Corrections issues de l'audit navigateur du 2026-11-17 et test du formulaire de connexion (jsdom : identifiants, connexion en un clic, erreur annoncée) (`login-form.test.tsx`)
 - [x] Connecteur n°4 (Mobile Money) : écrit avec Kiro IDE et Kiro CLI, sans Crew (voir `DECISIONS_LOG.md`)
 - [ ] Hook `rule-validate` : déjà présent (`.kiro/hooks/rule-validate.json`, cible `data/rules/*.json`) ; l'agent qu'il lance reste à valider en session

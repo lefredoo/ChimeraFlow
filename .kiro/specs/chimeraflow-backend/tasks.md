@@ -1,7 +1,7 @@
 # Tâches : avancement par phase
 
 Source du plan : `Roadmap.md` §5. Ce fichier ne coche que ce qui est vérifié dans le dépôt
-au 2026-11-14 (branche `dev`, HEAD 137da64). Un élément hors dépôt (déploiement, compte
+au 2026-11-17 (branche `dev`). Un élément hors dépôt (déploiement, compte
 GitHub, Vercel, Doppler) est noté comme non vérifié, et n'est pas coché.
 
 Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit ce qui manque) ; `[ ]` à faire.
@@ -31,15 +31,15 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Tests de contrat R1 à R4 (`backend/tests/test_connectors.py`)
 - [x] Hook `parser-test` (`.kiro/hooks/parser-test.json`)
 - [x] Hook `spec-update-reminder` (`.kiro/hooks/spec-update-reminder.json`)
-- [~] Propriétés de parseur (PBT) : P2 et P3 couvertes ; P1 et P6 partielles (`design.md` §12)
+- [x] Propriétés (PBT) : P2 et P3 couvertes sur le normaliseur et le parseur, P1 et P6 sur l'interpréteur (`design.md` §12)
 - [x] Parseur WhatsApp : Android et iOS, dates FR et EN (ordre jour/mois décidé par fichier), messages sur plusieurs lignes, pièces jointes signalées, messages système comptés à part (`backend/mcp_servers/whatsapp_parser.py`, `backend/tests/test_whatsapp_parser.py`)
 - [x] Les quatre connecteurs servis en serveurs MCP stdio (`backend/mcp_servers/mcp_app.py`, lanceur `backend/mcp_main.py`, tests `backend/tests/test_mcp_servers.py`)
 - [x] Transport Streamable HTTP des quatre serveurs : une app ASGI, un point d'accès par source, jeton Bearer, limitation par IP (`backend/mcp_servers/mcp_http_app.py`, lanceur `backend/mcp_http_main.py`, tests `backend/tests/test_mcp_http.py`)
 - [x] Service compose `mcp` (`docker-compose.prod.yml`, même image, `mem_limit` 192m) et nom public `chimeraflow-mcp.linguasolution.com` (tunnel, CNAME, domaine Dokploy)
-- [~] Enregistrement dans Kiro : `.kiro/settings/mcp.json` versionné, serveurs distants avec `Authorization: Bearer ${CHIMERAFLOW_MCP_TOKEN}` (testé) ; l'alternative stdio locale reste dans `backend/mcp_servers/kiro-mcp.json` ; reste à constater les quatre serveurs au vert dans le panneau MCP de Kiro
-- [~] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18) : service `mcp` écrit et déployé depuis `dev` pour vérification ; à confirmer après la fusion dans `main`
+- [x] Enregistrement dans Kiro : `.kiro/settings/mcp.json` versionné, serveurs distants avec `Authorization: Bearer ${CHIMERAFLOW_MCP_TOKEN}` (testé) ; les quatre serveurs sont au vert dans Kiro (constaté par le propriétaire le 2026-11-17, après la fusion de la PR #8) ; l'alternative stdio locale reste dans `backend/mcp_servers/kiro-mcp.json`
+- [x] Les quatre serveurs MCP dans un conteneur (AGENTS.md §18) : service `mcp` de `docker-compose.prod.yml`, en ligne sur `chimeraflow-mcp.linguasolution.com`
 
-## P2 : Moteur de règles (20–24 nov.) — en cours
+## P2 : Moteur de règles (20–24 nov.) — terminée côté code, reste le suivi de l'environnement de développement
 
 - [x] Normalisation d'entités avec `lang`, synonymes FR/EN, garde numérique, Levenshtein 0.85 (`engine/normalizer.py`)
 - [x] Noms partiels : inclusion de mots (« tuyau PVC » dans « Tuyau PVC Ø 32mm (barre 6m) »), méthodes `exact`/`synonym`/`fuzzy`/`token` (`design.md` §4)
@@ -51,33 +51,34 @@ Légende : `[x]` fait et vérifié dans le dépôt ; `[~]` partiel (la note dit 
 - [x] Cinq règles prédéfinies dans `data/rules/*.json`, validées au démarrage et par `python -m engine.validate_rules`
 - [x] Les cinq règles prédéfinies sont actives et chacune produit au moins une corrélation sur les données livrées (`test_scenario_data.py`)
 - [x] Flux temps réel `GET /correlations/stream` (SSE, Bearer), paramètre `since`, bac à sable `POST /normalize`, `POST /demo/reset`
-- [x] Alerte e-mail Cloudflare Email Service (nouvelles corrélations `warning` et `error`, un récapitulatif par exécution, testée avec le transport HTTP simulé ; jamais envoyée à un vrai Cloudflare Email Service)
+- [x] Alerte e-mail Cloudflare Email Service (nouvelles corrélations `warning` et `error`, un récapitulatif par exécution, rejet définitif traité comme un échec) : réception depuis `mail.linguasolution.com` confirmée par le propriétaire le 2026-11-17
 - [x] API règles et corrélations, idempotence de l'exécution (`backend/api/`)
 - [x] Migrations Alembic `0001` à `0003`, vérification modèles/migrations (`test_migrations.py`)
 - [x] Limitation par IP (slowapi, Redis) sur les mutations, `429` et `Retry-After`
 - [x] Conversion NL→règle : prompt séparé, validation, 2 relances, brouillon non stocké (`engine/nl_to_rule.py`)
 - [x] Budget LLM : compteur Redis, plafond `LITELLM_BUDGET_USD`, réservation avant l'appel puis règlement, repli sur les règles prédéfinies
-- [~] Conversion NL→règle en réel : pipeline testé avec LiteLLM simulé ; **aucun proxy LiteLLM réel connecté** (clé, URL et modèle à fournir)
-- [~] Cible « ≥ 8/10 phrases FR/EN converties en règle valide » : non mesurée
-- [~] Budget et limiteur : Redis testé seulement avec un faux client et le stockage mémoire ; la CI n'a pas de service Redis
-- [~] Propriétés de corrélation : P1, P4, P5 couvertes par Hypothesis sur l'interpréteur ; P6 partielle (`design.md` §12)
-- [ ] Doppler : configuration de développement et secrets (`doppler.yaml` présent, configuration non vérifiée)
-- [ ] Neon : branche de développement de la base PostgreSQL
-- [ ] CI verte sur GitHub Actions : **bloquée par la facturation du compte** (run 43569157569, voir `TECH_DEBT.md`)
+- [x] Conversion NL→règle en réel : proxy LiteLLM réel en production avec `glm-4.7-flash-bedrock`, relances sur erreurs passagères du fournisseur et modèle de repli facultatif (`LITELLM_FALLBACK_MODEL`)
+- [x] Cible « ≥ 8/10 phrases FR/EN converties en règle valide » : 9/10 mesuré en production (2026-11-17, `glm-4.7-flash-bedrock`)
+- [x] Budget, limiteur et délai d'alerte testés sur un vrai Redis en CI : service `redis:7-alpine`, `backend/tests/test_redis_integration.py` (429, compteur partagé, réservation et règlement du budget, plafond tenu sous réservations concurrentes, `SET NX EX`)
+- [x] Propriétés de corrélation : P1, P4, P5 et P6 couvertes par Hypothesis sur l'interpréteur (`design.md` §12) ; P6 sur règles et records générés a trouvé un défaut d'écart de prix, corrigé
+- [~] Doppler : les secrets de production viennent de Doppler (`docker-compose.prod.yml`, `docs/deployment/PRODUCTION.md`) ; configuration de développement (`doppler.yaml` présent) non vérifiée
+- [ ] Neon : branche de développement de la base PostgreSQL (la production utilise Neon)
+- [x] CI verte sur GitHub Actions : cinq jobs (backend, étage Docker de test, migrations PostgreSQL, frontend, scan de secrets), le job backend avec un vrai Redis
 - [x] Déploiement du backend sur le VPS avec migrations au démarrage (API en ligne en HTTPS)
-- [ ] Pull request `dev` → `main` ouverte et fusionnée (squash, CI verte, une revue)
+- [x] Pull requests `dev` → `main` fusionnées : #1, #5, #6, #7 et #8
 
 ## P3 : Interface (25–29 nov.) — interface livrée (Crew abandonné)
 Le détail des tâches de cette phase est dans `../chimeraflow-ui/tasks.md` (spec de l'interface).
 
-## P4 : Durcissement (30 nov. – 1er déc.) — non commencée
+## P4 : Durcissement (30 nov. – 1er déc.) — en grande partie faite en avance
 
 - [x] Licence vérifiée : MIT, LinguaSolution LLC, présente à la racine
 - [x] Pas de `.env.example` ; un seul `.env` racine (en production, seul `DOPPLER_TOKEN` est local)
-- [~] README et documentation : traduction française et mise à jour des faits en cours (2026-11-14)
-- [ ] Tests de fumée en production
-- [~] Bouton de réinitialisation des données de démo : bouton et confirmation livrés sur le tableau de bord ; il appelle `POST /api/v1/demo/reset` (livré côté backend)
-- [ ] Scan de secrets du dépôt et de l'historique
+- [x] README et documentation en français, mis à jour le 2026-11-17
+- [x] Tests de fumée en production : workflow `smoke-prod.yml` (à la demande) et scripts `scripts/ops/smoke-prod.sh` et `smoke-prod.ps1`
+- [x] Bouton de réinitialisation des données de démo : bouton et confirmation sur le tableau de bord, `POST /api/v1/demo/reset`
+- [x] Scan de secrets du dépôt et de l'historique : job gitleaks de la CI sur tout l'historique
+- [x] Mesure d'accessibilité dans un navigateur (Edge, axe-core, 360 px, clavier, thèmes clair et sombre) : voir `../chimeraflow-ui/tasks.md`
 - [ ] Revue du `.kiro` et du `.gitignore`
 - [ ] Gel du code le 1er décembre au soir
 

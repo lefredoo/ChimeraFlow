@@ -18,6 +18,19 @@ jobs:
     name: Backend lint and tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Dedicated database index: the Redis tests flush it and nothing else
+      REDIS_TEST_URL: redis://localhost:6379/15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -36,6 +49,14 @@ jobs:
       - name: Lint
         working-directory: backend
         run: python -m ruff check .
+
+      # Exit code 5 (nothing selected) and any skip fail the job: the Redis tests must really run
+      - name: Redis integration tests
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python -m pytest tests -m redis -q -rs | tee redis-tests.log
+          if grep -qi skipped redis-tests.log; then echo "Redis tests were skipped"; exit 1; fi
 
       - name: Test
         working-directory: backend
